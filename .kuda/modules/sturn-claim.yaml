@@ -1,0 +1,61 @@
+name: sturn-claim
+path: crates/sturn-claim/Cargo.toml
+purpose: 'advisory claims: fold ops into live locks, detect overlap'
+api:
+- name: sturn-claim
+  kind: module
+  file: crates/sturn-claim/Cargo.toml
+  line: 1
+  module: sturn-claim
+- name: Active
+  kind: type
+  file: crates/sturn-claim/src/lib.rs
+  line: 10
+  module: sturn-claim
+- name: active
+  kind: function
+  file: crates/sturn-claim/src/lib.rs
+  line: 21
+  module: sturn-claim
+- name: glob_match
+  kind: function
+  file: crates/sturn-claim/src/lib.rs
+  line: 51
+  module: sturn-claim
+- name: m
+  kind: function
+  file: crates/sturn-claim/src/lib.rs
+  line: 52
+  module: sturn-claim
+- name: stem
+  kind: function
+  file: crates/sturn-claim/src/lib.rs
+  line: 69
+  module: sturn-claim
+- name: covers
+  kind: function
+  file: crates/sturn-claim/src/lib.rs
+  line: 80
+  module: sturn-claim
+- name: conflicts
+  kind: function
+  file: crates/sturn-claim/src/lib.rs
+  line: 91
+  module: sturn-claim
+deps:
+- sturn-core
+- sturn_core
+notes: ''
+verify:
+- crates/sturn-claim/Cargo.toml
+- crates/sturn-claim/src/lib.rs
+provenance:
+  files:
+  - crates/sturn-claim/Cargo.toml
+  - crates/sturn-claim/src/lib.rs
+  hashes:
+  - 93abd736bec8e72671fe408e4acbc61526f03d7e
+  - 956bfddb9499886ce80fa36e68eb56bac600cc24
+  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
+  generated_at: '1792365733'
+  generator: kuda-template/0.1.1

@@ -1,0 +1,73 @@
+name: sturn-bus-redb
+path: crates/sturn-bus-redb/Cargo.toml
+purpose: 'Bus impl: redb-backed topic store with cursors'
+api:
+- name: sturn-bus-redb
+  kind: module
+  file: crates/sturn-bus-redb/Cargo.toml
+  line: 1
+  module: sturn-bus-redb
+- name: TABLE
+  kind: const
+  file: crates/sturn-bus-redb/src/lib.rs
+  line: 11
+  module: sturn-bus-redb
+- name: SEQ
+  kind: const
+  file: crates/sturn-bus-redb/src/lib.rs
+  line: 13
+  module: sturn-bus-redb
+- name: RedbBus
+  kind: type
+  file: crates/sturn-bus-redb/src/lib.rs
+  line: 17
+  module: sturn-bus-redb
+- name: open
+  kind: function
+  file: crates/sturn-bus-redb/src/lib.rs
+  line: 23
+  module: sturn-bus-redb
+- name: key
+  kind: function
+  file: crates/sturn-bus-redb/src/lib.rs
+  line: 32
+  module: sturn-bus-redb
+- name: prefix
+  kind: function
+  file: crates/sturn-bus-redb/src/lib.rs
+  line: 36
+  module: sturn-bus-redb
+- name: publish
+  kind: function
+  file: crates/sturn-bus-redb/src/lib.rs
+  line: 42
+  module: sturn-bus-redb
+- name: poll
+  kind: function
+  file: crates/sturn-bus-redb/src/lib.rs
+  line: 74
+  module: sturn-bus-redb
+- name: topics
+  kind: function
+  file: crates/sturn-bus-redb/src/lib.rs
+  line: 100
+  module: sturn-bus-redb
+deps:
+- redb
+- sturn-bus
+- redb
+- sturn_bus
+notes: ''
+verify:
+- crates/sturn-bus-redb/Cargo.toml
+- crates/sturn-bus-redb/src/lib.rs
+provenance:
+  files:
+  - crates/sturn-bus-redb/Cargo.toml
+  - crates/sturn-bus-redb/src/lib.rs
+  hashes:
+  - 400e9db9ac5978965f038a926e04e4ef1dbb2f4e
+  - 2beb076a8acf6f9d1581f26d81ec171c685dfa06
+  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
+  generated_at: '1792365733'
+  generator: kuda-template/0.1.1

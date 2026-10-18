@@ -1,0 +1,21 @@
+name: sturn
+path: Cargo.toml
+purpose: '*The murmuration layer for your repo.*'
+api:
+- name: sturn
+  kind: module
+  file: Cargo.toml
+  line: 1
+  module: sturn
+deps: []
+notes: ''
+verify:
+- Cargo.toml
+provenance:
+  files:
+  - Cargo.toml
+  hashes:
+  - eab49496a5e9150156f06a90311d9475d817d6b2
+  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
+  generated_at: '1792365733'
+  generator: kuda-template/0.1.1

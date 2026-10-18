@@ -1,0 +1,29 @@
+name: sturn-bus
+path: crates/sturn-bus/Cargo.toml
+purpose: 'Bus port: topic pub/sub over the WAL (a cache, not authority)'
+api:
+- name: sturn-bus
+  kind: module
+  file: crates/sturn-bus/Cargo.toml
+  line: 1
+  module: sturn-bus
+- name: Bus
+  kind: trait
+  file: crates/sturn-bus/src/lib.rs
+  line: 11
+  module: sturn-bus
+deps: []
+notes: ''
+verify:
+- crates/sturn-bus/Cargo.toml
+- crates/sturn-bus/src/lib.rs
+provenance:
+  files:
+  - crates/sturn-bus/Cargo.toml
+  - crates/sturn-bus/src/lib.rs
+  hashes:
+  - d2bdd41da6f91a3199ae6ce1759d4dcdeda1590c
+  - 5a372884d018588c407d6fa08b54a4202305397a
+  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
+  generated_at: '1792365733'
+  generator: kuda-template/0.1.1

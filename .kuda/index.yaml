@@ -1,0 +1,80 @@
+name: sturn
+root: /home/luis/GitHub/9aia/sturn
+purpose: '*The murmuration layer for your repo.*'
+modules:
+- sturn
+- sturn-bus
+- sturn-bus-redb
+- sturn-claim
+- sturn-cli
+- sturn-config
+- sturn-config-toml
+- sturn-core
+- sturn-dotenv
+- sturn-fuse
+- sturn-git
+- sturn-keyring
+- sturn-mcp
+- sturn-secret
+- sturn-service
+- sturn-systemd
+- sturn-vcs
+- sturn-wal
+- sturn-wal-git
+- sturn-ws
+- sturn-ws-git
+commands:
+- cargo check
+- cargo test --workspace
+provenance:
+  files:
+  - Cargo.toml
+  - crates/sturn-dotenv/Cargo.toml
+  - crates/sturn-ws/Cargo.toml
+  - crates/sturn-secret/Cargo.toml
+  - crates/sturn-config-toml/Cargo.toml
+  - crates/sturn-bus-redb/Cargo.toml
+  - crates/sturn-cli/Cargo.toml
+  - crates/sturn-ws-git/Cargo.toml
+  - crates/sturn-vcs/Cargo.toml
+  - crates/sturn-keyring/Cargo.toml
+  - crates/sturn-service/Cargo.toml
+  - crates/sturn-claim/Cargo.toml
+  - crates/sturn-mcp/Cargo.toml
+  - crates/sturn-bus/Cargo.toml
+  - crates/sturn-wal-git/Cargo.toml
+  - crates/sturn-wal/Cargo.toml
+  - crates/sturn-core/Cargo.toml
+  - crates/sturn-systemd/Cargo.toml
+  - crates/sturn-git/Cargo.toml
+  - crates/sturn-fuse/Cargo.toml
+  - crates/sturn-config/Cargo.toml
+  - crates/sturn-cli/tests/e2e.rs
+  - crates/sturn-cli/src/main.rs
+  hashes:
+  - eab49496a5e9150156f06a90311d9475d817d6b2
+  - 1034b2491bf076039224a52253fddb5330eaa0bf
+  - baa5ab79e9ba5d08dbaffbee0a0961c003dc8a4f
+  - 5f478381674020056dbe038135cd774a2bce7882
+  - 6c4e9170c6f1b07daf372307e3d7e89e3427c28f
+  - 400e9db9ac5978965f038a926e04e4ef1dbb2f4e
+  - 63c157a5e8dce9408ff2cdda28f546210a434a6d
+  - 622d40444abb820481c0186acf363c78410c72f2
+  - 8f6f6413720e4aae40291674c780cec299171613
+  - b880dc8f26d37f2be3f51c066a251ed062f93a0a
+  - 3413fa357f481c897fdae1e74b20a16055646341
+  - 93abd736bec8e72671fe408e4acbc61526f03d7e
+  - e023453fdb03aa513172f81e3120da2fa39b1baa
+  - d2bdd41da6f91a3199ae6ce1759d4dcdeda1590c
+  - 0412b86aec6f278d53ef944fb5708da14ffb63fd
+  - b3fc982d83ba2ad53c4c7d754066f1286dfdd5a6
+  - 8882be00ff91823f5d18b19eaca492be7e9a5ef5
+  - fc98064852bf86a66f76cb4a8fd4da68c5dd17ec
+  - f3468646040c5197f0c075a7495777ace84d7c93
+  - 6c132812f2fc147db0df216bc92eb260e01b2491
+  - 7f88a0b211dbc52225268ab69886c2d1efb59f67
+  - cfc2cc714cb82de563f53b63eb6dc753f4cc961c
+  - e06df8d71d37d1159346b77464ed154d8a266ae9
+  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
+  generated_at: '1792365900'
+  generator: kuda/0.1.0

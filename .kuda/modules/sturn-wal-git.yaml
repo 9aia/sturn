@@ -1,0 +1,84 @@
+name: sturn-wal-git
+path: crates/sturn-wal-git/Cargo.toml
+purpose: 'Wal impl: ops as commits on refs/sturn/wal/* via git plumbing'
+api:
+- name: sturn-wal-git
+  kind: module
+  file: crates/sturn-wal-git/Cargo.toml
+  line: 1
+  module: sturn-wal-git
+- name: GitWal
+  kind: type
+  file: crates/sturn-wal-git/src/lib.rs
+  line: 14
+  module: sturn-wal-git
+- name: default
+  kind: function
+  file: crates/sturn-wal-git/src/lib.rs
+  line: 23
+  module: sturn-wal-git
+- name: git
+  kind: function
+  file: crates/sturn-wal-git/src/lib.rs
+  line: 31
+  module: sturn-wal-git
+- name: git_in
+  kind: function
+  file: crates/sturn-wal-git/src/lib.rs
+  line: 50
+  module: sturn-wal-git
+- name: sign_event
+  kind: function
+  file: crates/sturn-wal-git/src/lib.rs
+  line: 74
+  module: sturn-wal-git
+- name: wal_ref
+  kind: function
+  file: crates/sturn-wal-git/src/lib.rs
+  line: 94
+  module: sturn-wal-git
+- name: append
+  kind: function
+  file: crates/sturn-wal-git/src/lib.rs
+  line: 100
+  module: sturn-wal-git
+- name: events_since
+  kind: function
+  file: crates/sturn-wal-git/src/lib.rs
+  line: 151
+  module: sturn-wal-git
+- name: head
+  kind: function
+  file: crates/sturn-wal-git/src/lib.rs
+  line: 180
+  module: sturn-wal-git
+- name: compact
+  kind: function
+  file: crates/sturn-wal-git/src/lib.rs
+  line: 192
+  module: sturn-wal-git
+- name: workspaces
+  kind: function
+  file: crates/sturn-wal-git/src/lib.rs
+  line: 242
+  module: sturn-wal-git
+deps:
+- serde_json
+- sturn-core
+- sturn-wal
+- sturn_core
+- sturn_wal
+notes: ''
+verify:
+- crates/sturn-wal-git/Cargo.toml
+- crates/sturn-wal-git/src/lib.rs
+provenance:
+  files:
+  - crates/sturn-wal-git/Cargo.toml
+  - crates/sturn-wal-git/src/lib.rs
+  hashes:
+  - 0412b86aec6f278d53ef944fb5708da14ffb63fd
+  - cd7226b7341b4350a97683f4a092398632c926e2
+  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
+  generated_at: '1792365733'
+  generator: kuda-template/0.1.1

@@ -1,0 +1,30 @@
+name: sturn-config
+path: crates/sturn-config/Cargo.toml
+purpose: 'ConfigSource port: where sturn.toml comes from'
+api:
+- name: sturn-config
+  kind: module
+  file: crates/sturn-config/Cargo.toml
+  line: 1
+  module: sturn-config
+- name: ConfigSource
+  kind: trait
+  file: crates/sturn-config/src/lib.rs
+  line: 5
+  module: sturn-config
+deps:
+- sturn-core
+notes: ''
+verify:
+- crates/sturn-config/Cargo.toml
+- crates/sturn-config/src/lib.rs
+provenance:
+  files:
+  - crates/sturn-config/Cargo.toml
+  - crates/sturn-config/src/lib.rs
+  hashes:
+  - 7f88a0b211dbc52225268ab69886c2d1efb59f67
+  - c927f114aff11a18ce82a846ad1ec18caad8f72c
+  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
+  generated_at: '1792365733'
+  generator: kuda-template/0.1.1

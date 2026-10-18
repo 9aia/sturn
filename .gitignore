@@ -3,3 +3,5 @@ coverage/
 *.profraw
 .env
 docs/
+.kuda/index.sqlite
+.kuda/meta.json

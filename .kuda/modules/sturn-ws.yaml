@@ -1,0 +1,29 @@
+name: sturn-ws
+path: crates/sturn-ws/Cargo.toml
+purpose: 'Ws port: virtual workspaces over the git ODB'
+api:
+- name: sturn-ws
+  kind: module
+  file: crates/sturn-ws/Cargo.toml
+  line: 1
+  module: sturn-ws
+- name: Ws
+  kind: trait
+  file: crates/sturn-ws/src/lib.rs
+  line: 10
+  module: sturn-ws
+deps: []
+notes: ''
+verify:
+- crates/sturn-ws/Cargo.toml
+- crates/sturn-ws/src/lib.rs
+provenance:
+  files:
+  - crates/sturn-ws/Cargo.toml
+  - crates/sturn-ws/src/lib.rs
+  hashes:
+  - baa5ab79e9ba5d08dbaffbee0a0961c003dc8a4f
+  - a6323f7c107c27e10d9fcdb5ef11d77d37faa550
+  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
+  generated_at: '1792365733'
+  generator: kuda-template/0.1.1

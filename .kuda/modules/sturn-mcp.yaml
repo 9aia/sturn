@@ -1,0 +1,158 @@
+name: sturn-mcp
+path: crates/sturn-mcp/Cargo.toml
+purpose: 'agent tool surface: the 8 MCP tools (wire-up in M3)'
+api:
+- name: sturn-mcp
+  kind: module
+  file: crates/sturn-mcp/Cargo.toml
+  line: 1
+  module: sturn-mcp
+- name: Tool
+  kind: type
+  file: crates/sturn-mcp/src/lib.rs
+  line: 18
+  module: sturn-mcp
+- name: TOOLS
+  kind: const
+  file: crates/sturn-mcp/src/lib.rs
+  line: 26
+  module: sturn-mcp
+- name: Ctx
+  kind: type
+  file: crates/sturn-mcp/src/lib.rs
+  line: 75
+  module: sturn-mcp
+- name: now
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 95
+  module: sturn-mcp
+- name: view
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 105
+  module: sturn-mcp
+- name: tool_text
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 112
+  module: sturn-mcp
+- name: tool_err
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 116
+  module: sturn-mcp
+- name: arg
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 120
+  module: sturn-mcp
+- name: call
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 127
+  module: sturn-mcp
+- name: ws_read
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 145
+  module: sturn-mcp
+- name: ws_write
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 172
+  module: sturn-mcp
+- name: ws_paths
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 200
+  module: sturn-mcp
+- name: ws_glob
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 216
+  module: sturn-mcp
+- name: ws_grep
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 233
+  module: sturn-mcp
+- name: ws_rename
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 261
+  module: sturn-mcp
+- name: ws_delete
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 283
+  module: sturn-mcp
+- name: claim
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 304
+  module: sturn-mcp
+- name: release
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 354
+  module: sturn-mcp
+- name: snap
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 375
+  module: sturn-mcp
+- name: intent
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 389
+  module: sturn-mcp
+- name: review
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 410
+  module: sturn-mcp
+- name: subs
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 441
+  module: sturn-mcp
+- name: tool_schema
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 511
+  module: sturn-mcp
+- name: tool_list
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 523
+  module: sturn-mcp
+- name: serve
+  kind: function
+  file: crates/sturn-mcp/src/lib.rs
+  line: 545
+  module: sturn-mcp
+deps:
+- serde_json
+- sturn-claim
+- sturn-core
+- sturn-wal
+- sturn-ws
+- serde_json
+- sturn_core
+- sturn_wal
+- sturn_ws
+notes: ''
+verify:
+- crates/sturn-mcp/Cargo.toml
+- crates/sturn-mcp/src/lib.rs
+provenance:
+  files:
+  - crates/sturn-mcp/Cargo.toml
+  - crates/sturn-mcp/src/lib.rs
+  hashes:
+  - e023453fdb03aa513172f81e3120da2fa39b1baa
+  - 4ca56c1c9b58cf80865f9fb5c60d4574392adf77
+  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
+  generated_at: '1792365733'
+  generator: kuda-template/0.1.1

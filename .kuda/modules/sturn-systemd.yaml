@@ -1,0 +1,75 @@
+name: sturn-systemd
+path: crates/sturn-systemd/Cargo.toml
+purpose: 'Service impl + deploy helpers: systemd user units'
+api:
+- name: sturn-systemd
+  kind: module
+  file: crates/sturn-systemd/Cargo.toml
+  line: 1
+  module: sturn-systemd
+- name: home
+  kind: function
+  file: crates/sturn-systemd/src/lib.rs
+  line: 9
+  module: sturn-systemd
+- name: write_service_unit
+  kind: function
+  file: crates/sturn-systemd/src/lib.rs
+  line: 16
+  module: sturn-systemd
+- name: enable_service
+  kind: function
+  file: crates/sturn-systemd/src/lib.rs
+  line: 53
+  module: sturn-systemd
+- name: write_env_skeleton
+  kind: function
+  file: crates/sturn-systemd/src/lib.rs
+  line: 60
+  module: sturn-systemd
+- name: disable_service
+  kind: function
+  file: crates/sturn-systemd/src/lib.rs
+  line: 81
+  module: sturn-systemd
+- name: run
+  kind: function
+  file: crates/sturn-systemd/src/lib.rs
+  line: 91
+  module: sturn-systemd
+- name: SystemdService
+  kind: type
+  file: crates/sturn-systemd/src/lib.rs
+  line: 101
+  module: sturn-systemd
+- name: write
+  kind: function
+  file: crates/sturn-systemd/src/lib.rs
+  line: 113
+  module: sturn-systemd
+- name: enable
+  kind: function
+  file: crates/sturn-systemd/src/lib.rs
+  line: 116
+  module: sturn-systemd
+- name: disable
+  kind: function
+  file: crates/sturn-systemd/src/lib.rs
+  line: 119
+  module: sturn-systemd
+deps:
+- sturn-service
+notes: ''
+verify:
+- crates/sturn-systemd/Cargo.toml
+- crates/sturn-systemd/src/lib.rs
+provenance:
+  files:
+  - crates/sturn-systemd/Cargo.toml
+  - crates/sturn-systemd/src/lib.rs
+  hashes:
+  - fc98064852bf86a66f76cb4a8fd4da68c5dd17ec
+  - 121e0b73ef31eca32f97e8716f8db8729bed501b
+  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
+  generated_at: '1792365733'
+  generator: kuda-template/0.1.1

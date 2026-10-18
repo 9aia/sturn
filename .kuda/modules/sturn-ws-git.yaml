@@ -1,0 +1,86 @@
+name: sturn-ws-git
+path: crates/sturn-ws-git/Cargo.toml
+purpose: 'Ws impl: read/list/materialize via git plumbing'
+api:
+- name: sturn-ws-git
+  kind: module
+  file: crates/sturn-ws-git/Cargo.toml
+  line: 1
+  module: sturn-ws-git
+- name: GitWs
+  kind: type
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 13
+  module: sturn-ws-git
+- name: git
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 15
+  module: sturn-ws-git
+- name: ws_ref
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 34
+  module: sturn-ws-git
+- name: read
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 39
+  module: sturn-ws-git
+- name: list
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 52
+  module: sturn-ws-git
+- name: materialize
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 57
+  module: sturn-ws-git
+- name: create
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 95
+  module: sturn-ws-git
+- name: entry
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 100
+  module: sturn-ws-git
+- name: blob
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 112
+  module: sturn-ws-git
+- name: store
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 125
+  module: sturn-ws-git
+- name: tip
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 143
+  module: sturn-ws-git
+- name: workspaces
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 147
+  module: sturn-ws-git
+deps:
+- sturn-ws
+- sturn_ws
+notes: ''
+verify:
+- crates/sturn-ws-git/Cargo.toml
+- crates/sturn-ws-git/src/lib.rs
+provenance:
+  files:
+  - crates/sturn-ws-git/Cargo.toml
+  - crates/sturn-ws-git/src/lib.rs
+  hashes:
+  - 622d40444abb820481c0186acf363c78410c72f2
+  - 32f9227f902272cf106f2b917033b3f1a03447a9
+  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
+  generated_at: '1792365733'
+  generator: kuda-template/0.1.1

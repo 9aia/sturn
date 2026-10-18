@@ -1,0 +1,41 @@
+name: sturn-dotenv
+path: crates/sturn-dotenv/Cargo.toml
+purpose: 'Secrets impl: KEY=VAL file, chmod 600'
+api:
+- name: sturn-dotenv
+  kind: module
+  file: crates/sturn-dotenv/Cargo.toml
+  line: 1
+  module: sturn-dotenv
+- name: DotenvSecrets
+  kind: type
+  file: crates/sturn-dotenv/src/lib.rs
+  line: 9
+  module: sturn-dotenv
+- name: get
+  kind: function
+  file: crates/sturn-dotenv/src/lib.rs
+  line: 14
+  module: sturn-dotenv
+- name: set
+  kind: function
+  file: crates/sturn-dotenv/src/lib.rs
+  line: 21
+  module: sturn-dotenv
+deps:
+- sturn-secret
+- sturn_secret
+notes: ''
+verify:
+- crates/sturn-dotenv/Cargo.toml
+- crates/sturn-dotenv/src/lib.rs
+provenance:
+  files:
+  - crates/sturn-dotenv/Cargo.toml
+  - crates/sturn-dotenv/src/lib.rs
+  hashes:
+  - 1034b2491bf076039224a52253fddb5330eaa0bf
+  - a3a721628a739d43e637f3d5dbd642f6e3130cf7
+  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
+  generated_at: '1792365733'
+  generator: kuda-template/0.1.1

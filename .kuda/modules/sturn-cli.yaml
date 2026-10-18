@@ -1,0 +1,233 @@
+name: sturn-cli
+path: crates/sturn-cli/Cargo.toml
+purpose: sturn — evented coordination over git (composition root)
+api:
+- name: sturn-cli
+  kind: module
+  file: crates/sturn-cli/Cargo.toml
+  line: 1
+  module: sturn-cli
+- name: git
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 9
+  module: sturn-cli
+- name: sturn
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 25
+  module: sturn-cli
+- name: sturn_in
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 40
+  module: sturn-cli
+- name: sturn_fails
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 60
+  module: sturn-cli
+- name: scratch
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 70
+  module: sturn-cli
+- name: commit
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 77
+  module: sturn-cli
+- name: wal_roundtrip_and_replication
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 93
+  module: sturn-cli
+- name: second_snap_applies_only_new_ops
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 142
+  module: sturn-cli
+- name: Mcp
+  kind: type
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 173
+  module: sturn-cli
+- name: spawn
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 181
+  module: sturn-cli
+- name: rpc
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 198
+  module: sturn-cli
+- name: drop
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 213
+  module: sturn-cli
+- name: call
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 218
+  module: sturn-cli
+- name: mcp_agent_surface
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 232
+  module: sturn-cli
+- name: exec_runs_on_uncommitted_overlay
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 323
+  module: sturn-cli
+- name: leave_sweeps_claims_and_compact_shrinks_wal
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 365
+  module: sturn-cli
+- name: review_gate_blocks_unreviewed_ops
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 392
+  module: sturn-cli
+- name: merge_snap_folds_two_workspaces
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 427
+  module: sturn-cli
+- name: Cli
+  kind: type
+  file: crates/sturn-cli/src/main.rs
+  line: 29
+  module: sturn-cli
+- name: Cmd
+  kind: type
+  file: crates/sturn-cli/src/main.rs
+  line: 41
+  module: sturn-cli
+- name: WsCmd
+  kind: type
+  file: crates/sturn-cli/src/main.rs
+  line: 204
+  module: sturn-cli
+- name: DeployCmd
+  kind: type
+  file: crates/sturn-cli/src/main.rs
+  line: 230
+  module: sturn-cli
+- name: main
+  kind: function
+  file: crates/sturn-cli/src/main.rs
+  line: 237
+  module: sturn-cli
+- name: run
+  kind: function
+  file: crates/sturn-cli/src/main.rs
+  line: 245
+  module: sturn-cli
+- name: now
+  kind: function
+  file: crates/sturn-cli/src/main.rs
+  line: 810
+  module: sturn-cli
+- name: append
+  kind: function
+  file: crates/sturn-cli/src/main.rs
+  line: 817
+  module: sturn-cli
+- name: do_snap
+  kind: function
+  file: crates/sturn-cli/src/main.rs
+  line: 831
+  module: sturn-cli
+- name: post_push
+  kind: function
+  file: crates/sturn-cli/src/main.rs
+  line: 895
+  module: sturn-cli
+- name: hydrate_ws
+  kind: function
+  file: crates/sturn-cli/src/main.rs
+  line: 937
+  module: sturn-cli
+- name: all_events
+  kind: function
+  file: crates/sturn-cli/src/main.rs
+  line: 972
+  module: sturn-cli
+- name: Subs
+  kind: type
+  file: crates/sturn-cli/src/main.rs
+  line: 982
+  module: sturn-cli
+- name: handle_sub
+  kind: function
+  file: crates/sturn-cli/src/main.rs
+  line: 986
+  module: sturn-cli
+- name: fanout
+  kind: function
+  file: crates/sturn-cli/src/main.rs
+  line: 1013
+  module: sturn-cli
+- name: writeback_ops
+  kind: function
+  file: crates/sturn-cli/src/main.rs
+  line: 1023
+  module: sturn-cli
+- name: merge_snap
+  kind: function
+  file: crates/sturn-cli/src/main.rs
+  line: 1124
+  module: sturn-cli
+deps:
+- clap
+- hex
+- hmac
+- serde_json
+- sha2
+- sturn-bus
+- sturn-bus-redb
+- sturn-claim
+- sturn-config
+- sturn-config-toml
+- sturn-core
+- sturn-fuse
+- sturn-git
+- sturn-mcp
+- sturn-service
+- sturn-systemd
+- sturn-vcs
+- sturn-wal
+- sturn-wal-git
+- sturn-ws
+- sturn-ws-git
+- clap
+- sturn_bus
+- sturn_config
+- sturn_core
+- sturn_service
+- sturn_vcs
+- sturn_wal
+- sturn_ws
+- hmac
+- sha2
+notes: ''
+verify:
+- crates/sturn-cli/Cargo.toml
+- crates/sturn-cli/src/main.rs
+- crates/sturn-cli/tests/e2e.rs
+provenance:
+  files:
+  - crates/sturn-cli/Cargo.toml
+  - crates/sturn-cli/src/main.rs
+  - crates/sturn-cli/tests/e2e.rs
+  hashes:
+  - 63c157a5e8dce9408ff2cdda28f546210a434a6d
+  - e06df8d71d37d1159346b77464ed154d8a266ae9
+  - cfc2cc714cb82de563f53b63eb6dc753f4cc961c
+  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
+  generated_at: '1792365900'
+  generator: kuda-template/0.1.1

@@ -1,0 +1,36 @@
+name: sturn-wal
+path: crates/sturn-wal/Cargo.toml
+purpose: 'Wal port: append-only op log inside git refs'
+api:
+- name: sturn-wal
+  kind: module
+  file: crates/sturn-wal/Cargo.toml
+  line: 1
+  module: sturn-wal
+- name: Wal
+  kind: trait
+  file: crates/sturn-wal/src/lib.rs
+  line: 11
+  module: sturn-wal
+- name: events
+  kind: function
+  file: crates/sturn-wal/src/lib.rs
+  line: 16
+  module: sturn-wal
+deps:
+- sturn-core
+- sturn_core
+notes: ''
+verify:
+- crates/sturn-wal/Cargo.toml
+- crates/sturn-wal/src/lib.rs
+provenance:
+  files:
+  - crates/sturn-wal/Cargo.toml
+  - crates/sturn-wal/src/lib.rs
+  hashes:
+  - b3fc982d83ba2ad53c4c7d754066f1286dfdd5a6
+  - 8f3084a6d481cf8f11628ccb6ff998fd090e89c5
+  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
+  generated_at: '1792365733'
+  generator: kuda-template/0.1.1

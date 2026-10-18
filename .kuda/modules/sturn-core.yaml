@@ -1,0 +1,173 @@
+name: sturn-core
+path: crates/sturn-core/Cargo.toml
+purpose: 'domain types: op/event schema, sturn.toml config'
+api:
+- name: sturn-core
+  kind: module
+  file: crates/sturn-core/Cargo.toml
+  line: 1
+  module: sturn-core
+- name: topic
+  kind: module
+  file: crates/sturn-core/src/lib.rs
+  line: 13
+  module: sturn-core
+- name: OPS
+  kind: const
+  file: crates/sturn-core/src/lib.rs
+  line: 15
+  module: sturn-core
+- name: CLAIMS
+  kind: const
+  file: crates/sturn-core/src/lib.rs
+  line: 17
+  module: sturn-core
+- name: REVIEW
+  kind: const
+  file: crates/sturn-core/src/lib.rs
+  line: 19
+  module: sturn-core
+- name: PRESENCE
+  kind: const
+  file: crates/sturn-core/src/lib.rs
+  line: 21
+  module: sturn-core
+- name: ALL
+  kind: const
+  file: crates/sturn-core/src/lib.rs
+  line: 23
+  module: sturn-core
+- name: Event
+  kind: type
+  file: crates/sturn-core/src/lib.rs
+  line: 30
+  module: sturn-core
+- name: Op
+  kind: type
+  file: crates/sturn-core/src/lib.rs
+  line: 53
+  module: sturn-core
+- name: default_ttl
+  kind: function
+  file: crates/sturn-core/src/lib.rs
+  line: 87
+  module: sturn-core
+- name: Verdict
+  kind: type
+  file: crates/sturn-core/src/lib.rs
+  line: 94
+  module: sturn-core
+- name: since_last_snapshot
+  kind: function
+  file: crates/sturn-core/src/lib.rs
+  line: 101
+  module: sturn-core
+- name: overlay
+  kind: function
+  file: crates/sturn-core/src/lib.rs
+  line: 113
+  module: sturn-core
+- name: new
+  kind: function
+  file: crates/sturn-core/src/lib.rs
+  line: 141
+  module: sturn-core
+- name: signing_bytes
+  kind: function
+  file: crates/sturn-core/src/lib.rs
+  line: 157
+  module: sturn-core
+- name: Config
+  kind: type
+  file: crates/sturn-core/src/lib.rs
+  line: 168
+  module: sturn-core
+- name: ReviewCfg
+  kind: type
+  file: crates/sturn-core/src/lib.rs
+  line: 187
+  module: sturn-core
+- name: SigningCfg
+  kind: type
+  file: crates/sturn-core/src/lib.rs
+  line: 198
+  module: sturn-core
+- name: RepoCfg
+  kind: type
+  file: crates/sturn-core/src/lib.rs
+  line: 210
+  module: sturn-core
+- name: id
+  kind: function
+  file: crates/sturn-core/src/lib.rs
+  line: 223
+  module: sturn-core
+- name: WalCfg
+  kind: type
+  file: crates/sturn-core/src/lib.rs
+  line: 236
+  module: sturn-core
+- name: BusCfg
+  kind: type
+  file: crates/sturn-core/src/lib.rs
+  line: 245
+  module: sturn-core
+- name: ActorCfg
+  kind: type
+  file: crates/sturn-core/src/lib.rs
+  line: 261
+  module: sturn-core
+- name: name
+  kind: function
+  file: crates/sturn-core/src/lib.rs
+  line: 269
+  module: sturn-core
+- name: default_branch
+  kind: function
+  file: crates/sturn-core/src/lib.rs
+  line: 278
+  module: sturn-core
+- name: default_ref_prefix
+  kind: function
+  file: crates/sturn-core/src/lib.rs
+  line: 281
+  module: sturn-core
+- name: default_poll_ms
+  kind: function
+  file: crates/sturn-core/src/lib.rs
+  line: 284
+  module: sturn-core
+- name: default_bus_store
+  kind: function
+  file: crates/sturn-core/src/lib.rs
+  line: 287
+  module: sturn-core
+- name: default
+  kind: function
+  file: crates/sturn-core/src/lib.rs
+  line: 295
+  module: sturn-core
+- name: default
+  kind: function
+  file: crates/sturn-core/src/lib.rs
+  line: 303
+  module: sturn-core
+deps:
+- serde
+- serde_json
+- serde
+- serde
+notes: ''
+verify:
+- crates/sturn-core/Cargo.toml
+- crates/sturn-core/src/lib.rs
+provenance:
+  files:
+  - crates/sturn-core/Cargo.toml
+  - crates/sturn-core/src/lib.rs
+  hashes:
+  - 8882be00ff91823f5d18b19eaca492be7e9a5ef5
+  - f65ac4ef4da9ff8ca774dac0d5e638998d81be7f
+  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
+  generated_at: '1792365733'
+  generator: kuda-template/0.1.1

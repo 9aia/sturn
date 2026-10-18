@@ -1,0 +1,38 @@
+name: sturn-config-toml
+path: crates/sturn-config-toml/Cargo.toml
+purpose: 'ConfigSource impl: sturn.toml search path'
+api:
+- name: sturn-config-toml
+  kind: module
+  file: crates/sturn-config-toml/Cargo.toml
+  line: 1
+  module: sturn-config-toml
+- name: TomlSource
+  kind: type
+  file: crates/sturn-config-toml/src/lib.rs
+  line: 7
+  module: sturn-config-toml
+- name: load
+  kind: function
+  file: crates/sturn-config-toml/src/lib.rs
+  line: 13
+  module: sturn-config-toml
+deps:
+- sturn-config
+- sturn-core
+- toml
+- sturn_config
+notes: ''
+verify:
+- crates/sturn-config-toml/Cargo.toml
+- crates/sturn-config-toml/src/lib.rs
+provenance:
+  files:
+  - crates/sturn-config-toml/Cargo.toml
+  - crates/sturn-config-toml/src/lib.rs
+  hashes:
+  - 6c4e9170c6f1b07daf372307e3d7e89e3427c28f
+  - 987c52c43ea206c757d016d5e760f00f569f805f
+  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
+  generated_at: '1792365733'
+  generator: kuda-template/0.1.1

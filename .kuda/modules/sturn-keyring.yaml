@@ -1,0 +1,46 @@
+name: sturn-keyring
+path: crates/sturn-keyring/Cargo.toml
+purpose: 'Secrets impl: secret-tool (libsecret)'
+api:
+- name: sturn-keyring
+  kind: module
+  file: crates/sturn-keyring/Cargo.toml
+  line: 1
+  module: sturn-keyring
+- name: KeyringSecrets
+  kind: type
+  file: crates/sturn-keyring/src/lib.rs
+  line: 9
+  module: sturn-keyring
+- name: default
+  kind: function
+  file: crates/sturn-keyring/src/lib.rs
+  line: 15
+  module: sturn-keyring
+- name: get
+  kind: function
+  file: crates/sturn-keyring/src/lib.rs
+  line: 23
+  module: sturn-keyring
+- name: set
+  kind: function
+  file: crates/sturn-keyring/src/lib.rs
+  line: 33
+  module: sturn-keyring
+deps:
+- sturn-secret
+- sturn_secret
+notes: ''
+verify:
+- crates/sturn-keyring/Cargo.toml
+- crates/sturn-keyring/src/lib.rs
+provenance:
+  files:
+  - crates/sturn-keyring/Cargo.toml
+  - crates/sturn-keyring/src/lib.rs
+  hashes:
+  - b880dc8f26d37f2be3f51c066a251ed062f93a0a
+  - 877db5aab2320ab00c2871a2f45d612a18872654
+  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
+  generated_at: '1792365733'
+  generator: kuda-template/0.1.1
