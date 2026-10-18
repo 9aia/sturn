@@ -1,1 +1,1 @@
-{"id":"","ws":"r2","actor":"luis","ts":1792296205,"op":{"op":"write","path":"crates/sturn-cli/src/main.rs","blob":"b1c1771ec82c09483469fb64ed16a01680b1a001","intent":"writeback, merge-snap, mcp --ws"}}
+{"id":"","ws":"r2","actor":"luis","ts":1792296205,"op":{"op":"write","path":"crates/sturn-mcp/src/lib.rs","blob":"4ca56c1c9b58cf80865f9fb5c60d4574392adf77","intent":"presence on connect"}}
