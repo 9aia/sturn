@@ -1,14 +1,23 @@
 # Hydrate a workspace
 
-Agents read through the ODB; compilers need POSIX files. Hydrate a
-workspace only when something must `exec`:
+Agents read through the ODB; compilers need POSIX files. Hydration
+materializes the ws *view* — tip commit **plus** uncommitted WAL
+ops, matching what `ws_read` sees.
 
 ```sh
-sturn ws hydrate agent-7 /tmp/ws-7   # git archive | tar — no index
-cargo check --manifest-path /tmp/ws-7/Cargo.toml
+sturn ws hydrate agent-7 /tmp/ws-7            # whole view
+sturn ws hydrate agent-7 /tmp/ws-7 --path src # subset
 ```
 
-- Hydration goes to tmpfs (`/dev/shm` or `/tmp`) — it is a
-  projection, delete freely.
-- M4 will add per-path hydration (only files an op touched) and a
-  FUSE impl for humans who want a real mount.
+Or hydrate + run + clean in one step:
+
+```sh
+sturn exec --ws agent-7 -- cargo check        # tmpfs, gone after
+sturn exec --ws agent-7 --keep -- cargo test  # keep the dir
+```
+
+- Target tmpfs (`/dev/shm`/`/tmp`) — it's a projection, delete freely.
+- Exit status propagates: `sturn exec` fails iff the command does.
+- Writes inside the hydrated dir do **not** flow back — ops are the
+  only write path. (Write-back hydration is a backlog item.)
+- FUSE mounts for humans land last — `git` works meanwhile.

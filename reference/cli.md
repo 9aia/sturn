@@ -8,7 +8,7 @@ Global flags: `--repo <dir>` (default cwd) · `--config <path>`.
 | `sturn ws new <name> [--base]` | create workspace ref — no checkout |
 | `sturn ws ls` | list workspaces |
 | `sturn ws read <ws> <path>` | blob contents, straight from the ODB |
-| `sturn ws hydrate <ws> <dir>` | materialize to a real dir |
+| `sturn ws hydrate <ws> <dir> [--path P]…` | materialize tip + uncommitted ops |
 | `sturn claim <glob> --ws <w> [--ttl N] [--force]` | advisory lock; exits 1 on live conflict |
 | `sturn release <glob> --ws <w>` | drop a claim |
 | `sturn claims` | live claims across every workspace |
@@ -21,4 +21,5 @@ Global flags: `--repo <dir>` (default cwd) · `--config <path>`.
 | `sturn daemon` | WAL → topic fan-out loop + `bus.sock` push |
 | `sturn sub <topic>` | stream ops\|claims\|review\|presence as JSONL |
 | `sturn mcp` | MCP stdio server — the agent tool surface |
+| `sturn exec --ws <w> [--keep] -- cmd…` | hydrate to tmpfs, run, clean up |
 | `sturn deploy service\|env` | systemd unit / secrets skeleton |
