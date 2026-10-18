@@ -15,9 +15,11 @@
 - [ ] bus: redb key prefix index (stop full-table scans)
 
 ## M3 — agent surface
-- [ ] sturn-mcp: real MCP server over the 9 tools
-- [ ] `ws tip` resolves WAL overlay (uncommitted ops visible in read)
-- [ ] agent e2e: two writers, one claim collision, zero merges
+- [x] sturn-mcp: real MCP server over the tools (`sturn mcp`,
+      newline JSON-RPC on stdio — initialize/tools/list/tools/call)
+- [x] overlay reads: `ws_read`/`ws_glob`/`ws_grep` see uncommitted
+      ops (tip + WAL since last Snapshot)
+- [x] agent e2e: `mcp_agent_surface` — two ws, claim denial, snap
 
 ## M4 — hydration
 - [ ] tmpfs overlay materializer (only touched paths)

@@ -123,6 +123,8 @@ enum Cmd {
     },
     /// Live claims across every workspace.
     Claims,
+    /// MCP stdio server — the 9-tool agent surface on JSON-RPC.
+    Mcp,
     /// Deploy the daemon — systemd user unit + env skeleton.
     Deploy {
         #[command(subcommand)]
@@ -365,29 +367,33 @@ fn run(cli: &Cli) -> Result<(), String> {
             message,
             branch: b,
         } => {
-            let base = ws_impl.tip(&repo, ws).map_err(|e| e.to_string())?;
-            let events = wal.events(&repo, ws).map_err(|e| e.to_string())?;
-            // Only ops after the last Snapshot marker — the ws ref
-            // already contains everything that snapped before.
-            let since = events
-                .iter()
-                .rposition(|e| matches!(e.op, Op::Snapshot { .. }))
-                .map(|i| i + 1)
-                .unwrap_or(0);
-            let commit = sturn_git::snap_commit(
+            let commit = do_snap(
                 &repo,
-                &base,
-                &events[since..],
+                &wal,
+                &ws_impl,
+                ws,
                 message,
                 b.as_deref().unwrap_or(&branch),
+                &actor,
             )
             .map_err(|e| e.to_string())?;
-            ws_impl.create(&repo, ws, &commit).map_err(|e| e.to_string())?;
-            append(&wal, &repo, ws, &actor, Op::Snapshot {
-                message: message.clone(),
-            })?;
             println!("snap {commit} → {}", b.as_deref().unwrap_or(&branch));
             Ok(())
+        }
+        Cmd::Mcp => {
+            let snap = |ws: &str, msg: &str, branch: &str| {
+                do_snap(&repo, &wal, &ws_impl, ws, msg, branch, &actor)
+            };
+            sturn_mcp::serve(&sturn_mcp::Ctx {
+                repo: &repo,
+                repo_id: &repo_id,
+                wal: &wal,
+                wsi: &ws_impl,
+                actor: &actor,
+                branch: &branch,
+                snap: &snap,
+            })
+            .map_err(|e| e.to_string())
         }
         Cmd::Review {
             event,
@@ -529,6 +535,37 @@ fn append(
 ) -> Result<String, String> {
     wal.append(repo, ws, &Event::new(ws, actor, op))
         .map_err(|e| e.to_string())
+}
+
+/// Fold a ws's pending ops (since last Snapshot) into a real commit
+/// on `branch`, move the ws ref, append the Snapshot marker.
+/// Shared by `sturn snap` and the MCP `snap` tool.
+fn do_snap(
+    repo: &Path,
+    wal: &sturn_wal_git::GitWal,
+    wsi: &sturn_ws_git::GitWs,
+    ws: &str,
+    message: &str,
+    branch: &str,
+    actor: &str,
+) -> std::io::Result<String> {
+    let base = wsi.tip(repo, ws)?;
+    let events = wal.events(repo, ws)?;
+    let since = sturn_core::since_last_snapshot(&events);
+    let commit = sturn_git::snap_commit(repo, &base, &events[since..], message, branch)?;
+    wsi.create(repo, ws, &commit)?;
+    wal.append(
+        repo,
+        ws,
+        &Event::new(
+            ws,
+            actor,
+            Op::Snapshot {
+                message: message.into(),
+            },
+        ),
+    )?;
+    Ok(commit)
 }
 
 /// Every workspace's events — claims are swarm-wide, so conflict

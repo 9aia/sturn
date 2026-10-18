@@ -23,6 +23,7 @@ sturn-ws-git.workspace = true
 sturn-vcs.workspace = true
 sturn-git.workspace = true
 sturn-claim.workspace = true
+sturn-mcp.workspace = true
 sturn-config.workspace = true
 sturn-config-toml.workspace = true
 sturn-service.workspace = true

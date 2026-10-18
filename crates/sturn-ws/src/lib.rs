@@ -16,6 +16,13 @@ pub trait Ws: Send + Sync {
     fn materialize(&self, repo: &Path, rev: &str, dir: &Path) -> io::Result<()>;
     /// Create a workspace namespace: `refs/sturn/ws/<name>` = `base`.
     fn create(&self, repo: &Path, name: &str, base: &str) -> io::Result<()>;
+    /// Blob sha at `rev:path` — None when absent. The lookup that
+    /// makes overlay reads cheap (content equality = sha equality).
+    fn entry(&self, repo: &Path, rev: &str, path: &str) -> io::Result<Option<String>>;
+    /// Blob contents by sha.
+    fn blob(&self, repo: &Path, sha: &str) -> io::Result<Vec<u8>>;
+    /// Store bytes as a blob in the ODB; returns its sha.
+    fn store(&self, repo: &Path, content: &[u8]) -> io::Result<String>;
     /// Commit the ws points at (base today; WAL overlay lands in M4).
     fn tip(&self, repo: &Path, name: &str) -> io::Result<String>;
     /// Workspace names with a `refs/sturn/ws/*` ref — includes

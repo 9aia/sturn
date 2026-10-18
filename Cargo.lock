@@ -273,6 +273,7 @@ dependencies = [
  "sturn-config-toml",
  "sturn-core",
  "sturn-git",
+ "sturn-mcp",
  "sturn-service",
  "sturn-systemd",
  "sturn-vcs",
@@ -330,6 +331,13 @@ dependencies = [
 [[package]]
 name = "sturn-mcp"
 version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "sturn-claim",
+ "sturn-core",
+ "sturn-wal",
+ "sturn-ws",
+]
 
 [[package]]
 name = "sturn-secret"

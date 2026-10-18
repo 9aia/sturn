@@ -91,6 +91,46 @@ pub enum Verdict {
     Reject,
 }
 
+/// Index just after the last `Snapshot` marker — ops before it are
+/// already inside the ws tip commit.
+pub fn since_last_snapshot(events: &[Event]) -> usize {
+    events
+        .iter()
+        .rposition(|e| matches!(e.op, Op::Snapshot { .. }))
+        .map(|i| i + 1)
+        .unwrap_or(0)
+}
+
+/// Fold tree-affecting ops into a path→blob overlay (None = deleted).
+/// Pass only events *since the last snapshot* — earlier ones are
+/// already in the tip. `resolve` maps a path to its blob sha in the
+/// base tree, needed when a `Rename` source was never overlaid.
+pub fn overlay(
+    events: &[Event],
+    resolve: impl Fn(&str) -> Option<String>,
+) -> std::collections::BTreeMap<String, Option<String>> {
+    let mut m = std::collections::BTreeMap::new();
+    for ev in events {
+        match &ev.op {
+            Op::Write { path, blob, .. } => {
+                m.insert(path.clone(), Some(blob.clone()));
+            }
+            Op::Delete { path } => {
+                m.insert(path.clone(), None);
+            }
+            Op::Rename { from, to } => {
+                let blob = m.remove(from).flatten().or_else(|| resolve(from));
+                m.insert(from.clone(), None);
+                if let Some(b) = blob {
+                    m.insert(to.clone(), Some(b));
+                }
+            }
+            _ => {}
+        }
+    }
+    m
+}
+
 impl Event {
     /// Convenience constructor — `id` is assigned on append.
     pub fn new(ws: impl Into<String>, actor: impl Into<String>, op: Op) -> Self {

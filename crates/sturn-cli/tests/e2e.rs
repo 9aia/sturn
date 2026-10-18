@@ -167,3 +167,141 @@ fn second_snap_applies_only_new_ops() {
     // `first` is a proper parent — history is linear and ordinary.
     assert_eq!(git(&repo, &["rev-parse", "HEAD^"]), first);
 }
+
+/// One JSON-RPC exchange with `sturn mcp` — newline-delimited, per
+/// the MCP stdio transport.
+struct Mcp {
+    stdin: std::process::ChildStdin,
+    stdout: std::io::BufReader<std::process::ChildStdout>,
+    child: std::process::Child,
+    n: u64,
+}
+
+impl Mcp {
+    fn spawn(dir: &Path) -> Self {
+        let mut child = Command::new(env!("CARGO_BIN_EXE_sturn"))
+            .current_dir(dir)
+            .arg("mcp")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        Mcp {
+            stdin: child.stdin.take().unwrap(),
+            stdout: std::io::BufReader::new(child.stdout.take().unwrap()),
+            child,
+            n: 0,
+        }
+    }
+
+    fn rpc(&mut self, method: &str, params: serde_json::Value) -> serde_json::Value {
+        use std::io::BufRead;
+        self.n += 1;
+        let req = serde_json::json!({
+            "jsonrpc": "2.0", "id": self.n, "method": method, "params": params,
+        });
+        writeln!(self.stdin, "{req}").unwrap();
+        self.stdin.flush().unwrap();
+        let mut line = String::new();
+        self.stdout.read_line(&mut line).unwrap();
+        serde_json::from_str(&line).unwrap()
+    }
+}
+
+impl Drop for Mcp {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+    }
+}
+
+fn call(m: &mut Mcp, tool: &str, args: serde_json::Value) -> String {
+    let r = m.rpc(
+        "tools/call",
+        serde_json::json!({"name": tool, "arguments": args}),
+    );
+    let content = &r["result"]["content"][0]["text"];
+    assert!(
+        r["result"]["isError"].as_bool() != Some(true),
+        "{tool} failed: {content}"
+    );
+    content.as_str().unwrap().to_string()
+}
+
+#[test]
+fn mcp_agent_surface() {
+    let repo = scratch("mcp");
+    git(&repo, &["init", "-q", "-b", "main"]);
+    git(
+        &repo,
+        &[
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-qm",
+            "init",
+            "--allow-empty",
+        ],
+    );
+    std::fs::write(repo.join("a.txt"), b"one\n").unwrap();
+    git(&repo, &["add", "a.txt"]);
+    commit(&repo, "add a");
+    sturn(&repo, &["init"]);
+    sturn(&repo, &["ws", "new", "a"]);
+    sturn(&repo, &["ws", "new", "b"]);
+
+    let mut m = Mcp::spawn(&repo);
+    let init = m.rpc(
+        "initialize",
+        serde_json::json!({"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name":"t","version":"0"}}),
+    );
+    assert_eq!(init["result"]["serverInfo"]["name"], "sturn");
+    let tools = m.rpc("tools/list", serde_json::json!({}));
+    assert_eq!(
+        tools["result"]["tools"].as_array().unwrap().len(),
+        10,
+        "expected the tool surface"
+    );
+
+    // Overlay read: ws_write makes the file visible before any commit.
+    call(
+        &mut m,
+        "ws_write",
+        serde_json::json!({"ws":"a","path":"src/x.rs","content":"fn x(){}\n","intent":"t"}),
+    );
+    let got = call(
+        &mut m,
+        "ws_read",
+        serde_json::json!({"ws":"a","path":"src/x.rs"}),
+    );
+    assert_eq!(got, "fn x(){}\n");
+    // …and it shows up in glob listing too.
+    let glob = call(
+        &mut m,
+        "ws_glob",
+        serde_json::json!({"ws":"a","pattern":"src/**"}),
+    );
+    assert!(glob.contains("src/x.rs"), "{glob}");
+
+    // Claims across ws boundary: a holds src/**, b is denied.
+    call(
+        &mut m,
+        "claim",
+        serde_json::json!({"ws":"a","glob":"src/**","ttl_secs":60}),
+    );
+    let denied = m.rpc(
+        "tools/call",
+        serde_json::json!({"name":"claim","arguments":{"ws":"b","glob":"src/x.rs"}}),
+    );
+    assert_eq!(denied["result"]["isError"].as_bool(), Some(true));
+
+    // Snap via MCP produces a real commit.
+    call(
+        &mut m,
+        "snap",
+        serde_json::json!({"ws":"a","message":"mcp work"}),
+    );
+    assert_eq!(git(&repo, &["show", "HEAD:src/x.rs"]), "fn x(){}");
+}

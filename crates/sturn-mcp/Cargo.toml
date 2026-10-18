@@ -9,4 +9,9 @@ keywords = ["vcs", "sturn", "agents"]
 categories = ["development-tools"]
 
 [dependencies]
+sturn-core.workspace = true
+sturn-wal.workspace = true
+sturn-ws.workspace = true
+sturn-claim.workspace = true
+serde_json.workspace = true
 

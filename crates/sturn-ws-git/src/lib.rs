@@ -3,6 +3,7 @@
 //! no checkout, no lock contention.
 
 use std::io;
+use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use sturn_ws::Ws;
@@ -83,6 +84,49 @@ impl Ws for GitWs {
     fn create(&self, repo: &Path, name: &str, base: &str) -> io::Result<()> {
         git(repo, &["update-ref", &ws_ref(name), base])?;
         Ok(())
+    }
+
+    fn entry(&self, repo: &Path, rev: &str, path: &str) -> io::Result<Option<String>> {
+        let o = Command::new("git")
+            .arg("-C")
+            .arg(repo)
+            .args(["rev-parse", "-q", "--verify", &format!("{rev}:{path}")])
+            .output()?;
+        Ok(o.status
+            .success()
+            .then(|| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .filter(|s| !s.is_empty()))
+    }
+
+    fn blob(&self, repo: &Path, sha: &str) -> io::Result<Vec<u8>> {
+        let o = Command::new("git")
+            .arg("-C")
+            .arg(repo)
+            .args(["cat-file", "-p", sha])
+            .output()?;
+        if o.status.success() {
+            Ok(o.stdout)
+        } else {
+            Err(io::Error::other(format!("blob {sha} not found")))
+        }
+    }
+
+    fn store(&self, repo: &Path, content: &[u8]) -> io::Result<String> {
+        let mut c = Command::new("git")
+            .arg("-C")
+            .arg(repo)
+            .args(["hash-object", "-w", "--stdin"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
+        c.stdin.take().unwrap().write_all(content)?;
+        let o = c.wait_with_output()?;
+        if o.status.success() {
+            Ok(String::from_utf8_lossy(&o.stdout).trim().to_string())
+        } else {
+            Err(io::Error::other("hash-object failed"))
+        }
     }
 
     fn tip(&self, repo: &Path, name: &str) -> io::Result<String> {
