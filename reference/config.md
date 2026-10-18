@@ -16,6 +16,14 @@ ref_prefix = "refs/sturn/wal"   # default
 [bus]
 store = "~/.local/state/sturn/bus.redb"   # default
 poll_ms = 100                             # daemon fan-out interval
+# repos = ["../other-repo"]             # extra repos to fan out
+
+[review]
+require = true         # snap refuses unreviewed tree ops
+
+[signing]
+key = "~/.ssh/id_ed25519"             # sign every event (ssh-keygen)
+# allowed_signers = "..."
 
 [actor]
 name = "agent-7"       # default: $STURN_ACTOR → $USER → "anon"

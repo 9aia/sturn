@@ -23,6 +23,7 @@ Global flags: `--repo <dir>` (default cwd) · `--config <path>`.
 | `sturn mcp` | MCP stdio server — the agent tool surface |
 | `sturn exec --ws <w> [--keep] -- cmd…` | hydrate to tmpfs, run, clean up |
 | `sturn join\|leave <ws>` | presence; leave sweeps actor claims |
+| `sturn rename\|delete … --ws` | tree ops that keep intent |
 | `sturn verify [--ws W]` | verify event sigs vs allowed_signers |
 | `sturn compact [--ws W]` | drop pre-snapshot WAL history (archived) |
 | `sturn bridge --to <url>` | snapshot ops → HMAC webhook (bupha CI) |
