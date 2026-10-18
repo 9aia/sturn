@@ -85,6 +85,8 @@ pub struct Ctx<'a> {
     pub actor: &'a str,
     /// Default snap target branch.
     pub branch: &'a str,
+    /// The agent's own ws — presence ops attach here.
+    pub ws: Option<&'a str>,
     /// ws, message, branch → new commit sha (also moves the ws ref
     /// and appends the Snapshot marker — cli supplies the body).
     pub snap: &'a dyn Fn(&str, &str, &str) -> std::io::Result<String>,
@@ -541,6 +543,16 @@ fn tool_list() -> Value {
 /// stdin closes. Requests and notifications interleave; only
 /// requests get responses.
 pub fn serve(ctx: &Ctx) -> std::io::Result<()> {
+    // Presence is lifecycle, not a tool — connect/disconnect emit ops.
+    if let Some(ws) = ctx.ws {
+        let _ = ctx.wal.append(
+            ctx.repo,
+            ws,
+            &Event::new(ws, ctx.actor, Op::Presence {
+                status: "joined".into(),
+            }),
+        );
+    }
     let stdin = std::io::stdin().lock();
     let mut out = std::io::stdout().lock();
     for line in stdin.lines() {
@@ -589,6 +601,15 @@ pub fn serve(ctx: &Ctx) -> std::io::Result<()> {
         out.write_all(resp.to_string().as_bytes())?;
         out.write_all(b"\n")?;
         out.flush()?;
+    }
+    if let Some(ws) = ctx.ws {
+        let _ = ctx.wal.append(
+            ctx.repo,
+            ws,
+            &Event::new(ws, ctx.actor, Op::Presence {
+                status: "left".into(),
+            }),
+        );
     }
     Ok(())
 }

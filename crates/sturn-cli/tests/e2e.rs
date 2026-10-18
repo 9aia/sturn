@@ -422,3 +422,18 @@ fn review_gate_blocks_unreviewed_ops() {
     sturn(&repo, &["snap", "a", "-m", "ok"]);
     assert_eq!(git(&repo, &["show", "HEAD:f.txt"]), "1");
 }
+
+#[test]
+fn merge_snap_folds_two_workspaces() {
+    let repo = scratch("merge");
+    git(&repo, &["init", "-q", "-b", "main"]);
+    git(&repo, &["-c","user.email=t@t","-c","user.name=t","commit","-qm","init","--allow-empty"]);
+    sturn(&repo, &["init"]);
+    sturn(&repo, &["ws", "new", "a"]);
+    sturn(&repo, &["ws", "new", "b"]);
+    sturn_in(&repo, &["write", "x.txt", "--ws", "a"], b"ax\n");
+    sturn_in(&repo, &["write", "y.txt", "--ws", "b"], b"by\n");
+    sturn(&repo, &["snap", "a", "b", "-m", "merged"]);
+    assert_eq!(git(&repo, &["show", "HEAD:x.txt"]), "ax");
+    assert_eq!(git(&repo, &["show", "HEAD:y.txt"]), "by");
+}

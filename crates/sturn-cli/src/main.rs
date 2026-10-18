@@ -109,9 +109,11 @@ enum Cmd {
         #[arg(long)]
         ws: Option<String>,
     },
-    /// Fold a ws's ops into a real commit on the branch.
+    /// Fold ws ops into a real commit on the branch. Multiple ws =
+    /// merged into ONE commit (ops concat; later ops win same-path).
     Snap {
-        ws: String,
+        #[arg(required = true)]
+        ws: Vec<String>,
         #[arg(short, long)]
         message: String,
         /// Branch to update (default: repo.branch / main).
@@ -162,7 +164,11 @@ enum Cmd {
         secret_env: String,
     },
     /// MCP stdio server — the 9-tool agent surface on JSON-RPC.
-    Mcp,
+    /// --ws makes it the agent's ws: presence ops emit on connect.
+    Mcp {
+        #[arg(long)]
+        ws: Option<String>,
+    },
     /// Hydrate a ws to tmpfs and run a command inside — compilers
     /// need POSIX; agents don't. Exits with the command's status.
     Exec {
@@ -172,6 +178,9 @@ enum Cmd {
         /// Keep the hydrated dir after exit.
         #[arg(long)]
         keep: bool,
+        /// Write filesystem edits back as ops on the ws.
+        #[arg(long)]
+        writeback: bool,
         /// Command + args, after `--`.
         #[arg(trailing_var_arg = true, required = true)]
         cmd: Vec<String>,
@@ -538,18 +547,20 @@ fn run(cli: &Cli) -> Result<(), String> {
             message,
             branch: b,
         } => {
-            let commit = do_snap(
-                &repo,
-                &wal,
-                &ws_impl,
-                ws,
-                message,
-                b.as_deref().unwrap_or(&branch),
-                &actor,
-                cfg.as_ref().map(|c| c.review.require).unwrap_or(false),
-            )
-            .map_err(|e| e.to_string())?;
-            println!("snap {commit} → {}", b.as_deref().unwrap_or(&branch));
+            let require = cfg.as_ref().map(|c| c.review.require).unwrap_or(false);
+            let br = b.as_deref().unwrap_or(&branch);
+            if ws.len() == 1 {
+                let commit = do_snap(
+                    &repo, &wal, &ws_impl, &ws[0], message, br, &actor, require,
+                )
+                .map_err(|e| e.to_string())?;
+                println!("snap {commit} → {br}");
+            } else {
+                let commit = merge_snap(
+                    &repo, &wal, &ws_impl, ws, message, br, &actor, require,
+                )?;
+                println!("snap {commit} → {br} ({} ws merged)", ws.len());
+            }
             Ok(())
         }
         Cmd::Bridge { to, secret_env } => {
@@ -579,7 +590,7 @@ fn run(cli: &Cli) -> Result<(), String> {
                 std::thread::sleep(Duration::from_millis(poll_ms));
             }
         }
-        Cmd::Mcp => {
+        Cmd::Mcp { ws: mws } => {
             let snap = |ws: &str, msg: &str, branch: &str| {
                 do_snap(
                     &repo,
@@ -600,10 +611,11 @@ fn run(cli: &Cli) -> Result<(), String> {
                 actor: &actor,
                 branch: &branch,
                 snap: &snap,
+                ws: mws.as_deref(),
             })
             .map_err(|e| e.to_string())
         }
-        Cmd::Exec { ws, keep, cmd } => {
+        Cmd::Exec { ws, keep, writeback, cmd } => {
             let dir =
                 std::env::temp_dir().join(format!("sturn-exec-{}", std::process::id()));
             hydrate_ws(&repo, &wal, &ws_impl, ws, &dir, &[])?;
@@ -612,6 +624,10 @@ fn run(cli: &Cli) -> Result<(), String> {
                 .current_dir(&dir)
                 .status()
                 .map_err(|e| e.to_string())?;
+            if *writeback {
+                let n = writeback_ops(&repo, &wal, &ws_impl, ws, &dir, &actor)?;
+                eprintln!("writeback: {n} op(s)");
+            }
             if !*keep {
                 let _ = std::fs::remove_dir_all(&dir);
             } else {
@@ -978,4 +994,179 @@ fn fanout(subs: &Subs, repo: &str, topic: &str, payload: &Arc<Vec<u8>>) {
     if let Some(list) = map.get_mut(&key) {
         list.retain(|tx| tx.send(payload.clone()).is_ok());
     }
+}
+
+/// Walk `dir`, diff against the ws view (tip + pending overlay),
+/// append Write/Delete ops for the difference. Returns ops written.
+fn writeback_ops(
+    repo: &Path,
+    wal: &sturn_wal_git::GitWal,
+    wsi: &sturn_ws_git::GitWs,
+    ws: &str,
+    dir: &Path,
+    actor: &str,
+) -> Result<usize, String> {
+    let tip = wsi.tip(repo, ws).map_err(|e| e.to_string())?;
+    let events = wal.events(repo, ws).map_err(|e| e.to_string())?;
+    let pending = &events[sturn_core::since_last_snapshot(&events)..];
+    let ov = sturn_core::overlay(pending, |p| {
+        wsi.entry(repo, &tip, p).ok().flatten()
+    });
+    // expected path → content bytes (overlay wins, else tip)
+    let mut expected: HashMap<String, Vec<u8>> = HashMap::new();
+    for p in wsi.list(repo, &tip).map_err(|e| e.to_string())? {
+        if let Ok(b) = wsi.read(repo, &tip, &p) {
+            expected.insert(p, b);
+        }
+    }
+    for (p, v) in &ov {
+        match v {
+            Some(sha) => {
+                if let Ok(b) = wsi.blob(repo, sha) {
+                    expected.insert(p.clone(), b);
+                }
+            }
+            None => {
+                expected.remove(p);
+            }
+        }
+    }
+    // walk the hydrated dir
+    let mut seen = std::collections::HashSet::new();
+    let mut stack = vec![dir.to_path_buf()];
+    let mut n = 0;
+    while let Some(d) = stack.pop() {
+        for ent in std::fs::read_dir(&d).map_err(|e| e.to_string())? {
+            let ent = ent.map_err(|e| e.to_string())?;
+            let ft = ent.file_type().map_err(|e| e.to_string())?;
+            if ft.is_dir() {
+                stack.push(ent.path());
+                continue;
+            }
+            if !ft.is_file() {
+                continue;
+            }
+            let rel = ent
+                .path()
+                .strip_prefix(dir)
+                .map_err(|e| e.to_string())?
+                .to_string_lossy()
+                .into_owned();
+            seen.insert(rel.clone());
+            let bytes = std::fs::read(ent.path()).map_err(|e| e.to_string())?;
+            let differs = expected.get(&rel).map(|e| *e != bytes).unwrap_or(true);
+            if differs {
+                let blob =
+                    wsi.store(repo, &bytes).map_err(|e| e.to_string())?;
+                wal.append(
+                    repo,
+                    ws,
+                    &Event::new(
+                        ws,
+                        actor,
+                        Op::Write {
+                            path: rel,
+                            blob,
+                            intent: Some("writeback".into()),
+                        },
+                    ),
+                )
+                .map_err(|e| e.to_string())?;
+                n += 1;
+            }
+        }
+    }
+    for p in expected.keys() {
+        if !seen.contains(p) {
+            wal.append(
+                repo,
+                ws,
+                &Event::new(
+                    ws,
+                    actor,
+                    Op::Delete {
+                        path: p.clone(),
+                    },
+                ),
+            )
+            .map_err(|e| e.to_string())?;
+            n += 1;
+        }
+    }
+    Ok(n)
+}
+
+/// Merge several ws's pending ops into ONE commit on `branch`.
+/// Later ops win on same-path collisions — claims should have
+/// prevented that upstream.
+fn merge_snap(
+    repo: &Path,
+    wal: &sturn_wal_git::GitWal,
+    wsi: &sturn_ws_git::GitWs,
+    wss: &[String],
+    message: &str,
+    branch: &str,
+    actor: &str,
+    require_review: bool,
+) -> Result<String, String> {
+    let mut pending: Vec<Event> = Vec::new();
+    for ws in wss {
+        let events = wal.events(repo, ws).map_err(|e| e.to_string())?;
+        let since = sturn_core::since_last_snapshot(&events);
+        pending.extend(events[since..].iter().cloned());
+    }
+    if require_review {
+        let mut approved = std::collections::HashSet::new();
+        for w in wal.workspaces(repo).map_err(|e| e.to_string())? {
+            for e in wal.events(repo, &w).map_err(|e| e.to_string())? {
+                if let Op::Review {
+                    event,
+                    verdict: Verdict::Approve,
+                } = &e.op
+                {
+                    approved.insert(event.clone());
+                }
+            }
+        }
+        let unreviewed: Vec<&Event> = pending
+            .iter()
+            .filter(|e| matches!(e.op, Op::Write{..}|Op::Rename{..}|Op::Delete{..}))
+            .filter(|e| !approved.contains(&e.id))
+            .collect();
+        if !unreviewed.is_empty() {
+            return Err(format!(
+                "review gate: {} unreviewed op(s)",
+                unreviewed.len()
+            ));
+        }
+    }
+    // Base = current branch head, not any ws tip — merged ops apply
+    // to where the branch is now.
+    let base = std::process::Command::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args(["rev-parse", &format!("refs/heads/{branch}")])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "HEAD".into());
+    let commit = sturn_git::snap_commit(repo, &base, &pending, message, branch)
+        .map_err(|e| e.to_string())?;
+    for ws in wss {
+        wsi.create(repo, ws, &commit).map_err(|e| e.to_string())?;
+        let _ = wal.append(
+            repo,
+            ws,
+            &Event::new(
+                ws,
+                actor,
+                Op::Snapshot {
+                    message: message.into(),
+                },
+            ),
+        );
+    }
+    Ok(commit)
 }
