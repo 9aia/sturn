@@ -18,9 +18,9 @@ changed="$(git diff --name-only "${last}..HEAD")"
 
 touched=""
 for c in sturn-core sturn-wal sturn-bus sturn-ws sturn-vcs \
-         sturn-vcs sturn-queue sturn-service sturn-secret sturn-config sturn-cache \
-         sturn-git sturn-queue-redb sturn-keyring sturn-dotenv sturn-config-toml sturn-cache-sccache \
-         sturn-dagger sturn-shell sturn-github sturn-cloudflared \
+         sturn-vcs sturn-bus sturn-service sturn-secret sturn-config sturn-claim \
+         sturn-git sturn-bus-redb sturn-keyring sturn-dotenv sturn-config-toml sturn-mcp \
+         sturn-wal-git sturn-bus-redb sturn-ws-git sturn-git \
          sturn-systemd sturn-cli; do
     grep -q "^crates/$c/" <<<"$changed" && touched="$touched $c"
 done
@@ -28,10 +28,10 @@ done
 [ -n "$touched" ] && touched="$touched sturn"
 if [ -z "$touched" ]; then echo "no crate changes since $last"; exit 0; fi
 
-order="sturn-core sturn-trigger sturn-status sturn-runner \
-sturn-tunnel sturn-vcs sturn-queue sturn-service sturn-secret sturn-config sturn-cache \
-sturn-dagger sturn-shell sturn-github sturn-cloudflared \
-sturn-git sturn-queue-redb sturn-keyring sturn-dotenv sturn-config-toml sturn-cache-sccache \
+order="sturn-core sturn-secret sturn-config sturn-fuse \
+sturn-tunnel sturn-vcs sturn-bus sturn-service sturn-secret sturn-config sturn-claim \
+sturn-wal-git sturn-bus-redb sturn-ws-git sturn-git \
+sturn-git sturn-bus-redb sturn-keyring sturn-dotenv sturn-config-toml sturn-mcp \
 sturn-systemd sturn"
 published=""
 for c in $order; do
