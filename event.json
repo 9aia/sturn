@@ -1,1 +1,1 @@
-{"id":"","ws":"r2","actor":"luis","ts":1792296205,"op":{"op":"write","path":"crates/sturn-cli/tests/e2e.rs","blob":"cfc2cc714cb82de563f53b63eb6dc753f4cc961c","intent":"merge test"}}
+{"id":"","ws":"r2","actor":"luis","ts":1792296230,"op":{"op":"snapshot","message":"feat: writeback exec, multi-ws merge snap, presence-on-connect (dogfooded)"}}
