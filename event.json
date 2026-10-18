@@ -1,1 +1,1 @@
-{"id":"","ws":"dogfood","actor":"luis","ts":1792294157,"op":{"op":"write","path":"crates/sturn-git/src/lib.rs","blob":"c74a2f875a0f2dda7c45f1f0acdc604d7ad561db","intent":"rename resolves overlay, not just base"}}
+{"id":"","ws":"dogfood","actor":"luis","ts":1792294184,"op":{"op":"write","path":"crates/sturn-cli/tests/e2e.rs","blob":"d1fe7c4a51956095c537467a5159cc6c20e3e3fc","intent":"assert renamed path"}}
