@@ -41,30 +41,48 @@ pub fn active(events: &[Event], now: u64) -> Vec<Active> {
     out
 }
 
-/// Does pattern `a` cover path/glob `b`? `dir/**` covers the whole
-/// subtree, `dir/*` covers one level, otherwise exact match.
+/// Glob match: `*` = any run within a segment, `**` = any run
+/// across segments, else literal. Recursive, no deps.
+pub fn glob_match(pat: &str, path: &str) -> bool {
+    fn m(p: &[u8], s: &[u8]) -> bool {
+        match p.first() {
+            None => s.is_empty(),
+            Some(b'*') if p.get(1) == Some(&b'*') => {
+                (0..=s.len()).any(|i| m(&p[2..], &s[i..]))
+            }
+            Some(b'*') => {
+                let end = s.iter().position(|&c| c == b'/').unwrap_or(s.len());
+                (0..=end).any(|i| m(&p[1..], &s[i..]))
+            }
+            Some(c) => !s.is_empty() && s[0] == *c && m(&p[1..], &s[1..]),
+        }
+    }
+    m(pat.as_bytes(), path.as_bytes())
+}
+
+/// Literal stem — the part before the first wildcard.
+fn stem(p: &str) -> &str {
+    match p.find(['*', '?', '[']) {
+        Some(i) => p[..i].trim_end_matches('/'),
+        None => p,
+    }
+}
+
+/// Do two patterns/paths overlap? Both may be globs — approximate
+/// intersection: match each against the other and against the
+/// other's literal stem. Conservative — it may over-report on
+/// exotic globs, and that's the right failure direction for a lock.
 pub fn covers(a: &str, b: &str) -> bool {
-    if a == b {
-        return true;
-    }
-    if let Some(dir) = a.strip_suffix("/**") {
-        return b == dir || b.starts_with(&format!("{dir}/"));
-    }
-    if let Some(stem) = a.strip_suffix("/*") {
-        return b
-            .strip_prefix(&format!("{stem}/"))
-            .map(|r| !r.is_empty() && !r.contains('/'))
-            .unwrap_or(false);
-    }
-    false
+    glob_match(a, b)
+        || glob_match(b, a)
+        || glob_match(a, stem(b))
+        || glob_match(b, stem(a))
+        || stem(a) == stem(b)
 }
 
 /// Live claims that overlap `glob` — what `sturn claim` warns about.
 /// Overlap is symmetric: an existing `src/**` claim conflicts with a
 /// request for `src/foo.rs`, and vice versa.
 pub fn conflicts<'a>(claims: &'a [Active], glob: &str) -> Vec<&'a Active> {
-    claims
-        .iter()
-        .filter(|c| covers(&c.glob, glob) || covers(glob, &c.glob))
-        .collect()
+    claims.iter().filter(|c| covers(&c.glob, glob)).collect()
 }

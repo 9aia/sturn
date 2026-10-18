@@ -88,4 +88,15 @@ impl Ws for GitWs {
     fn tip(&self, repo: &Path, name: &str) -> io::Result<String> {
         git(repo, &["rev-parse", &ws_ref(name)])
     }
+
+    fn workspaces(&self, repo: &Path) -> io::Result<Vec<String>> {
+        let out = git(
+            repo,
+            &["for-each-ref", "--format=%(refname)", "refs/sturn/ws/"],
+        )?;
+        Ok(out
+            .lines()
+            .filter_map(|l| l.strip_prefix("refs/sturn/ws/").map(String::from))
+            .collect())
+    }
 }

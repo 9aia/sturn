@@ -13,7 +13,18 @@ pub trait Wal: Send + Sync {
     /// Must survive concurrent appends (CAS retry on the ref).
     fn append(&self, repo: &Path, ws: &str, ev: &Event) -> io::Result<String>;
     /// All events for `ws`, oldest first.
-    fn events(&self, repo: &Path, ws: &str) -> io::Result<Vec<Event>>;
+    fn events(&self, repo: &Path, ws: &str) -> io::Result<Vec<Event>> {
+        self.events_since(repo, ws, None)
+    }
+    /// Events appended after `from` (a prior `head`, exclusive) —
+    /// `None` reads the whole log. Delta reads are what the daemon
+    /// and catch-up need; `events` is the full replay.
+    fn events_since(
+        &self,
+        repo: &Path,
+        ws: &str,
+        from: Option<&str>,
+    ) -> io::Result<Vec<Event>>;
     /// Tip commit of the ws WAL ref — cheap change detection.
     fn head(&self, repo: &Path, ws: &str) -> io::Result<Option<String>>;
     /// Workspace ids that have a WAL ref.

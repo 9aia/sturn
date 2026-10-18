@@ -3,13 +3,14 @@
 ## M1 — WAL round-trip (the core proof)
 - [x] `sturn init / ws new / write / log / snap` — ops in git refs,
       snap produces a real commit
-- [ ] e2e test: init → write → snap → clone → WAL intact
-- [ ] `snap` only applies ops since last `Snapshot` marker
+- [x] e2e test: init → write → snap → clone → WAL intact
+- [x] `snap` only applies ops since last `Snapshot` marker
 - [ ] WAL compaction: squash pre-snapshot events into a checkpoint
 
 ## M2 — bus + claims (the delta)
-- [ ] daemon: publish only WAL delta (currently republishes tail)
-- [ ] subscription: unix socket / SSE for push delivery
+- [x] daemon: publish only WAL delta (`events_since` range walk)
+- [x] subscription: unix socket `bus.sock`, `sturn sub <topic>` → JSONL
+- [x] real glob matching (`*`, `**`) in claim conflicts
 - [ ] claim TTL sweep + `release` on actor death (presence)
 - [ ] bus: redb key prefix index (stop full-table scans)
 

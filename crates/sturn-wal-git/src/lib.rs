@@ -119,12 +119,21 @@ impl Wal for GitWal {
         unreachable!()
     }
 
-    fn events(&self, repo: &Path, ws: &str) -> io::Result<Vec<Event>> {
+    fn events_since(
+        &self,
+        repo: &Path,
+        ws: &str,
+        from: Option<&str>,
+    ) -> io::Result<Vec<Event>> {
         let r = self.wal_ref(ws);
         if self.head(repo, ws)?.is_none() {
             return Ok(vec![]);
         }
-        let commits = git(repo, &["rev-list", "--reverse", &r])?;
+        let range = match from {
+            Some(f) => format!("{f}..{r}"),
+            None => r,
+        };
+        let commits = git(repo, &["rev-list", "--reverse", &range])?;
         let mut out = Vec::new();
         for c in commits.lines().filter(|l| !l.is_empty()) {
             let json = git(repo, &["cat-file", "-p", &format!("{c}:event.json")])?;

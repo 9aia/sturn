@@ -6,8 +6,11 @@
 
 use clap::{Parser, Subcommand};
 use std::collections::HashMap;
-use std::io::Read;
+use std::io::{BufRead, BufReader, Read, Write};
+use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
+use std::sync::{mpsc, Arc, Mutex};
+use std::time::Duration;
 use sturn_bus::Bus;
 use sturn_claim as claims;
 use sturn_config::ConfigSource;
@@ -113,6 +116,11 @@ enum Cmd {
     /// WAL→topic fan-out loop. The bus is a cache — ops still sync
     /// through git when it's down.
     Daemon,
+    /// Stream a topic live — ops|claims|review|presence, JSONL.
+    Sub {
+        /// Topic suffix under `repo.<id>.`.
+        topic: String,
+    },
     /// Live claims across every workspace.
     Claims,
     /// Deploy the daemon — systemd user unit + env skeleton.
@@ -229,10 +237,15 @@ fn run(cli: &Cli) -> Result<(), String> {
                 println!("ws {name} → {base}");
                 Ok(())
             }
-            WsCmd::Ls => wal
-                .workspaces(&repo)
-                .map_err(|e| e.to_string())
-                .map(|w| w.iter().for_each(|n| println!("{n}"))),
+            WsCmd::Ls => {
+                // Union: ws namespaces (pointer-only) + WAL refs.
+                let mut names = ws_impl.workspaces(&repo).unwrap_or_default();
+                names.extend(wal.workspaces(&repo).unwrap_or_default());
+                names.sort();
+                names.dedup();
+                names.iter().for_each(|n| println!("{n}"));
+                Ok(())
+            }
             WsCmd::Read { name, path } => {
                 let tip = ws_impl.tip(&repo, name).map_err(|e| e.to_string())?;
                 let bytes = ws_impl
@@ -259,9 +272,11 @@ fn run(cli: &Cli) -> Result<(), String> {
             let all = all_events(&wal, &repo)?;
             let now = now();
             let live = claims::active(&all, now);
+            // Overlap within the same ws is fine — one workspace,
+            // one writer.
             let hits: Vec<_> = claims::conflicts(&live, glob)
                 .into_iter()
-                .filter(|c| !(c.ws == *ws && c.glob == *glob))
+                .filter(|c| c.ws != *ws)
                 .collect();
             if !hits.is_empty() && !force {
                 for c in &hits {
@@ -352,10 +367,17 @@ fn run(cli: &Cli) -> Result<(), String> {
         } => {
             let base = ws_impl.tip(&repo, ws).map_err(|e| e.to_string())?;
             let events = wal.events(&repo, ws).map_err(|e| e.to_string())?;
+            // Only ops after the last Snapshot marker — the ws ref
+            // already contains everything that snapped before.
+            let since = events
+                .iter()
+                .rposition(|e| matches!(e.op, Op::Snapshot { .. }))
+                .map(|i| i + 1)
+                .unwrap_or(0);
             let commit = sturn_git::snap_commit(
                 &repo,
                 &base,
-                &events,
+                &events[since..],
                 message,
                 b.as_deref().unwrap_or(&branch),
             )
@@ -393,20 +415,46 @@ fn run(cli: &Cli) -> Result<(), String> {
             }
         }
         Cmd::Daemon => {
-            let bus = sturn_bus_redb::RedbBus::open(bus_path).map_err(|e| e.to_string())?;
+            let bus =
+                sturn_bus_redb::RedbBus::open(bus_path.clone()).map_err(|e| e.to_string())?;
+            // Push side: unix socket next to the store. Subscribers
+            // send one line "repo|topic", then get JSONL forever.
+            let sock_path = bus_path.with_file_name("bus.sock");
+            if let Some(d) = sock_path.parent() {
+                let _ = std::fs::create_dir_all(d);
+            }
+            let _ = std::fs::remove_file(&sock_path);
+            let listener =
+                UnixListener::bind(&sock_path).map_err(|e| e.to_string())?;
+            let subs: Subs = Arc::new(Mutex::new(HashMap::new()));
+            {
+                let subs = subs.clone();
+                std::thread::spawn(move || {
+                    for conn in listener.incoming().flatten() {
+                        let subs = subs.clone();
+                        std::thread::spawn(move || handle_sub(conn, subs));
+                    }
+                });
+            }
             let mut heads: HashMap<String, Option<String>> = HashMap::new();
-            println!("sturn daemon — fan-out {repo_id}.* (poll {poll_ms}ms)");
+            println!(
+                "sturn daemon — fan-out {repo_id}.* (poll {poll_ms}ms, sub {})",
+                sock_path.display()
+            );
             loop {
                 for ws in wal.workspaces(&repo).unwrap_or_default() {
                     let head = wal.head(&repo, &ws).unwrap_or(None);
                     let prev = heads.get(&ws).cloned().unwrap_or(None);
                     if head != prev {
-                        // Scaffold: republish the whole tail on any head
-                        // change. M2: walk only the delta.
-                        for ev in wal.events(&repo, &ws).unwrap_or_default() {
+                        // Only the delta — refs moved, walk the range.
+                        for ev in wal
+                            .events_since(&repo, &ws, prev.as_deref())
+                            .unwrap_or_default()
+                        {
                             let payload =
-                                serde_json::to_vec(&ev).unwrap_or_default();
+                                Arc::new(serde_json::to_vec(&ev).unwrap_or_default());
                             let _ = bus.publish(&repo_id, topic::OPS, &payload);
+                            fanout(&subs, &repo_id, topic::OPS, &payload);
                             let t = match &ev.op {
                                 Op::Claim { .. } | Op::Release { .. } => {
                                     Some(topic::CLAIMS)
@@ -417,13 +465,24 @@ fn run(cli: &Cli) -> Result<(), String> {
                             };
                             if let Some(t) = t {
                                 let _ = bus.publish(&repo_id, t, &payload);
+                                fanout(&subs, &repo_id, t, &payload);
                             }
                         }
                         heads.insert(ws, head);
                     }
                 }
-                std::thread::sleep(std::time::Duration::from_millis(poll_ms));
+                std::thread::sleep(Duration::from_millis(poll_ms));
             }
+        }
+        Cmd::Sub { topic } => {
+            let sock_path = bus_path.with_file_name("bus.sock");
+            let mut s = UnixStream::connect(&sock_path).map_err(|e| {
+                format!("connect {}: {e} (is `sturn daemon` up?)", sock_path.display())
+            })?;
+            writeln!(s, "{repo_id}|{topic}").map_err(|e| e.to_string())?;
+            let mut out = std::io::stdout().lock();
+            std::io::copy(&mut s, &mut out).map_err(|e| e.to_string())?;
+            Ok(())
         }
         Cmd::Deploy { cmd } => match cmd {
             DeployCmd::Service => {
@@ -480,4 +539,45 @@ fn all_events(wal: &sturn_wal_git::GitWal, repo: &Path) -> Result<Vec<Event>, St
         all.extend(wal.events(repo, &ws).map_err(|e| e.to_string())?);
     }
     Ok(all)
+}
+
+/// Live subscribers, keyed `"<repo>|<topic>"` — the daemon's push
+/// side. Dead senders get pruned on the next failed delivery.
+type Subs = Arc<Mutex<HashMap<String, Vec<mpsc::Sender<Arc<Vec<u8>>>>>>>;
+
+/// First line on the socket names the topic; then JSONL payloads
+/// stream until the client hangs up.
+fn handle_sub(mut conn: UnixStream, subs: Subs) {
+    let mut key = String::new();
+    let mut rdr = BufReader::new(match conn.try_clone() {
+        Ok(c) => c,
+        Err(_) => return,
+    });
+    if rdr.read_line(&mut key).is_err() || key.trim().is_empty() {
+        return;
+    }
+    let (tx, rx) = mpsc::channel::<Arc<Vec<u8>>>();
+    subs.lock()
+        .unwrap()
+        .entry(key.trim().to_string())
+        .or_default()
+        .push(tx);
+    for msg in rx {
+        if conn
+            .write_all(&msg)
+            .and_then(|_| conn.write_all(b"\n"))
+            .is_err()
+        {
+            break;
+        }
+    }
+}
+
+/// Push a published payload to live subscribers of the topic.
+fn fanout(subs: &Subs, repo: &str, topic: &str, payload: &Arc<Vec<u8>>) {
+    let key = format!("{repo}|{topic}");
+    let mut map = subs.lock().unwrap();
+    if let Some(list) = map.get_mut(&key) {
+        list.retain(|tx| tx.send(payload.clone()).is_ok());
+    }
 }

@@ -18,4 +18,7 @@ pub trait Ws: Send + Sync {
     fn create(&self, repo: &Path, name: &str, base: &str) -> io::Result<()>;
     /// Commit the ws points at (base today; WAL overlay lands in M4).
     fn tip(&self, repo: &Path, name: &str) -> io::Result<String>;
+    /// Workspace names with a `refs/sturn/ws/*` ref — includes
+    /// workspaces that haven't appended an op yet (no WAL ref).
+    fn workspaces(&self, repo: &Path) -> io::Result<Vec<String>>;
 }
