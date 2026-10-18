@@ -20,4 +20,5 @@ Global flags: `--repo <dir>` (default cwd) · `--config <path>`.
 | `sturn push [--remote R]` | push heads + `refs/sturn/*` |
 | `sturn daemon` | WAL → topic fan-out loop + `bus.sock` push |
 | `sturn sub <topic>` | stream ops\|claims\|review\|presence as JSONL |
+| `sturn mcp` | MCP stdio server — the agent tool surface |
 | `sturn deploy service\|env` | systemd unit / secrets skeleton |
