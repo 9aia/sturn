@@ -19,6 +19,7 @@ Evented coordination over the git object store — the WAL is the state, the tre
 
 - [Architecture](/sturn/explanation/architecture.md)
 - [Why no CRDT for code](/sturn/explanation/no-crdt.md)
+- [The model — files, approval, agents](/sturn/explanation/model.md)
 
 ### Reference
 
