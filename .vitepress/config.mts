@@ -41,6 +41,7 @@ export default defineConfig({
         items: [
           { text: "Architecture", link: "/explanation/architecture" },
           { text: "Why no CRDT for code", link: "/explanation/no-crdt" },
+          { text: "The model", link: "/explanation/model" },
         ],
       },
       {
