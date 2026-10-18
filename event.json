@@ -1,1 +1,1 @@
-{"id":"","ws":"dogfood","actor":"luis","ts":1792294203,"op":{"op":"snapshot","message":"feat: rename/delete surfaces + overlay-aware snap (dogfooded)"}}
+{"id":"","ws":"dogfood","actor":"luis","ts":1792294240,"op":{"op":"write","path":"project/TODO.md","blob":"89c11e404426cb89b0f2e32fca19c525f4f57259","intent":"M5: dogfood closed"}}
