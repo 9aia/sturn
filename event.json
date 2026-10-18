@@ -1,1 +1,1 @@
-{"id":"","ws":"dogfood","actor":"luis","ts":1792294113,"op":{"op":"write","path":"crates/sturn-cli/tests/e2e.rs","blob":"acb2c9900967aa2d259d102088b197d9bbbc8ad3","intent":"rename coverage"}}
+{"id":"","ws":"dogfood","actor":"luis","ts":1792294113,"op":{"op":"write","path":"sturn.toml","blob":"3ca1db9c63dab951796630808645126d35009af2","intent":"commit the config"}}
