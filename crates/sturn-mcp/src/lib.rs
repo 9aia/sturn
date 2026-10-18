@@ -41,6 +41,14 @@ pub const TOOLS: &[Tool] = &[
         about: "Content search across a ws tree",
     },
     Tool {
+        name: "ws_rename",
+        about: "Move a path — the intent survives where git loses it",
+    },
+    Tool {
+        name: "ws_delete",
+        about: "Delete a path",
+    },
+    Tool {
         name: "claim",
         about: "Advisory lock on a path glob — conflict answer now, not at merge",
     },
@@ -120,6 +128,8 @@ fn call(ctx: &Ctx, name: &str, a: &Value) -> Value {
         "ws_write" => ws_write(ctx, a),
         "ws_glob" => ws_glob(ctx, a),
         "ws_grep" => ws_grep(ctx, a),
+        "ws_rename" => ws_rename(ctx, a),
+        "ws_delete" => ws_delete(ctx, a),
         "claim" => claim(ctx, a),
         "release" => release(ctx, a),
         "snap" => snap(ctx, a),
@@ -244,6 +254,49 @@ fn ws_grep(ctx: &Ctx, a: &Value) -> Value {
         Ok(hits.join("\n"))
     })();
     r.map_or_else(|e| tool_err(e), tool_text)
+}
+
+fn ws_rename(ctx: &Ctx, a: &Value) -> Value {
+    let (ws, from, to) = match (arg(a, "ws"), arg(a, "from"), arg(a, "to")) {
+        (Ok(w), Ok(f), Ok(t)) => (w, f, t),
+        _ => return tool_err("missing ws/from/to"),
+    };
+    ctx.wal
+        .append(
+            ctx.repo,
+            ws,
+            &Event::new(
+                ws,
+                ctx.actor,
+                Op::Rename {
+                    from: from.into(),
+                    to: to.into(),
+                },
+            ),
+        )
+        .map(|id| tool_text(format!("rename {from} → {to} (event {id})")))
+        .unwrap_or_else(|e| tool_err(e))
+}
+
+fn ws_delete(ctx: &Ctx, a: &Value) -> Value {
+    let (ws, path) = match (arg(a, "ws"), arg(a, "path")) {
+        (Ok(w), Ok(p)) => (w, p),
+        (Err(e), _) | (_, Err(e)) => return tool_err(e),
+    };
+    ctx.wal
+        .append(
+            ctx.repo,
+            ws,
+            &Event::new(
+                ws,
+                ctx.actor,
+                Op::Delete {
+                    path: path.into(),
+                },
+            ),
+        )
+        .map(|id| tool_text(format!("delete {path} (event {id})")))
+        .unwrap_or_else(|e| tool_err(e))
 }
 
 fn claim(ctx: &Ctx, a: &Value) -> Value {
@@ -434,6 +487,8 @@ fn tool_list() -> Value {
         tool_schema("ws_write", "Write file content as an op", json!({"ws": ws.1, "path": s("path").1, "content": s("content").1, "intent": s("intent").1}), &["ws","path","content"]),
         tool_schema("ws_glob", "List paths matching a glob in a ws", json!({"ws": ws.1, "pattern": s("pattern").1}), &["ws"]),
         tool_schema("ws_grep", "Substring search across a ws", json!({"ws": ws.1, "pattern": s("pattern").1}), &["ws","pattern"]),
+        tool_schema("ws_rename", "Move a path (intent survives)", json!({"ws": ws.1, "from": s("from").1, "to": s("to").1}), &["ws","from","to"]),
+        tool_schema("ws_delete", "Delete a path", json!({"ws": ws.1, "path": s("path").1}), &["ws","path"]),
         tool_schema("claim", "Advisory lock on a path glob — conflicts before work", json!({"ws": ws.1, "glob": s("glob").1, "ttl_secs": {"type":"integer"}}), &["ws","glob"]),
         tool_schema("release", "Drop a claim", json!({"ws": ws.1, "glob": s("glob").1}), &["ws","glob"]),
         tool_schema("snap", "Fold ws ops into a real commit", json!({"ws": ws.1, "message": s("message").1, "branch": s("branch").1}), &["ws","message"]),

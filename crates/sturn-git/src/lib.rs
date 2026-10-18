@@ -125,6 +125,9 @@ pub fn snap_commit(
     };
 
     gi(&["read-tree", base])?;
+    // Track the overlay as we walk — a Rename's `from` may have been
+    // created by an earlier Write in the same batch (never in base).
+    let mut seen: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     for ev in events {
         match &ev.op {
             Op::Write { path, blob, .. } => {
@@ -134,12 +137,17 @@ pub fn snap_commit(
                     "--cacheinfo",
                     &format!("100644,{blob},{path}"),
                 ])?;
+                seen.insert(path.clone(), blob.clone());
             }
             Op::Delete { path } => {
                 gi(&["update-index", "--force-remove", path])?;
+                seen.remove(path.as_str());
             }
             Op::Rename { from, to } => {
-                let blob = git(repo, &["rev-parse", &format!("{base}:{from}")])?;
+                let blob = match seen.get(from.as_str()) {
+                    Some(b) => b.clone(),
+                    None => git(repo, &["rev-parse", &format!("{base}:{from}")])?,
+                };
                 gi(&["update-index", "--force-remove", from])?;
                 gi(&[
                     "update-index",
@@ -147,6 +155,8 @@ pub fn snap_commit(
                     "--cacheinfo",
                     &format!("100644,{blob},{to}"),
                 ])?;
+                seen.remove(from.as_str());
+                seen.insert(to.clone(), blob);
             }
             _ => {}
         }

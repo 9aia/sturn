@@ -78,6 +78,19 @@ enum Cmd {
         #[arg(long)]
         intent: Option<String>,
     },
+    /// Append a rename op — intent survives where git loses it.
+    Rename {
+        from: String,
+        to: String,
+        #[arg(long)]
+        ws: String,
+    },
+    /// Append a delete op.
+    Delete {
+        path: String,
+        #[arg(long)]
+        ws: String,
+    },
     /// Record why work exists — provenance as data.
     Intent {
         text: String,
@@ -359,6 +372,21 @@ fn run(cli: &Cli) -> Result<(), String> {
                 },
             )?;
             println!("write {path} (blob {blob}, event {id})");
+            Ok(())
+        }
+        Cmd::Rename { from, to, ws } => {
+            append(&wal, &repo, ws, &actor, Op::Rename {
+                from: from.clone(),
+                to: to.clone(),
+            })?;
+            println!("rename {from} → {to}");
+            Ok(())
+        }
+        Cmd::Delete { path, ws } => {
+            append(&wal, &repo, ws, &actor, Op::Delete {
+                path: path.clone(),
+            })?;
+            println!("delete {path}");
             Ok(())
         }
         Cmd::Intent { text, ws } => {

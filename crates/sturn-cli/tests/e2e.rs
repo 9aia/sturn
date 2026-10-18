@@ -261,7 +261,7 @@ fn mcp_agent_surface() {
     let tools = m.rpc("tools/list", serde_json::json!({}));
     assert_eq!(
         tools["result"]["tools"].as_array().unwrap().len(),
-        10,
+        12,
         "expected the tool surface"
     );
 
@@ -285,6 +285,19 @@ fn mcp_agent_surface() {
     );
     assert!(glob.contains("src/x.rs"), "{glob}");
 
+    // rename lands in the overlay before any commit
+    call(
+        &mut m,
+        "ws_rename",
+        serde_json::json!({"ws":"a","from":"src/x.rs","to":"src/y.rs"}),
+    );
+    let got = call(
+        &mut m,
+        "ws_read",
+        serde_json::json!({"ws":"a","path":"src/y.rs"}),
+    );
+    assert_eq!(got, "fn x(){}\n");
+
     // Claims across ws boundary: a holds src/**, b is denied.
     call(
         &mut m,
@@ -303,7 +316,7 @@ fn mcp_agent_surface() {
         "snap",
         serde_json::json!({"ws":"a","message":"mcp work"}),
     );
-    assert_eq!(git(&repo, &["show", "HEAD:src/x.rs"]), "fn x(){}");
+    assert_eq!(git(&repo, &["show", "HEAD:src/y.rs"]), "fn x(){}");
 }
 
 #[test]
