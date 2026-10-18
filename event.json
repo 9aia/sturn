@@ -1,1 +1,1 @@
-{"id":"","ws":"gate","actor":"luis","ts":1792295755,"op":{"op":"write","path":"crates/sturn-core/src/lib.rs","blob":"1fdc0b63bb3eb949bf0fe99954ff800d4b58e514","intent":"[review] require config"}}
+{"id":"","ws":"gate","actor":"luis","ts":1792295755,"op":{"op":"write","path":"crates/sturn-cli/src/main.rs","blob":"b95e7f16c9b32a708c2369481d4352043c33a555","intent":"snap gate on unreviewed ops"}}
