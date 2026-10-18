@@ -28,5 +28,7 @@
 - [ ] FUSE impl for humans/GUIs (last — git works meanwhile)
 
 ## M5 — dogfood
-- [ ] sturn coordinates agents editing sturn
+- [x] sturn coordinates agents editing sturn — commit a2fb761
+      authored entirely as ops, tested in the virtual ws, snapped;
+      caught a real bug (rename resolving against base, not overlay)
 - [ ] bupha CI consumes sturn topics instead of webhooks
