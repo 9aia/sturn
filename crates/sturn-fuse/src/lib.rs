@@ -1,16 +1,19 @@
-//! FUSE impl — mount a ws tree read-only for POSIX tools that can't
-//! take the ODB API (editors, file watchers, GUIs). Flat lazily-read
-//! files over `Ws`; the tree is resolved at mount.
+//! FUSE impl — mount a ws tree for POSIX tools (editors, GUIs).
+//! Read-only when `wal` is None; with a WAL, writes are buffered
+//! per open file and become Write/Delete/Rename ops on `release`.
+//! The mounted view is the ws tip at mount time.
 
 use fuser::{
-    FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData, ReplyDirectory,
-    ReplyEntry, Request,
+    FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyCreate, ReplyData,
+    ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyOpen, ReplyWrite, Request,
 };
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::io;
 use std::path::Path;
 use std::time::{Duration, UNIX_EPOCH};
+use sturn_core::{Event, Op};
+use sturn_wal::Wal;
 use sturn_ws::Ws;
 
 const TTL: Duration = Duration::from_secs(1);
@@ -25,7 +28,11 @@ fn attr(ino: u64, size: u64, dir: bool) -> FileAttr {
         mtime: UNIX_EPOCH,
         ctime: UNIX_EPOCH,
         crtime: UNIX_EPOCH,
-        kind: if dir { FileType::Directory } else { FileType::RegularFile },
+        kind: if dir {
+            FileType::Directory
+        } else {
+            FileType::RegularFile
+        },
         perm: if dir { 0o755 } else { 0o644 },
         nlink: 1,
         uid: 0,
@@ -39,35 +46,68 @@ fn attr(ino: u64, size: u64, dir: bool) -> FileAttr {
 struct Entry {
     ino: u64,
     dir: bool,
-    /// blob rev path for files (read on demand), None for dirs.
     path: String,
     size: u64,
 }
 
-/// Read-only tree mount — files resolve `read` lazily via the ODB.
-/// The mounted view is the ws tip at mount time (overlay later).
+/// Tree mount over the ODB. With `wal`/`ws`/`actor`, it's read-write:
+/// edits flow back as ops — the FUSE mount is just another actor.
 pub struct SturnFs<'a> {
     repo: &'a Path,
     rev: String,
     wsi: &'a dyn Ws,
-    /// ino → entry; 1 = root.
+    wal: Option<&'a dyn Wal>,
+    ws: &'a str,
+    actor: &'a str,
     entries: HashMap<u64, Entry>,
-    /// dir ino → children (name, ino).
     kids: HashMap<u64, Vec<(String, u64)>>,
-    /// path → ino for lookups.
     by_path: HashMap<String, u64>,
+    /// ino → (path, buffered content) for open writable files.
+    open: HashMap<u64, (String, Vec<u8>)>,
+    /// ino → read buffer for open read-only files (lazy hydration).
+    rdbuf: HashMap<u64, Vec<u8>>,
+    next_ino: u64,
 }
 
 impl<'a> SturnFs<'a> {
-    /// Build the inode index for `rev`'s whole tree.
+    /// Read-only mount at `rev`.
     pub fn new(repo: &'a Path, rev: &str, wsi: &'a dyn Ws) -> io::Result<Self> {
+        Self::build(repo, rev, wsi, None, "", "")
+    }
+
+    /// Read-write mount — releases become ops on `ws`.
+    pub fn new_rw(
+        repo: &'a Path,
+        rev: &str,
+        wsi: &'a dyn Ws,
+        wal: &'a dyn Wal,
+        ws: &'a str,
+        actor: &'a str,
+    ) -> io::Result<Self> {
+        Self::build(repo, rev, wsi, Some(wal), ws, actor)
+    }
+
+    fn build(
+        repo: &'a Path,
+        rev: &str,
+        wsi: &'a dyn Ws,
+        wal: Option<&'a dyn Wal>,
+        ws: &'a str,
+        actor: &'a str,
+    ) -> io::Result<Self> {
         let mut fs = SturnFs {
             repo,
             rev: rev.into(),
             wsi,
+            wal,
+            ws,
+            actor,
             entries: HashMap::new(),
             kids: HashMap::new(),
             by_path: HashMap::new(),
+            open: HashMap::new(),
+            rdbuf: HashMap::new(),
+            next_ino: 2,
         };
         fs.entries.insert(
             ROOT,
@@ -81,7 +121,6 @@ impl<'a> SturnFs<'a> {
         fs.by_path.insert(String::new(), ROOT);
         let mut next = 2u64;
         for p in wsi.list(repo, rev)? {
-            // ensure parent chain as dir inos
             let mut cur = String::new();
             let parts: Vec<&str> = p.split('/').collect();
             for (i, part) in parts.iter().enumerate() {
@@ -115,12 +154,56 @@ impl<'a> SturnFs<'a> {
                 }
             }
         }
+        fs.next_ino = next;
         Ok(fs)
     }
 
-    /// Mount (blocking) at `mountpoint`.
+    /// Mount (blocking) at `mountpoint`; RW iff wal is Some.
     pub fn mount(self, mountpoint: &Path) -> io::Result<()> {
-        fuser::mount2(self, mountpoint, &[MountOption::RO, MountOption::FSName("sturn".into())])
+        let opts = if self.wal.is_some() {
+            vec![MountOption::RW, MountOption::FSName("sturn".into())]
+        } else {
+            vec![MountOption::RO, MountOption::FSName("sturn".into())]
+        };
+        fuser::mount2(self, mountpoint, &opts)
+    }
+
+    fn append(&self, op: Op) {
+        if let Some(wal) = self.wal {
+            let _ = wal.append(
+                self.repo,
+                self.ws,
+                &Event::new(self.ws, self.actor, op),
+            );
+        }
+    }
+
+    fn add_entry(&mut self, path: &str, dir: bool) -> u64 {
+        let ino = self.next_ino;
+        self.next_ino += 1;
+        self.entries.insert(
+            ino,
+            Entry {
+                ino,
+                dir,
+                path: path.into(),
+                size: 0,
+            },
+        );
+        self.by_path.insert(path.into(), ino);
+        if let Some((parent, name)) = path.rsplit_once('/') {
+            let pin = self.by_path[parent];
+            self.kids
+                .entry(pin)
+                .or_default()
+                .push((name.into(), ino));
+        } else {
+            self.kids
+                .entry(ROOT)
+                .or_default()
+                .push((path.into(), ino));
+        }
+        ino
     }
 }
 
@@ -129,13 +212,20 @@ impl Filesystem for SturnFs<'_> {
         let found = self
             .kids
             .get(&parent)
-            .and_then(|ks| {
-                ks.iter()
-                    .find(|(n, _)| n.as_str() == name.to_string_lossy())
-            })
+            .and_then(|ks| ks.iter().find(|(n, _)| n.as_str() == name.to_string_lossy()))
             .map(|(_, ino)| *ino);
         match found.and_then(|i| self.entries.get(&i)) {
-            Some(e) => reply.entry(&TTL, &attr(e.ino, e.size, e.dir), 0),
+            Some(e) => {
+                let size = if e.dir {
+                    0
+                } else {
+                    self.rdbuf
+                        .get(&e.ino)
+                        .map(|b| b.len() as u64)
+                        .unwrap_or(e.size)
+                };
+                reply.entry(&TTL, &attr(e.ino, size, e.dir), 0)
+            }
             None => reply.error(libc::ENOENT),
         }
     }
@@ -185,6 +275,26 @@ impl Filesystem for SturnFs<'_> {
         reply.ok();
     }
 
+    fn open(&mut self, _req: &Request, ino: u64, _flags: i32, reply: ReplyOpen) {
+        let Some(e) = self.entries.get(&ino) else {
+            reply.error(libc::ENOENT);
+            return;
+        };
+        if e.dir {
+            reply.error(libc::EISDIR);
+            return;
+        }
+        if self.wal.is_some() {
+            // hydrate lazily — read current content into the write buf
+            let bytes = self
+                .wsi
+                .read(self.repo, &self.rev, &e.path)
+                .unwrap_or_default();
+            self.rdbuf.insert(ino, bytes);
+        }
+        reply.opened(ino, 0);
+    }
+
     fn read(
         &mut self,
         _req: &Request,
@@ -196,6 +306,12 @@ impl Filesystem for SturnFs<'_> {
         _lock: Option<u64>,
         reply: ReplyData,
     ) {
+        if let Some(buf) = self.rdbuf.get(&ino) {
+            let start = (offset as usize).min(buf.len());
+            let end = (start + size as usize).min(buf.len());
+            reply.data(&buf[start..end]);
+            return;
+        }
         let Some(e) = self.entries.get(&ino) else {
             reply.error(libc::ENOENT);
             return;
@@ -207,6 +323,199 @@ impl Filesystem for SturnFs<'_> {
                 reply.data(&bytes[start..end]);
             }
             Err(_) => reply.error(libc::EIO),
+        }
+    }
+
+    fn write(
+        &mut self,
+        _req: &Request,
+        ino: u64,
+        _fh: u64,
+        offset: i64,
+        data: &[u8],
+        _wf: u32,
+        _flags: i32,
+        _lock: Option<u64>,
+        reply: ReplyWrite,
+    ) {
+        if self.wal.is_none() {
+            reply.error(libc::EROFS);
+            return;
+        }
+        if !self.open.contains_key(&ino) {
+            // first write on this handle: seed buffer from rdbuf
+            let Some(path) = self.entries.get(&ino).map(|e| e.path.clone()) else {
+                reply.error(libc::ENOENT);
+                return;
+            };
+            let buf = self.rdbuf.remove(&ino).unwrap_or_default();
+            self.open.insert(ino, (path, buf));
+        }
+        let Some((_, buf)) = self.open.get_mut(&ino) else {
+            reply.error(libc::ENOENT);
+            return;
+        };
+        let off = offset as usize;
+        if buf.len() < off + data.len() {
+            buf.resize(off + data.len(), 0);
+        }
+        buf[off..off + data.len()].copy_from_slice(data);
+        reply.written(data.len() as u32);
+    }
+
+    fn create(
+        &mut self,
+        _req: &Request,
+        parent: u64,
+        name: &OsStr,
+        _mode: u32,
+        _umask: u32,
+        _flags: i32,
+        reply: ReplyCreate,
+    ) {
+        if self.wal.is_none() {
+            reply.error(libc::EROFS);
+            return;
+        }
+        let pname = name.to_string_lossy().into_owned();
+        let path = {
+            let pe = &self.entries[&parent];
+            if pe.path.is_empty() {
+                pname.clone()
+            } else {
+                format!("{}/{pname}", pe.path)
+            }
+        };
+        let ino = self.add_entry(&path, false);
+        self.open.insert(ino, (path, Vec::new()));
+        reply.created(&TTL, &attr(ino, 0, false), 0, ino, 0);
+    }
+
+    fn setattr(
+        &mut self,
+        _req: &Request,
+        ino: u64,
+        _mode: Option<u32>,
+        _uid: Option<u32>,
+        _gid: Option<u32>,
+        size: Option<u64>,
+        _a: Option<fuser::TimeOrNow>,
+        _m: Option<fuser::TimeOrNow>,
+        _c: Option<std::time::SystemTime>,
+        _fh: Option<u64>,
+        _cr: Option<std::time::SystemTime>,
+        _chg: Option<std::time::SystemTime>,
+        _bk: Option<std::time::SystemTime>,
+        _flags: Option<u32>,
+        reply: ReplyAttr,
+    ) {
+        let Some(e) = self.entries.get_mut(&ino) else {
+            reply.error(libc::ENOENT);
+            return;
+        };
+        if let Some(sz) = size {
+            // truncate — O_TRUNC on open lands here before write()
+            if let Some((_, buf)) = self.open.get_mut(&ino) {
+                buf.resize(sz as usize, 0);
+            } else {
+                let buf = self
+                    .wsi
+                    .read(self.repo, &self.rev, &e.path)
+                    .unwrap_or_default();
+                let mut b = buf;
+                b.resize(sz as usize, 0);
+                self.open.insert(ino, (e.path.clone(), b));
+            }
+            e.size = sz;
+        }
+        reply.attr(&TTL, &attr(ino, e.size, e.dir));
+    }
+
+    fn release(
+        &mut self,
+        _req: &Request,
+        ino: u64,
+        _fh: u64,
+        _flags: i32,
+        _lock: Option<u64>,
+        _flush: bool,
+        reply: ReplyEmpty,
+    ) {
+        // The write-back: buffered content becomes a Write op.
+        if let Some((path, buf)) = self.open.remove(&ino) {
+            if let Ok(blob) = self.wsi.store(self.repo, &buf) {
+                self.append(Op::Write {
+                    path,
+                    blob,
+                    intent: Some("fuse".into()),
+                });
+            }
+        }
+        self.rdbuf.remove(&ino);
+        reply.ok();
+    }
+
+    fn unlink(&mut self, _req: &Request, _parent: u64, name: &OsStr, reply: ReplyEmpty) {
+        if self.wal.is_none() {
+            reply.error(libc::EROFS);
+            return;
+        }
+        // resolve via children of parent
+        let pname = name.to_string_lossy().into_owned();
+        let path = {
+            let p_ino = _parent;
+            self.kids
+                .get(&p_ino)
+                .and_then(|ks| ks.iter().find(|(n, _)| *n == pname))
+                .and_then(|(_, i)| self.entries.get(i))
+                .map(|e| e.path.clone())
+        };
+        match path {
+            Some(p) => {
+                self.append(Op::Delete { path: p });
+                reply.ok();
+            }
+            None => reply.error(libc::ENOENT),
+        }
+    }
+
+    fn rename(
+        &mut self,
+        _req: &Request,
+        _parent: u64,
+        name: &OsStr,
+        _newparent: u64,
+        newname: &OsStr,
+        _flags: u32,
+        reply: ReplyEmpty,
+    ) {
+        if self.wal.is_none() {
+            reply.error(libc::EROFS);
+            return;
+        }
+        let resolve = |parent: u64, n: &OsStr| -> Option<String> {
+            self.kids
+                .get(&parent)
+                .and_then(|ks| {
+                    ks.iter()
+                        .find(|(k, _)| k.as_str() == n.to_string_lossy())
+                })
+                .and_then(|(_, i)| self.entries.get(i))
+                .map(|e| e.path.clone())
+        };
+        match (resolve(_parent, name), resolve(_newparent, newname).or_else(|| {
+            let np = &self.entries.get(&_newparent)?.path;
+            Some(if np.is_empty() {
+                newname.to_string_lossy().into_owned()
+            } else {
+                format!("{np}/{}", newname.to_string_lossy())
+            })
+        })) {
+            (Some(from), Some(to)) => {
+                self.append(Op::Rename { from, to });
+                reply.ok();
+            }
+            _ => reply.error(libc::ENOENT),
         }
     }
 }

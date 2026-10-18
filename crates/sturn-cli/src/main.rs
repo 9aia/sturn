@@ -185,10 +185,13 @@ enum Cmd {
         #[arg(trailing_var_arg = true, required = true)]
         cmd: Vec<String>,
     },
-    /// Mount a ws tree read-only via FUSE — POSIX for tools/GUIs.
+    /// Mount a ws tree via FUSE — POSIX for tools/GUIs.
+    /// --rw: edits flow back as Write/Delete/Rename ops.
     Mount {
         ws: String,
         dir: PathBuf,
+        #[arg(long)]
+        rw: bool,
     },
     /// Deploy the daemon — systemd user unit + env skeleton.
     Deploy {
@@ -750,11 +753,17 @@ fn run(cli: &Cli) -> Result<(), String> {
             std::io::copy(&mut s, &mut out).map_err(|e| e.to_string())?;
             Ok(())
         }
-        Cmd::Mount { ws, dir } => {
+        Cmd::Mount { ws, dir, rw } => {
             let tip = ws_impl.tip(&repo, ws).map_err(|e| e.to_string())?;
-            let fs = sturn_fuse::SturnFs::new(&repo, &tip, &ws_impl)
-                .map_err(|e| e.to_string())?;
-            fs.mount(dir).map_err(|e| e.to_string())
+            if *rw {
+                sturn_fuse::SturnFs::new_rw(&repo, &tip, &ws_impl, &wal, ws, &actor)
+                    .and_then(|fs| fs.mount(dir))
+                    .map_err(|e| e.to_string())
+            } else {
+                sturn_fuse::SturnFs::new(&repo, &tip, &ws_impl)
+                    .and_then(|fs| fs.mount(dir))
+                    .map_err(|e| e.to_string())
+            }
         }
         Cmd::Deploy { cmd } => match cmd {
             DeployCmd::Service => {

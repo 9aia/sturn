@@ -34,6 +34,11 @@
 - [x] review gates: `[review] require = true` — snap refuses unreviewed tree ops
 - [x] multi-repo daemon: `[bus] repos = [...]` fans out extra repos
 
+## M4.75 — write-back + session polish
+- [x] FUSE `--rw`: mount edits → Write/Delete/Rename ops on release
+- [x] bus poll(): range scan from cursor (was full-table scan)
+- [x] `sturn exec --writeback`: dir diffs → ops (earlier)
+
 ## M5 — dogfood
 - [x] sturn coordinates agents editing sturn — commit a2fb761
       authored entirely as ops, tested in the virtual ws, snapped;

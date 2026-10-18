@@ -10,5 +10,7 @@ categories = ["development-tools"]
 
 [dependencies]
 sturn-ws.workspace = true
+sturn-wal.workspace = true
+sturn-core.workspace = true
 fuser = "0.15"
 libc = "0.2"
