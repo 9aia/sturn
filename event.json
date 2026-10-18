@@ -1,1 +1,1 @@
-{"id":"","ws":"devin","actor":"luis","ts":1792303782,"op":{"op":"delete","path":"docs-live.txt"}}
+{"id":"","ws":"devin","actor":"luis","ts":1792303782,"op":{"op":"release","glob":"docs/**"}}
