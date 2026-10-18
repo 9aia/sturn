@@ -34,6 +34,11 @@ pub fn active(events: &[Event], now: u64) -> Vec<Active> {
             Op::Release { glob } => {
                 out.retain(|c| !(c.ws == ev.ws && c.glob == *glob));
             }
+            // An actor leaving a ws drops all its claims there —
+            // dead agents can't hold the swarm hostage.
+            Op::Presence { status } if status == "left" => {
+                out.retain(|c| !(c.ws == ev.ws && c.actor == ev.actor));
+            }
             _ => {}
         }
     }

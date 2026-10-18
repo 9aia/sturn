@@ -14,12 +14,16 @@ use sturn_wal::Wal;
 pub struct GitWal {
     /// Ref prefix — one ref per workspace below it.
     pub ref_prefix: String,
+    /// SSH key to sign events (`ssh-keygen -Y sign`, namespace
+    /// `sturn-event`). None = unsigned ops.
+    pub sign_key: Option<std::path::PathBuf>,
 }
 
 impl Default for GitWal {
     fn default() -> Self {
         GitWal {
             ref_prefix: "refs/sturn/wal".into(),
+            sign_key: None,
         }
     }
 }
@@ -65,6 +69,27 @@ fn git_in(repo: &Path, args: &[&str], input: &[u8]) -> io::Result<String> {
     }
 }
 
+/// `ssh-keygen -Y sign` on the canonical payload — SSH signing is
+/// stdlib tooling, Ed25519 under the hood, no new crypto deps.
+fn sign_event(payload: &[u8], key: &Path) -> io::Result<String> {
+    let base = std::env::temp_dir().join(format!("sturn-sign-{}", std::process::id()));
+    let data = base.with_extension("data");
+    std::fs::write(&data, payload)?;
+    let st = Command::new("ssh-keygen")
+        .args(["-Y", "sign", "-f"])
+        .arg(key)
+        .args(["-n", "sturn-event"])
+        .arg(&data)
+        .status()?;
+    let sig = std::fs::read_to_string(data.with_extension("data.sig"));
+    let _ = std::fs::remove_file(&data);
+    let _ = std::fs::remove_file(data.with_extension("data.sig"));
+    if !st.success() {
+        return Err(io::Error::other("ssh-keygen -Y sign failed"));
+    }
+    sig
+}
+
 impl GitWal {
     fn wal_ref(&self, ws: &str) -> String {
         format!("{}/{ws}", self.ref_prefix)
@@ -73,7 +98,11 @@ impl GitWal {
 
 impl Wal for GitWal {
     fn append(&self, repo: &Path, ws: &str, ev: &Event) -> io::Result<String> {
-        let payload = serde_json::to_vec(ev).map_err(io::Error::other)?;
+        let mut ev = ev.clone();
+        if let Some(key) = &self.sign_key {
+            ev.sig = Some(sign_event(&ev.signing_bytes(), key)?);
+        }
+        let payload = serde_json::to_vec(&ev).map_err(io::Error::other)?;
         let blob = git_in(repo, &["hash-object", "-w", "--stdin"], &payload)?;
         let msg = format!("sturn:{ws}:{}", serde_json::to_value(&ev.op)
             .ok()
@@ -158,6 +187,56 @@ impl Wal for GitWal {
             .success()
             .then(|| String::from_utf8_lossy(&o.stdout).trim().to_string())
             .filter(|s| !s.is_empty()))
+    }
+
+    fn compact(&self, repo: &Path, ws: &str) -> io::Result<usize> {
+        let events = self.events(repo, ws)?;
+        // Drop strictly *before* the last Snapshot marker — the marker
+        // itself must survive, or the next snap would re-apply ops
+        // that are already in the tip.
+        let drop = sturn_core::since_last_snapshot(&events).saturating_sub(1);
+        if drop == 0 {
+            return Ok(0);
+        }
+        let head = self
+            .head(repo, ws)?
+            .ok_or_else(|| io::Error::other("no wal ref"))?;
+        // Archive the full history ref before rewriting — compaction
+        // shrinks the live log, not the audit trail.
+        git(
+            repo,
+            &[
+                "update-ref",
+                &format!("refs/sturn/archive/{ws}"),
+                &head,
+            ],
+        )?;
+        // Rebuild the chain from post-snapshot events. Blobs already
+        // exist in the ODB — each surviving event re-commits cheaply.
+        let mut parent: Option<String> = None;
+        for ev in &events[drop..] {
+            let payload = serde_json::to_vec(ev).map_err(io::Error::other)?;
+            let blob = git_in(repo, &["hash-object", "-w", "--stdin"], &payload)?;
+            let tree = git_in(
+                repo,
+                &["mktree"],
+                format!("100644 blob {blob}\tevent.json\n").as_bytes(),
+            )?;
+            let mut args = vec!["commit-tree", tree.as_str(), "-m", "sturn:compacted"];
+            if let Some(p) = &parent {
+                args.extend(["-p", p.as_str()]);
+            }
+            parent = Some(git(repo, &args)?);
+        }
+        match parent {
+            Some(tip) => git(repo, &["update-ref", &self.wal_ref(ws), &tip])?,
+            // Everything was pre-snapshot — drop the WAL ref entirely.
+            None => git(
+                repo,
+                &["update-ref", "-d", &self.wal_ref(ws)],
+            )?,
+        };
+        Ok(drop)
     }
 
     fn workspaces(&self, repo: &Path) -> io::Result<Vec<String>> {

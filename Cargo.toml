@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/sturn-cli",
+    "crates/sturn-fuse",
     "crates/sturn-core",
     "crates/sturn-wal",
     "crates/sturn-wal-git",
@@ -46,6 +47,7 @@ sturn-vcs = { path = "crates/sturn-vcs", version = "0.1.0" }
 sturn-git = { path = "crates/sturn-git", version = "0.1.0" }
 sturn-claim = { path = "crates/sturn-claim", version = "0.1.0" }
 sturn-mcp = { path = "crates/sturn-mcp", version = "0.1.0" }
+sturn-fuse = { path = "crates/sturn-fuse", version = "0.1.0" }
 sturn-config = { path = "crates/sturn-config", version = "0.1.0" }
 sturn-config-toml = { path = "crates/sturn-config-toml", version = "0.1.0" }
 sturn-secret = { path = "crates/sturn-secret", version = "0.1.0" }

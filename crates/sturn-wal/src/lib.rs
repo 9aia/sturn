@@ -29,4 +29,9 @@ pub trait Wal: Send + Sync {
     fn head(&self, repo: &Path, ws: &str) -> io::Result<Option<String>>;
     /// Workspace ids that have a WAL ref.
     fn workspaces(&self, repo: &Path) -> io::Result<Vec<String>>;
+    /// Drop pre-snapshot history: events before the last `Snapshot`
+    /// are already in the tip commit — replaying them is waste.
+    /// Returns events dropped. Old history moves to
+    /// `refs/sturn/archive/<ws>` — compaction loses nothing.
+    fn compact(&self, repo: &Path, ws: &str) -> io::Result<usize>;
 }

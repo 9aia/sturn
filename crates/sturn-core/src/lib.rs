@@ -37,6 +37,11 @@ pub struct Event {
     pub actor: String,
     /// Unix seconds.
     pub ts: u64,
+    /// SSH signature (PEM) over the event with `sig` empty —
+    /// `ssh-keygen -Y sign`, namespace `sturn-event`. Attribution
+    /// becomes authentication when `[signing] key` is set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sig: Option<String>,
     /// The operation.
     pub op: Op,
 }
@@ -142,8 +147,17 @@ impl Event {
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs())
                 .unwrap_or(0),
+            sig: None,
             op,
         }
+    }
+
+    /// Canonical bytes for signing — the event with `sig` cleared.
+    /// serde field order is deterministic, so this round-trips.
+    pub fn signing_bytes(&self) -> Vec<u8> {
+        let mut e = self.clone();
+        e.sig = None;
+        serde_json::to_vec(&e).unwrap_or_default()
     }
 }
 
@@ -160,6 +174,21 @@ pub struct Config {
     pub bus: BusCfg,
     #[serde(default)]
     pub actor: ActorCfg,
+    #[serde(default)]
+    pub signing: SigningCfg,
+}
+
+/// `[signing]` — sign ops with an SSH key (`ssh-keygen -Y sign`,
+/// namespace `sturn-event`).
+#[derive(Debug, Deserialize, Clone, Default)]
+#[serde(deny_unknown_fields)]
+pub struct SigningCfg {
+    /// Private key path (ed25519). ~ expands.
+    #[serde(default)]
+    pub key: Option<String>,
+    /// allowed_signers for `sturn verify`.
+    #[serde(default)]
+    pub allowed_signers: Option<String>,
 }
 
 /// `[repo]` — which git repo this config coordinates.

@@ -1,0 +1,14 @@
+[package]
+name = "sturn-fuse"
+description = "FUSE impl: mount a ws tree read-only for POSIX tools"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["vcs", "sturn", "agents"]
+categories = ["development-tools"]
+
+[dependencies]
+sturn-ws.workspace = true
+fuser = "0.15"
+libc = "0.2"

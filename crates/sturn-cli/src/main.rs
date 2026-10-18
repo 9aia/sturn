@@ -97,6 +97,12 @@ enum Cmd {
         #[arg(long)]
         ws: String,
     },
+    /// Drop pre-snapshot WAL history (archived, not lost).
+    Compact {
+        /// One workspace, or all when omitted.
+        #[arg(long)]
+        ws: Option<String>,
+    },
     /// Replay the WAL — ops in order, JSONL.
     Log {
         /// One workspace, or all when omitted.
@@ -134,8 +140,27 @@ enum Cmd {
         /// Topic suffix under `repo.<id>.`.
         topic: String,
     },
+    /// Announce presence — `leave` drops all the actor's claims.
+    Join { ws: String },
+    /// Leave a ws — sweeps the actor's claims on it.
+    Leave { ws: String },
+    /// Verify event signatures against allowed_signers.
+    Verify {
+        #[arg(long)]
+        ws: Option<String>,
+    },
     /// Live claims across every workspace.
     Claims,
+    /// Bridge snapshot events to a bupha webhook — GitHub-shaped,
+    /// HMAC-signed. Bupha runs CI on snaps with zero bupha changes.
+    Bridge {
+        /// bupha listener URL (e.g. http://127.0.0.1:9000/).
+        #[arg(long)]
+        to: String,
+        /// Env var naming the webhook secret (HMAC-SHA256).
+        #[arg(long, default_value = "BUPHA_WEBHOOK_SECRET")]
+        secret_env: String,
+    },
     /// MCP stdio server — the 9-tool agent surface on JSON-RPC.
     Mcp,
     /// Hydrate a ws to tmpfs and run a command inside — compilers
@@ -150,6 +175,11 @@ enum Cmd {
         /// Command + args, after `--`.
         #[arg(trailing_var_arg = true, required = true)]
         cmd: Vec<String>,
+    },
+    /// Mount a ws tree read-only via FUSE — POSIX for tools/GUIs.
+    Mount {
+        ws: String,
+        dir: PathBuf,
     },
     /// Deploy the daemon — systemd user unit + env skeleton.
     Deploy {
@@ -233,6 +263,16 @@ fn run(cli: &Cli) -> Result<(), String> {
             .as_ref()
             .map(|c| c.wal.ref_prefix.clone())
             .unwrap_or_else(|| "refs/sturn/wal".into()),
+        sign_key: cfg
+            .as_ref()
+            .and_then(|c| c.signing.key.clone())
+            .map(|k| {
+                k.replace(
+                    '~',
+                    &std::env::var("HOME").unwrap_or_else(|_| ".".into()),
+                )
+            })
+            .map(PathBuf::from),
     };
     let ws_impl = sturn_ws_git::GitWs;
     let bus_path = cfg
@@ -333,6 +373,81 @@ fn run(cli: &Cli) -> Result<(), String> {
             println!("released {glob}");
             Ok(())
         }
+        Cmd::Join { ws } => {
+            append(&wal, &repo, ws, &actor, Op::Presence {
+                status: "joined".into(),
+            })?;
+            println!("{actor} joined {ws}");
+            Ok(())
+        }
+        Cmd::Leave { ws } => {
+            append(&wal, &repo, ws, &actor, Op::Presence {
+                status: "left".into(),
+            })?;
+            println!("{actor} left {ws} — claims swept");
+            Ok(())
+        }
+        Cmd::Verify { ws } => {
+            let signers = cfg
+                .as_ref()
+                .and_then(|c| c.signing.allowed_signers.clone())
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    std::env::var("HOME")
+                        .map(PathBuf::from)
+                        .unwrap_or_else(|_| ".".into())
+                        .join(".config/sturn/allowed_signers")
+                });
+            if !signers.exists() {
+                return Err(format!(
+                    "no allowed_signers at {} — can't verify",
+                    signers.display()
+                ));
+            }
+            let names = match ws {
+                Some(w) => vec![w.clone()],
+                None => wal.workspaces(&repo).map_err(|e| e.to_string())?,
+            };
+            let (mut ok, mut nosig, mut bad) = (0u32, 0u32, 0u32);
+            for n in names {
+                for ev in wal.events(&repo, &n).map_err(|e| e.to_string())? {
+                    let Some(sig) = &ev.sig else {
+                        nosig += 1;
+                        continue;
+                    };
+                    let dir = std::env::temp_dir();
+                    let data = dir.join(format!("sturn-vfy-{}", std::process::id()));
+                    let sigf = dir.join(format!("sturn-vfy-{}.sig", std::process::id()));
+                    std::fs::write(&data, ev.signing_bytes()).map_err(|e| e.to_string())?;
+                    std::fs::write(&sigf, sig).map_err(|e| e.to_string())?;
+                    let st = std::process::Command::new("ssh-keygen")
+                        .args(["-Y", "verify", "-f"])
+                        .arg(&signers)
+                        .args(["-I", &ev.actor, "-n", "sturn-event", "-s"])
+                        .arg(&sigf)
+                        .stdin(std::process::Stdio::from(
+                            std::fs::File::open(&data).map_err(|e| e.to_string())?,
+                        ))
+                        .stdout(std::process::Stdio::null())
+                        .status();
+                    let _ = std::fs::remove_file(&data);
+                    let _ = std::fs::remove_file(&sigf);
+                    match st.map(|s| s.success()) {
+                        Ok(true) => ok += 1,
+                        _ => {
+                            bad += 1;
+                            eprintln!("bad sig: {} ({})", ev.id, ev.actor);
+                        }
+                    }
+                }
+            }
+            println!("verify: {ok} ok, {nosig} unsigned, {bad} bad");
+            if bad > 0 {
+                Err("bad signatures found".into())
+            } else {
+                Ok(())
+            }
+        }
         Cmd::Claims => {
             let all = all_events(&wal, &repo)?;
             for c in claims::active(&all, now()) {
@@ -395,6 +510,17 @@ fn run(cli: &Cli) -> Result<(), String> {
             })?;
             Ok(())
         }
+        Cmd::Compact { ws } => {
+            let names = match ws {
+                Some(w) => vec![w.clone()],
+                None => wal.workspaces(&repo).map_err(|e| e.to_string())?,
+            };
+            for n in names {
+                let dropped = wal.compact(&repo, &n).map_err(|e| e.to_string())?;
+                println!("{n}: dropped {dropped} pre-snapshot events");
+            }
+            Ok(())
+        }
         Cmd::Log { ws } => {
             let names = match ws {
                 Some(w) => vec![w.clone()],
@@ -424,6 +550,33 @@ fn run(cli: &Cli) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
             println!("snap {commit} → {}", b.as_deref().unwrap_or(&branch));
             Ok(())
+        }
+        Cmd::Bridge { to, secret_env } => {
+            let secret = std::env::var(secret_env)
+                .map_err(|_| format!("${secret_env} not set"))?;
+            println!("sturn bridge — {repo_id} snapshots → {to}");
+            let mut heads: HashMap<String, Option<String>> = HashMap::new();
+            loop {
+                for ws in wal.workspaces(&repo).unwrap_or_default() {
+                    let head = wal.head(&repo, &ws).unwrap_or(None);
+                    let prev = heads.get(&ws).cloned().unwrap_or(None);
+                    if head == prev {
+                        continue;
+                    }
+                    for ev in wal
+                        .events_since(&repo, &ws, prev.as_deref())
+                        .unwrap_or_default()
+                    {
+                        if let Op::Snapshot { .. } = ev.op {
+                            if let Ok(sha) = ws_impl.tip(&repo, &ws) {
+                                let _ = post_push(to, &secret, &repo_id, &branch, &sha, &ev.actor);
+                            }
+                        }
+                    }
+                    heads.insert(ws, head);
+                }
+                std::thread::sleep(Duration::from_millis(poll_ms));
+            }
         }
         Cmd::Mcp => {
             let snap = |ws: &str, msg: &str, branch: &str| {
@@ -554,6 +707,12 @@ fn run(cli: &Cli) -> Result<(), String> {
             std::io::copy(&mut s, &mut out).map_err(|e| e.to_string())?;
             Ok(())
         }
+        Cmd::Mount { ws, dir } => {
+            let tip = ws_impl.tip(&repo, ws).map_err(|e| e.to_string())?;
+            let fs = sturn_fuse::SturnFs::new(&repo, &tip, &ws_impl)
+                .map_err(|e| e.to_string())?;
+            fs.mount(dir).map_err(|e| e.to_string())
+        }
         Cmd::Deploy { cmd } => match cmd {
             DeployCmd::Service => {
                 let svc = sturn_systemd::SystemdService {
@@ -630,6 +789,47 @@ fn do_snap(
         ),
     )?;
     Ok(commit)
+}
+
+/// POST a GitHub-shaped push webhook (HMAC-SHA256 signed) — bupha's
+/// GitHubTrigger accepts it as an ordinary push. Pure std::net.
+fn post_push(
+    url: &str,
+    secret: &str,
+    repo_id: &str,
+    branch: &str,
+    sha: &str,
+    sender: &str,
+) -> Result<(), String> {
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+    let body = format!(
+        "{{\"ref\":\"refs/heads/{branch}\",\"after\":\"{sha}\",\
+         \"repository\":{{\"full_name\":\"{repo_id}\"}},\"sender\":{{\"login\":\"{sender}\"}}}}"
+    );
+    let mut mac =
+        Hmac::<Sha256>::new_from_slice(secret.as_bytes()).map_err(|e| e.to_string())?;
+    mac.update(body.as_bytes());
+    let sig = hex::encode(mac.finalize().into_bytes());
+    // minimal HTTP/1.1 POST over TcpStream
+    let url = url.trim_end_matches('/');
+    let host = url.strip_prefix("http://").unwrap_or(url);
+    let (hostport, path) = host.split_once('/').unwrap_or((host, ""));
+    let mut s = std::net::TcpStream::connect(hostport).map_err(|e| e.to_string())?;
+    let req = format!(
+        "POST /{path} HTTP/1.1\r\nHost: {hostport}\r\nContent-Type: application/json\r\n\
+         X-GitHub-Event: push\r\nX-Hub-Signature-256: sha256={sig}\r\n\
+         X-GitHub-Delivery: sturn-{sha}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+    s.write_all(req.as_bytes()).map_err(|e| e.to_string())?;
+    let mut resp = String::new();
+    s.read_to_string(&mut resp).map_err(|e| e.to_string())?;
+    if resp.starts_with("HTTP/1.1 2") || resp.starts_with("HTTP/1.0 2") {
+        Ok(())
+    } else {
+        Err(format!("bridge POST {url}: {}", resp.lines().next().unwrap_or("?")))
+    }
 }
 
 /// Hydrate a ws into `dir`: tip commit via `git archive` (+ optional

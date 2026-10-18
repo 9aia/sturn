@@ -5,13 +5,13 @@
       snap produces a real commit
 - [x] e2e test: init → write → snap → clone → WAL intact
 - [x] `snap` only applies ops since last `Snapshot` marker
-- [ ] WAL compaction: squash pre-snapshot events into a checkpoint
+- [x] WAL compaction: `sturn compact` (pre-snapshot → `refs/sturn/archive/*`)
 
 ## M2 — bus + claims (the delta)
 - [x] daemon: publish only WAL delta (`events_since` range walk)
 - [x] subscription: unix socket `bus.sock`, `sturn sub <topic>` → JSONL
 - [x] real glob matching (`*`, `**`) in claim conflicts
-- [ ] claim TTL sweep + `release` on actor death (presence)
+- [x] claim TTL + `join`/`leave` presence — leave sweeps actor claims
 - [ ] bus: redb key prefix index (stop full-table scans)
 
 ## M3 — agent surface
@@ -25,7 +25,12 @@
 - [x] overlay-aware hydrate: tip + uncommitted ops (`--path` filter)
 - [x] `sturn exec --ws a -- cmd` — hydrate to tmpfs, run, clean up;
       e2e: cargo check fails on WAL-only code, passes on op fix
-- [ ] FUSE impl for humans/GUIs (last — git works meanwhile)
+- [x] FUSE: `sturn mount` — read-only tree mount via fuser
+
+## M4.5 — shipped with M4/M5
+- [x] MCP `subs wait_ms` — long-poll live feed for agents
+- [x] signed ops: `[signing] key` → ssh-keygen -Y sign, `sturn verify`
+- [x] `sturn bridge` — snapshot ops → GitHub-shaped HMAC webhook to bupha
 
 ## M5 — dogfood
 - [x] sturn coordinates agents editing sturn — commit a2fb761

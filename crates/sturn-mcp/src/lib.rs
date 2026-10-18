@@ -433,15 +433,54 @@ fn review(ctx: &Ctx, a: &Value) -> Value {
         .unwrap_or_else(|e| tool_err(e))
 }
 
-/// Pull-replay feed: recent events across all workspaces, mapped to
-/// the requested topic. MCP is request/response — live push lives
-/// on `sturn sub`, this is the agent's catch-up view.
+/// Pull-replay feed — or long-poll: `wait_ms` blocks until *new*
+/// events land (vs. the entry snapshot) or the deadline passes.
+/// That's the agent's live feed inside request/response MCP.
 fn subs(ctx: &Ctx, a: &Value) -> Value {
     let topic_name = a
         .get("topic")
         .and_then(|v| v.as_str())
         .unwrap_or(topic::OPS);
     let limit = a.get("limit").and_then(|v| v.as_u64()).unwrap_or(50) as usize;
+    let wait_ms = a.get("wait_ms").and_then(|v| v.as_u64()).unwrap_or(0);
+    let baseline: Option<std::collections::HashSet<String>> = if wait_ms > 0 {
+        (|| -> std::io::Result<_> {
+            let mut ids = std::collections::HashSet::new();
+            for w in ctx.wal.workspaces(ctx.repo)? {
+                ids.extend(
+                    ctx.wal
+                        .events(ctx.repo, &w)?
+                        .into_iter()
+                        .map(|e| e.id),
+                );
+            }
+            Ok(ids)
+        })()
+        .ok()
+    } else {
+        None
+    };
+    if let Some(base) = &baseline {
+        let deadline = now() * 1000 + wait_ms;
+        loop {
+            let fresh = (|| -> std::io::Result<usize> {
+                let mut n = 0;
+                for w in ctx.wal.workspaces(ctx.repo)? {
+                    for e in ctx.wal.events(ctx.repo, &w)? {
+                        if !base.contains(&e.id) {
+                            n += 1;
+                        }
+                    }
+                }
+                Ok(n)
+            })()
+            .unwrap_or(0);
+            if fresh > 0 || now() * 1000 >= deadline {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    }
     let r = (|| -> std::io::Result<String> {
         let mut all = Vec::new();
         for w in ctx.wal.workspaces(ctx.repo)? {
@@ -494,7 +533,7 @@ fn tool_list() -> Value {
         tool_schema("snap", "Fold ws ops into a real commit", json!({"ws": ws.1, "message": s("message").1, "branch": s("branch").1}), &["ws","message"]),
         tool_schema("intent", "Record why work exists", json!({"ws": ws.1, "text": s("text").1}), &["ws","text"]),
         tool_schema("review", "Approve/reject an event id", json!({"ws": ws.1, "event": s("event").1, "verdict": s("verdict").1}), &["ws","event","verdict"]),
-        tool_schema("subs", "Recent events on a topic (ops|claims|review|presence)", json!({"topic": s("topic").1, "limit": {"type":"integer"}}), &[]),
+        tool_schema("subs", "Recent events on a topic; wait_ms long-polls for new ones", json!({"topic": s("topic").1, "limit": {"type":"integer"}, "wait_ms": {"type":"integer"}}), &[]),
     ]})
 }
 

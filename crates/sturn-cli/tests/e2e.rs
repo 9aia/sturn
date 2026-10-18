@@ -360,3 +360,30 @@ fn exec_runs_on_uncommitted_overlay() {
     );
     sturn(&repo, &["exec", "--ws", "a", "--", "cargo", "check", "--offline"]);
 }
+
+#[test]
+fn leave_sweeps_claims_and_compact_shrinks_wal() {
+    let repo = scratch("sweep");
+    git(&repo, &["init", "-q", "-b", "main"]);
+    git(&repo, &["-c","user.email=t@t","-c","user.name=t","commit","-qm","init","--allow-empty"]);
+    sturn(&repo, &["init"]);
+    sturn(&repo, &["ws", "new", "a"]);
+    sturn(&repo, &["join", "a"]);
+    sturn(&repo, &["claim", "x/**", "--ws", "a"]);
+    assert!(sturn(&repo, &["claims"]).contains("x/**"));
+    // leaving sweeps the claim — dead agents can't hold locks
+    sturn(&repo, &["leave", "a"]);
+    assert!(!sturn(&repo, &["claims"]).contains("x/**"));
+
+    // compact: pre-snapshot events drop, marker survives
+    sturn_in(&repo, &["write", "f.txt", "--ws", "a"], b"1\n");
+    sturn(&repo, &["snap", "a", "-m", "one"]);
+    let before = sturn(&repo, &["log", "--ws", "a"]).lines().count();
+    let out = sturn(&repo, &["compact", "--ws", "a"]);
+    assert!(out.contains("dropped"), "{out}");
+    let after = sturn(&repo, &["log", "--ws", "a"]).lines().count();
+    assert!(after < before, "before={before} after={after}");
+    assert!(sturn(&repo, &["log", "--ws", "a"]).contains("snapshot"));
+    // archive ref kept the history
+    assert!(git(&repo, &["rev-parse", "refs/sturn/archive/a"]).len() == 40);
+}
