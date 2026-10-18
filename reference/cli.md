@@ -22,4 +22,9 @@ Global flags: `--repo <dir>` (default cwd) · `--config <path>`.
 | `sturn sub <topic>` | stream ops\|claims\|review\|presence as JSONL |
 | `sturn mcp` | MCP stdio server — the agent tool surface |
 | `sturn exec --ws <w> [--keep] -- cmd…` | hydrate to tmpfs, run, clean up |
+| `sturn join\|leave <ws>` | presence; leave sweeps actor claims |
+| `sturn verify [--ws W]` | verify event sigs vs allowed_signers |
+| `sturn compact [--ws W]` | drop pre-snapshot WAL history (archived) |
+| `sturn bridge --to <url>` | snapshot ops → HMAC webhook (bupha CI) |
+| `sturn mount <ws> <dir>` | read-only FUSE mount of the ws tree |
 | `sturn deploy service\|env` | systemd unit / secrets skeleton |
