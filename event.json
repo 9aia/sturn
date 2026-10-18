@@ -1,1 +1,1 @@
-{"id":"","ws":"devin","actor":"luis","ts":1792298962,"op":{"op":"snapshot","message":"feat: hydrate --writeback (landed via live MCP session)"}}
+{"id":"","ws":"devin","actor":"luis","ts":1792298962,"op":{"op":"presence","status":"left"}}
