@@ -13,7 +13,14 @@ pub trait Ws: Send + Sync {
     /// Every path in `rev`'s tree (grep/glob is a client filter).
     fn list(&self, repo: &Path, rev: &str) -> io::Result<Vec<String>>;
     /// Materialize `rev` into `dir` — for compilers that need files.
-    fn materialize(&self, repo: &Path, rev: &str, dir: &Path) -> io::Result<()>;
+    /// `paths` filters to a subset (pathspec); empty = whole tree.
+    fn materialize(
+        &self,
+        repo: &Path,
+        rev: &str,
+        dir: &Path,
+        paths: &[String],
+    ) -> io::Result<()>;
     /// Create a workspace namespace: `refs/sturn/ws/<name>` = `base`.
     fn create(&self, repo: &Path, name: &str, base: &str) -> io::Result<()>;
     /// Blob sha at `rev:path` — None when absent. The lookup that

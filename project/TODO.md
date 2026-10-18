@@ -22,8 +22,9 @@
 - [x] agent e2e: `mcp_agent_surface` — two ws, claim denial, snap
 
 ## M4 — hydration
-- [ ] tmpfs overlay materializer (only touched paths)
-- [ ] `cargo check` inside a virtual ws
+- [x] overlay-aware hydrate: tip + uncommitted ops (`--path` filter)
+- [x] `sturn exec --ws a -- cmd` — hydrate to tmpfs, run, clean up;
+      e2e: cargo check fails on WAL-only code, passes on op fix
 - [ ] FUSE impl for humans/GUIs (last — git works meanwhile)
 
 ## M5 — dogfood

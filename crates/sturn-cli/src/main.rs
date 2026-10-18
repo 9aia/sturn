@@ -125,6 +125,19 @@ enum Cmd {
     Claims,
     /// MCP stdio server — the 9-tool agent surface on JSON-RPC.
     Mcp,
+    /// Hydrate a ws to tmpfs and run a command inside — compilers
+    /// need POSIX; agents don't. Exits with the command's status.
+    Exec {
+        /// Workspace to hydrate.
+        #[arg(long)]
+        ws: String,
+        /// Keep the hydrated dir after exit.
+        #[arg(long)]
+        keep: bool,
+        /// Command + args, after `--`.
+        #[arg(trailing_var_arg = true, required = true)]
+        cmd: Vec<String>,
+    },
     /// Deploy the daemon — systemd user unit + env skeleton.
     Deploy {
         #[command(subcommand)]
@@ -145,8 +158,14 @@ enum WsCmd {
     Ls,
     /// Read a file from a ws tree — no checkout.
     Read { name: String, path: String },
-    /// Materialize a ws tree into a dir — for tools needing POSIX.
-    Hydrate { name: String, dir: PathBuf },
+    /// Materialize a ws tree into a dir — tip + uncommitted ops.
+    /// --path filters to a subset (repeatable); empty = whole tree.
+    Hydrate {
+        name: String,
+        dir: PathBuf,
+        #[arg(long = "path")]
+        paths: Vec<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -256,10 +275,8 @@ fn run(cli: &Cli) -> Result<(), String> {
                 print!("{}", String::from_utf8_lossy(&bytes));
                 Ok(())
             }
-            WsCmd::Hydrate { name, dir } => {
-                let tip = ws_impl.tip(&repo, name).map_err(|e| e.to_string())?;
-                ws_impl
-                    .materialize(&repo, &tip, dir)
+            WsCmd::Hydrate { name, dir, paths } => {
+                hydrate_ws(&repo, &wal, &ws_impl, name, dir, paths)
                     .map_err(|e| e.to_string())?;
                 println!("hydrated {name} → {}", dir.display());
                 Ok(())
@@ -394,6 +411,25 @@ fn run(cli: &Cli) -> Result<(), String> {
                 snap: &snap,
             })
             .map_err(|e| e.to_string())
+        }
+        Cmd::Exec { ws, keep, cmd } => {
+            let dir =
+                std::env::temp_dir().join(format!("sturn-exec-{}", std::process::id()));
+            hydrate_ws(&repo, &wal, &ws_impl, ws, &dir, &[])?;
+            let status = std::process::Command::new(&cmd[0])
+                .args(&cmd[1..])
+                .current_dir(&dir)
+                .status()
+                .map_err(|e| e.to_string())?;
+            if !*keep {
+                let _ = std::fs::remove_dir_all(&dir);
+            } else {
+                eprintln!("kept {}", dir.display());
+            }
+            if !status.success() {
+                std::process::exit(status.code().unwrap_or(1));
+            }
+            Ok(())
         }
         Cmd::Review {
             event,
@@ -566,6 +602,42 @@ fn do_snap(
         ),
     )?;
     Ok(commit)
+}
+
+/// Hydrate a ws into `dir`: tip commit via `git archive` (+ optional
+/// path filter), then the WAL overlay since the last snapshot —
+/// hydrated dirs see uncommitted ops, matching `ws_read`.
+fn hydrate_ws(
+    repo: &Path,
+    wal: &sturn_wal_git::GitWal,
+    wsi: &sturn_ws_git::GitWs,
+    name: &str,
+    dir: &Path,
+    paths: &[String],
+) -> Result<(), String> {
+    let tip = wsi.tip(repo, name).map_err(|e| e.to_string())?;
+    wsi.materialize(repo, &tip, dir, paths)
+        .map_err(|e| e.to_string())?;
+    let events = wal.events(repo, name).map_err(|e| e.to_string())?;
+    let pending = &events[sturn_core::since_last_snapshot(&events)..];
+    for (p, v) in sturn_core::overlay(pending, |p| {
+        wsi.entry(repo, &tip, p).ok().flatten()
+    }) {
+        let f = dir.join(&p);
+        match v {
+            Some(sha) => {
+                if let Some(d) = f.parent() {
+                    std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
+                }
+                std::fs::write(&f, wsi.blob(repo, &sha).map_err(|e| e.to_string())?)
+                    .map_err(|e| e.to_string())?;
+            }
+            None => {
+                let _ = std::fs::remove_file(&f);
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Every workspace's events — claims are swarm-wide, so conflict

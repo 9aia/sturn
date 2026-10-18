@@ -305,3 +305,45 @@ fn mcp_agent_surface() {
     );
     assert_eq!(git(&repo, &["show", "HEAD:src/x.rs"]), "fn x(){}");
 }
+
+#[test]
+fn exec_runs_on_uncommitted_overlay() {
+    // A zero-dep crate — cargo check works fully offline.
+    let repo = scratch("exec");
+    git(&repo, &["init", "-q", "-b", "main"]);
+    std::fs::create_dir_all(repo.join("src")).unwrap();
+    std::fs::write(
+        repo.join("Cargo.toml"),
+        b"[package]\nname = \"t\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+    std::fs::write(repo.join("src/lib.rs"), b"pub fn ok() -> i32 { 1 }\n").unwrap();
+    git(&repo, &["add", "."]);
+    commit(&repo, "crate");
+    sturn(&repo, &["init"]);
+    sturn(&repo, &["ws", "new", "a"]);
+
+    // Broken code exists ONLY as an op — hydration must include it.
+    sturn_in(
+        &repo,
+        &["write", "src/lib.rs", "--ws", "a"],
+        b"pub fn ok() -> i32 { \"nope\" }\n",
+    );
+    let o = Command::new(env!("CARGO_BIN_EXE_sturn"))
+        .current_dir(&repo)
+        .args(["exec", "--ws", "a", "--", "cargo", "check", "--offline"])
+        .output()
+        .unwrap();
+    assert!(
+        !o.status.success(),
+        "cargo check should fail on the overlaid broken write"
+    );
+
+    // Fix via op only — check passes; disk never had the files.
+    sturn_in(
+        &repo,
+        &["write", "src/lib.rs", "--ws", "a"],
+        b"pub fn ok() -> i32 { 2 }\n",
+    );
+    sturn(&repo, &["exec", "--ws", "a", "--", "cargo", "check", "--offline"]);
+}
