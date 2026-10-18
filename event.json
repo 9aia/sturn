@@ -1,1 +1,1 @@
-{"id":"","ws":"dogfood","actor":"luis","ts":1792294184,"op":{"op":"write","path":"crates/sturn-cli/tests/e2e.rs","blob":"d1fe7c4a51956095c537467a5159cc6c20e3e3fc","intent":"assert renamed path"}}
+{"id":"","ws":"dogfood","actor":"luis","ts":1792294203,"op":{"op":"snapshot","message":"feat: rename/delete surfaces + overlay-aware snap (dogfooded)"}}
