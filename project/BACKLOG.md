@@ -3,7 +3,8 @@
 - Signed ops (Ed25519) — attribution → authentication
 - Review gates: `snap` refuses unreviewed ops (policy in sturn.toml)
 - `libgrite-git` as alternative Wal impl (CRDT merge across
-  diverged WAL refs)
+  diverged WAL refs) — parked per user call
+- `sturn-wal-jj` — jj backend impl — parked per user call
 - Federation: WAL refs synced via broker, not just git remote
 - Semantic merge helpers (rename-aware) — ops carry the intent,
   a smarter merger could use it

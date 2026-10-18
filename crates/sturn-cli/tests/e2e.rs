@@ -387,3 +387,38 @@ fn leave_sweeps_claims_and_compact_shrinks_wal() {
     // archive ref kept the history
     assert!(git(&repo, &["rev-parse", "refs/sturn/archive/a"]).len() == 40);
 }
+
+#[test]
+fn review_gate_blocks_unreviewed_ops() {
+    let repo = scratch("gate");
+    git(&repo, &["init", "-q", "-b", "main"]);
+    git(&repo, &["-c","user.email=t@t","-c","user.name=t","commit","-qm","init","--allow-empty"]);
+    sturn(&repo, &["init"]);
+    // gate on
+    std::fs::write(
+        repo.join("sturn.toml"),
+        b"[repo]\ndir = \".\"\n\n[review]\nrequire = true\n",
+    )
+    .unwrap();
+    sturn(&repo, &["ws", "new", "a"]);
+    sturn_in(&repo, &["write", "f.txt", "--ws", "a"], b"1\n");
+    // the event id, straight from the WAL (not stdout parsing)
+    let log = sturn(&repo, &["log", "--ws", "a"]);
+    let eid = log
+        .lines()
+        .find(|l| l.contains("\"write\""))
+        .and_then(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let err = sturn_fails(&repo, &["snap", "a", "-m", "nope"]);
+    assert!(err.contains("review gate"), "{err}");
+
+    // approve the write event — reviews live in a reviewer ws
+    sturn(&repo, &["ws", "new", "rev"]);
+    sturn(&repo, &["review", &eid, "approve", "--ws", "rev"]);
+    sturn(&repo, &["snap", "a", "-m", "ok"]);
+    assert_eq!(git(&repo, &["show", "HEAD:f.txt"]), "1");
+}

@@ -546,6 +546,7 @@ fn run(cli: &Cli) -> Result<(), String> {
                 message,
                 b.as_deref().unwrap_or(&branch),
                 &actor,
+                cfg.as_ref().map(|c| c.review.require).unwrap_or(false),
             )
             .map_err(|e| e.to_string())?;
             println!("snap {commit} → {}", b.as_deref().unwrap_or(&branch));
@@ -580,7 +581,16 @@ fn run(cli: &Cli) -> Result<(), String> {
         }
         Cmd::Mcp => {
             let snap = |ws: &str, msg: &str, branch: &str| {
-                do_snap(&repo, &wal, &ws_impl, ws, msg, branch, &actor)
+                do_snap(
+                    &repo,
+                    &wal,
+                    &ws_impl,
+                    ws,
+                    msg,
+                    branch,
+                    &actor,
+                    cfg.as_ref().map(|c| c.review.require).unwrap_or(false),
+                )
             };
             sturn_mcp::serve(&sturn_mcp::Ctx {
                 repo: &repo,
@@ -771,10 +781,44 @@ fn do_snap(
     message: &str,
     branch: &str,
     actor: &str,
+    require_review: bool,
 ) -> std::io::Result<String> {
     let base = wsi.tip(repo, ws)?;
     let events = wal.events(repo, ws)?;
     let since = sturn_core::since_last_snapshot(&events);
+    if require_review {
+        // Approvals are swarm-wide — any ws's WAL may hold them.
+        let mut approved = std::collections::HashSet::new();
+        for w in wal.workspaces(repo)? {
+            for e in wal.events(repo, &w)? {
+                if let Op::Review {
+                    event,
+                    verdict: Verdict::Approve,
+                } = &e.op
+                {
+                    approved.insert(event.clone());
+                }
+            }
+        }
+        let unreviewed: Vec<&Event> = events[since..]
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e.op,
+                    Op::Write { .. } | Op::Rename { .. } | Op::Delete { .. }
+                )
+            })
+            .filter(|e| !approved.contains(&e.id))
+            .collect();
+        if !unreviewed.is_empty() {
+            let ids: Vec<&str> = unreviewed.iter().map(|e| e.id.as_str()).collect();
+            return Err(std::io::Error::other(format!(
+                "review gate: {} unreviewed op(s) — {}",
+                unreviewed.len(),
+                ids.join(", ")
+            )));
+        }
+    }
     let commit = sturn_git::snap_commit(repo, &base, &events[since..], message, branch)?;
     wsi.create(repo, ws, &commit)?;
     wal.append(

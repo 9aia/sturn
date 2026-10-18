@@ -176,6 +176,19 @@ pub struct Config {
     pub actor: ActorCfg,
     #[serde(default)]
     pub signing: SigningCfg,
+    #[serde(default)]
+    pub review: ReviewCfg,
+}
+
+/// `[review]` — turn continuous review into a gate: snap refuses
+/// unreviewed tree ops.
+#[derive(Debug, Deserialize, Clone, Default)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewCfg {
+    /// Every Write/Rename/Delete since last snap must hold an
+    /// Approve review (in any ws's WAL) before `snap` lands.
+    #[serde(default)]
+    pub require: bool,
 }
 
 /// `[signing]` — sign ops with an SSH key (`ssh-keygen -Y sign`,
