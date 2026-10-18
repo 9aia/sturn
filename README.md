@@ -62,6 +62,14 @@ sturn daemon            # WAL → repo.<id>.{ops,claims,review,presence}
 sturn deploy service    # systemd user unit
 ```
 
+## Commands
+
+`init` · `ws new/ls/read/hydrate` · `claim/release/claims` ·
+`write`/`rename`/`delete`/`intent` · `log`/`compact` ·
+`snap` (multi-ws merge) · `review`/`verify` · `push` ·
+`daemon`/`sub`/`bridge` · `mcp` · `mount` · `exec` · `join`/`leave` ·
+`deploy` — full table in [docs](https://9aia.com/sturn/reference/cli.html).
+
 ## vs git / jj / AVCS
 
 | | git | jj | sturn |
