@@ -1,1 +1,1 @@
-{"id":"","ws":"gate","actor":"luis","ts":1792295793,"op":{"op":"write","path":"crates/sturn-cli/tests/e2e.rs","blob":"c34abe3fbacb0f40e3e5c146349f92fe4ee9b5f8","intent":"parse event id from WAL"}}
+{"id":"","ws":"gate","actor":"luis","ts":1792295793,"op":{"op":"write","path":"project/BACKLOG.md","blob":"864bb69951c4c4d7dda336f619b67eb8e2008050","intent":"jj + libgrite parked"}}
