@@ -1,1 +1,1 @@
-{"id":"","ws":"dogfood","actor":"luis","ts":1792294113,"op":{"op":"write","path":"crates/sturn-mcp/src/lib.rs","blob":"090e1ce1a82fcb48feb67f9039f018abd55a3d63","intent":"ws_rename/ws_delete tools"}}
+{"id":"","ws":"dogfood","actor":"luis","ts":1792294113,"op":{"op":"write","path":"crates/sturn-cli/tests/e2e.rs","blob":"acb2c9900967aa2d259d102088b197d9bbbc8ad3","intent":"rename coverage"}}
