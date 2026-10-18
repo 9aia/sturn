@@ -1,1 +1,1 @@
-{"id":"","ws":"dogfood","actor":"luis","ts":1792294113,"op":{"op":"claim","glob":"crates/**","ttl_secs":3600}}
+{"id":"","ws":"dogfood","actor":"luis","ts":1792294157,"op":{"op":"write","path":"crates/sturn-git/src/lib.rs","blob":"c74a2f875a0f2dda7c45f1f0acdc604d7ad561db","intent":"rename resolves overlay, not just base"}}
