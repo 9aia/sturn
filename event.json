@@ -1,1 +1,1 @@
-{"id":"","ws":"gate","actor":"luis","ts":1792295793,"op":{"op":"write","path":"project/BACKLOG.md","blob":"864bb69951c4c4d7dda336f619b67eb8e2008050","intent":"jj + libgrite parked"}}
+{"id":"","ws":"gate","actor":"luis","ts":1792295816,"op":{"op":"snapshot","message":"feat: review gate — snap refuses unreviewed tree ops (dogfooded)"}}
