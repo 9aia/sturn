@@ -1,1 +1,1 @@
-{"id":"","ws":"dogfood","actor":"luis","ts":1792294113,"op":{"op":"write","path":"sturn.toml","blob":"3ca1db9c63dab951796630808645126d35009af2","intent":"commit the config"}}
+{"id":"","ws":"dogfood","actor":"luis","ts":1792294113,"op":{"op":"claim","glob":"crates/**","ttl_secs":3600}}
