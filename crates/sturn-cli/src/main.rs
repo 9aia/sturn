@@ -220,6 +220,9 @@ enum WsCmd {
         dir: PathBuf,
         #[arg(long = "path")]
         paths: Vec<String>,
+        /// After materializing, diff the dir back into ops now.
+        #[arg(long)]
+        writeback: bool,
     },
 }
 
@@ -340,9 +343,19 @@ fn run(cli: &Cli) -> Result<(), String> {
                 print!("{}", String::from_utf8_lossy(&bytes));
                 Ok(())
             }
-            WsCmd::Hydrate { name, dir, paths } => {
+            WsCmd::Hydrate {
+                name,
+                dir,
+                paths,
+                writeback,
+            } => {
                 hydrate_ws(&repo, &wal, &ws_impl, name, dir, paths)
                     .map_err(|e| e.to_string())?;
+                if *writeback {
+                    let n =
+                        writeback_ops(&repo, &wal, &ws_impl, name, dir, &actor)?;
+                    println!("writeback: {n} op(s)");
+                }
                 println!("hydrated {name} → {}", dir.display());
                 Ok(())
             }
