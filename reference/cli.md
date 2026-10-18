@@ -18,5 +18,6 @@ Global flags: `--repo <dir>` (default cwd) · `--config <path>`.
 | `sturn snap <ws> -m <msg> [--branch B]` | fold ops into a real commit |
 | `sturn review <event-id> <approve\|reject> --ws <w>` | continuous review |
 | `sturn push [--remote R]` | push heads + `refs/sturn/*` |
-| `sturn daemon` | WAL → topic fan-out loop |
+| `sturn daemon` | WAL → topic fan-out loop + `bus.sock` push |
+| `sturn sub <topic>` | stream ops\|claims\|review\|presence as JSONL |
 | `sturn deploy service\|env` | systemd unit / secrets skeleton |
