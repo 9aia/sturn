@@ -1,0 +1,60 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/sturn-cli",
+    "crates/sturn-core",
+    "crates/sturn-wal",
+    "crates/sturn-wal-git",
+    "crates/sturn-bus",
+    "crates/sturn-bus-redb",
+    "crates/sturn-ws",
+    "crates/sturn-ws-git",
+    "crates/sturn-vcs",
+    "crates/sturn-git",
+    "crates/sturn-claim",
+    "crates/sturn-mcp",
+    "crates/sturn-config",
+    "crates/sturn-config-toml",
+    "crates/sturn-secret",
+    "crates/sturn-keyring",
+    "crates/sturn-dotenv",
+    "crates/sturn-service",
+    "crates/sturn-systemd",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/9aia/sturn"
+description = "Evented coordination over the git object store — agents murmurate, not merge"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
+[workspace.dependencies]
+sturn-core = { path = "crates/sturn-core", version = "0.1.0" }
+sturn-wal = { path = "crates/sturn-wal", version = "0.1.0" }
+sturn-wal-git = { path = "crates/sturn-wal-git", version = "0.1.0" }
+sturn-bus = { path = "crates/sturn-bus", version = "0.1.0" }
+sturn-bus-redb = { path = "crates/sturn-bus-redb", version = "0.1.0" }
+sturn-ws = { path = "crates/sturn-ws", version = "0.1.0" }
+sturn-ws-git = { path = "crates/sturn-ws-git", version = "0.1.0" }
+sturn-vcs = { path = "crates/sturn-vcs", version = "0.1.0" }
+sturn-git = { path = "crates/sturn-git", version = "0.1.0" }
+sturn-claim = { path = "crates/sturn-claim", version = "0.1.0" }
+sturn-mcp = { path = "crates/sturn-mcp", version = "0.1.0" }
+sturn-config = { path = "crates/sturn-config", version = "0.1.0" }
+sturn-config-toml = { path = "crates/sturn-config-toml", version = "0.1.0" }
+sturn-secret = { path = "crates/sturn-secret", version = "0.1.0" }
+sturn-keyring = { path = "crates/sturn-keyring", version = "0.1.0" }
+sturn-dotenv = { path = "crates/sturn-dotenv", version = "0.1.0" }
+sturn-service = { path = "crates/sturn-service", version = "0.1.0" }
+sturn-systemd = { path = "crates/sturn-systemd", version = "0.1.0" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+clap = { version = "4", features = ["derive"] }
+redb = "3"

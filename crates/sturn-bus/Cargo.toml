@@ -1,0 +1,12 @@
+[package]
+name = "sturn-bus"
+description = "Bus port: topic pub/sub over the WAL (a cache, not authority)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["vcs", "sturn", "agents"]
+categories = ["development-tools"]
+
+[dependencies]
+

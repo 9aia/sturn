@@ -1,0 +1,12 @@
+[package]
+name = "sturn-systemd"
+description = "Service impl + deploy helpers: systemd user units"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["vcs", "sturn", "agents"]
+categories = ["development-tools"]
+
+[dependencies]
+sturn-service.workspace = true

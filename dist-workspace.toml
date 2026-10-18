@@ -1,0 +1,9 @@
+[workspace]
+members = ["cargo:."]
+
+# Config for 'dist'
+[dist]
+cargo-dist-version = "0.33.0"
+ci = "none"
+installers = ["shell"]
+targets = ["x86_64-unknown-linux-gnu"]

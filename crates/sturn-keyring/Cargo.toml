@@ -1,0 +1,12 @@
+[package]
+name = "sturn-keyring"
+description = "Secrets impl: secret-tool (libsecret)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["vcs", "sturn", "agents"]
+categories = ["development-tools"]
+
+[dependencies]
+sturn-secret.workspace = true

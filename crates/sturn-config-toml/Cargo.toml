@@ -1,0 +1,14 @@
+[package]
+name = "sturn-config-toml"
+description = "ConfigSource impl: sturn.toml search path"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["vcs", "sturn", "agents"]
+categories = ["development-tools"]
+
+[dependencies]
+sturn-config.workspace = true
+sturn-core.workspace = true
+toml.workspace = true

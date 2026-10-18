@@ -1,0 +1,13 @@
+[package]
+name = "sturn-git"
+description = "Vcs impl via the git binary + WAL->commit snap"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["vcs", "sturn", "agents"]
+categories = ["development-tools"]
+
+[dependencies]
+sturn-vcs.workspace = true
+sturn-core.workspace = true

@@ -1,0 +1,12 @@
+[package]
+name = "sturn-config"
+description = "ConfigSource port: where sturn.toml comes from"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["vcs", "sturn", "agents"]
+categories = ["development-tools"]
+
+[dependencies]
+sturn-core.workspace = true

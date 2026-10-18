@@ -1,0 +1,12 @@
+[package]
+name = "sturn-service"
+description = "Service port: OS service lifecycle"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["vcs", "sturn", "agents"]
+categories = ["development-tools"]
+
+[dependencies]
+

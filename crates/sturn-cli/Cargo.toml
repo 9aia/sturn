@@ -1,0 +1,31 @@
+[package]
+name = "sturn-cli"
+description = "sturn — evented coordination over git (composition root)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["vcs", "sturn", "agents"]
+categories = ["development-tools"]
+
+[[bin]]
+name = "sturn"
+path = "src/main.rs"
+
+[dependencies]
+sturn-core.workspace = true
+sturn-wal.workspace = true
+sturn-wal-git.workspace = true
+sturn-bus.workspace = true
+sturn-bus-redb.workspace = true
+sturn-ws.workspace = true
+sturn-ws-git.workspace = true
+sturn-vcs.workspace = true
+sturn-git.workspace = true
+sturn-claim.workspace = true
+sturn-config.workspace = true
+sturn-config-toml.workspace = true
+sturn-service.workspace = true
+sturn-systemd.workspace = true
+serde_json.workspace = true
+clap.workspace = true

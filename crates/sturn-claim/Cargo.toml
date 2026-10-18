@@ -1,0 +1,12 @@
+[package]
+name = "sturn-claim"
+description = "advisory claims: fold ops into live locks, detect overlap"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["vcs", "sturn", "agents"]
+categories = ["development-tools"]
+
+[dependencies]
+sturn-core.workspace = true

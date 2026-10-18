@@ -1,0 +1,12 @@
+[package]
+name = "sturn-wal"
+description = "Wal port: append-only op log inside git refs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["vcs", "sturn", "agents"]
+categories = ["development-tools"]
+
+[dependencies]
+sturn-core.workspace = true

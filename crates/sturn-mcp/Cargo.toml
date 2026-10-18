@@ -1,0 +1,12 @@
+[package]
+name = "sturn-mcp"
+description = "agent tool surface: the 8 MCP tools (wire-up in M3)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["vcs", "sturn", "agents"]
+categories = ["development-tools"]
+
+[dependencies]
+

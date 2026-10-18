@@ -1,0 +1,13 @@
+[package]
+name = "sturn-bus-redb"
+description = "Bus impl: redb-backed topic store with cursors"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["vcs", "sturn", "agents"]
+categories = ["development-tools"]
+
+[dependencies]
+sturn-bus.workspace = true
+redb.workspace = true

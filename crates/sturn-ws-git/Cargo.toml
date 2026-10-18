@@ -1,0 +1,12 @@
+[package]
+name = "sturn-ws-git"
+description = "Ws impl: read/list/materialize via git plumbing"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["vcs", "sturn", "agents"]
+categories = ["development-tools"]
+
+[dependencies]
+sturn-ws.workspace = true

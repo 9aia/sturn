@@ -1,0 +1,5 @@
+/target
+coverage/
+*.profraw
+.env
+docs/

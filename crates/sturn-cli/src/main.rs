@@ -1,0 +1,483 @@
+//! sturn — evented coordination over the git object store.
+//!
+//! The WAL is the state; the tree is a projection; the bus is a
+//! cache. Composition root: wires ports (wal/bus/ws/vcs/config/
+//! service) to impls (git plumbing, redb, toml, systemd).
+
+use clap::{Parser, Subcommand};
+use std::collections::HashMap;
+use std::io::Read;
+use std::path::{Path, PathBuf};
+use sturn_bus::Bus;
+use sturn_claim as claims;
+use sturn_config::ConfigSource;
+use sturn_core::{topic, Config, Event, Op, Verdict};
+use sturn_service::Service;
+use sturn_vcs::Vcs;
+use sturn_wal::Wal;
+use sturn_ws::Ws;
+
+#[derive(Parser)]
+#[command(
+    name = "sturn",
+    version,
+    about = "Evented coordination over the git object store — agents murmurate, not merge"
+)]
+struct Cli {
+    /// Repo dir (default: cwd).
+    #[arg(long, global = true)]
+    repo: Option<PathBuf>,
+    /// Config path (default: $STURN_CONFIG → ./sturn.toml → ~/.config/sturn/).
+    #[arg(long, global = true)]
+    config: Option<String>,
+    #[command(subcommand)]
+    cmd: Cmd,
+}
+
+#[derive(Subcommand)]
+enum Cmd {
+    /// Wire a repo for sturn — writes sturn.toml if absent.
+    Init,
+    /// Workspace namespaces — virtual checkouts that cost a pointer.
+    Ws {
+        #[command(subcommand)]
+        cmd: WsCmd,
+    },
+    /// Advisory lock on a path glob — published *before* edits.
+    Claim {
+        /// Path glob, e.g. "src/parser.rs" or "src/**".
+        glob: String,
+        /// Workspace claiming it.
+        #[arg(long)]
+        ws: String,
+        /// Seconds the claim lives (auto-expiry, no zombie locks).
+        #[arg(long, default_value_t = 3600)]
+        ttl: u64,
+        /// Take the claim even if it conflicts with a live one.
+        #[arg(long)]
+        force: bool,
+    },
+    /// Drop a claim.
+    Release {
+        glob: String,
+        #[arg(long)]
+        ws: String,
+    },
+    /// Append a write op — stdin or --file becomes an ODB blob.
+    Write {
+        /// Path inside the tree.
+        path: String,
+        #[arg(long)]
+        ws: String,
+        #[arg(long)]
+        file: Option<PathBuf>,
+        /// Why this edit exists — attached to the op.
+        #[arg(long)]
+        intent: Option<String>,
+    },
+    /// Record why work exists — provenance as data.
+    Intent {
+        text: String,
+        #[arg(long)]
+        ws: String,
+    },
+    /// Replay the WAL — ops in order, JSONL.
+    Log {
+        /// One workspace, or all when omitted.
+        #[arg(long)]
+        ws: Option<String>,
+    },
+    /// Fold a ws's ops into a real commit on the branch.
+    Snap {
+        ws: String,
+        #[arg(short, long)]
+        message: String,
+        /// Branch to update (default: repo.branch / main).
+        #[arg(long)]
+        branch: Option<String>,
+    },
+    /// Approve/reject an event — continuous review.
+    Review {
+        /// Event id (blob sha) to judge.
+        event: String,
+        /// approve | reject.
+        verdict: String,
+        #[arg(long)]
+        ws: String,
+    },
+    /// Push heads + refs/sturn/* — coordination rides the remote.
+    Push {
+        #[arg(long, default_value = "origin")]
+        remote: String,
+    },
+    /// WAL→topic fan-out loop. The bus is a cache — ops still sync
+    /// through git when it's down.
+    Daemon,
+    /// Live claims across every workspace.
+    Claims,
+    /// Deploy the daemon — systemd user unit + env skeleton.
+    Deploy {
+        #[command(subcommand)]
+        cmd: DeployCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum WsCmd {
+    /// Create a workspace — zero materialization, just a ref.
+    New {
+        name: String,
+        /// Base commit/branch (default: HEAD).
+        #[arg(long)]
+        base: Option<String>,
+    },
+    /// List workspaces.
+    Ls,
+    /// Read a file from a ws tree — no checkout.
+    Read { name: String, path: String },
+    /// Materialize a ws tree into a dir — for tools needing POSIX.
+    Hydrate { name: String, dir: PathBuf },
+}
+
+#[derive(Subcommand)]
+enum DeployCmd {
+    /// Write + enable the systemd user unit for `sturn daemon`.
+    Service,
+    /// Seed ~/.config/sturn/env (0600, names only).
+    Env,
+}
+
+fn main() {
+    let cli = Cli::parse();
+    if let Err(e) = run(&cli) {
+        eprintln!("sturn: {e}");
+        std::process::exit(1);
+    }
+}
+
+fn run(cli: &Cli) -> Result<(), String> {
+    // Config is optional — everything works flag-driven too.
+    let cfg: Option<Config> =
+        sturn_config_toml::TomlSource {
+            path: cli.config.clone(),
+        }
+        .load()
+        .ok();
+    let repo = cli
+        .repo
+        .clone()
+        .or_else(|| cfg.as_ref().map(|c| c.repo.dir.clone()))
+        .unwrap_or_else(|| PathBuf::from("."));
+    let repo_id = cfg
+        .as_ref()
+        .map(|c| c.repo.id())
+        .unwrap_or_else(|| {
+            repo.canonicalize()
+                .ok()
+                .and_then(|p| p.file_name().map(|s| s.to_string_lossy().into_owned()))
+                .unwrap_or_else(|| "repo".into())
+        });
+    let branch = cfg
+        .as_ref()
+        .map(|c| c.repo.branch.clone())
+        .unwrap_or_else(|| "main".into());
+    let actor = cfg.as_ref().map(|c| c.actor.name()).unwrap_or_else(|| {
+        std::env::var("STURN_ACTOR")
+            .or_else(|_| std::env::var("USER"))
+            .unwrap_or_else(|_| "anon".into())
+    });
+    let wal = sturn_wal_git::GitWal {
+        ref_prefix: cfg
+            .as_ref()
+            .map(|c| c.wal.ref_prefix.clone())
+            .unwrap_or_else(|| "refs/sturn/wal".into()),
+    };
+    let ws_impl = sturn_ws_git::GitWs;
+    let bus_path = cfg
+        .as_ref()
+        .map(|c| c.bus.store.clone())
+        .unwrap_or_else(|| {
+            std::env::var("HOME")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| ".".into())
+                .join(".local/state/sturn/bus.redb")
+        });
+    let poll_ms = cfg.as_ref().map(|c| c.bus.poll_ms).unwrap_or(100);
+
+    match &cli.cmd {
+        Cmd::Init => {
+            if !Path::new(".git").exists() && !repo.join(".git").exists() {
+                return Err("not a git repo — run inside one".into());
+            }
+            if !Path::new("sturn.toml").exists() {
+                std::fs::write(
+                    "sturn.toml",
+                    "# sturn — coordination over git refs\n[repo]\ndir = \".\"\n",
+                )
+                .map_err(|e| e.to_string())?;
+                println!("wrote sturn.toml");
+            }
+            println!(
+                "sturn ready — WAL: refs/sturn/wal/*, ws: refs/sturn/ws/*"
+            );
+            Ok(())
+        }
+        Cmd::Ws { cmd } => match cmd {
+            WsCmd::New { name, base } => {
+                let base = base.clone().unwrap_or_else(|| "HEAD".into());
+                ws_impl.create(&repo, name, &base).map_err(|e| e.to_string())?;
+                println!("ws {name} → {base}");
+                Ok(())
+            }
+            WsCmd::Ls => wal
+                .workspaces(&repo)
+                .map_err(|e| e.to_string())
+                .map(|w| w.iter().for_each(|n| println!("{n}"))),
+            WsCmd::Read { name, path } => {
+                let tip = ws_impl.tip(&repo, name).map_err(|e| e.to_string())?;
+                let bytes = ws_impl
+                    .read(&repo, &tip, path)
+                    .map_err(|e| e.to_string())?;
+                print!("{}", String::from_utf8_lossy(&bytes));
+                Ok(())
+            }
+            WsCmd::Hydrate { name, dir } => {
+                let tip = ws_impl.tip(&repo, name).map_err(|e| e.to_string())?;
+                ws_impl
+                    .materialize(&repo, &tip, dir)
+                    .map_err(|e| e.to_string())?;
+                println!("hydrated {name} → {}", dir.display());
+                Ok(())
+            }
+        },
+        Cmd::Claim {
+            glob,
+            ws,
+            ttl,
+            force,
+        } => {
+            let all = all_events(&wal, &repo)?;
+            let now = now();
+            let live = claims::active(&all, now);
+            let hits: Vec<_> = claims::conflicts(&live, glob)
+                .into_iter()
+                .filter(|c| !(c.ws == *ws && c.glob == *glob))
+                .collect();
+            if !hits.is_empty() && !force {
+                for c in &hits {
+                    eprintln!(
+                        "conflict: {} claimed {} (ws {}, expires {})",
+                        c.actor, c.glob, c.ws, c.expires
+                    );
+                }
+                return Err("claim denied — --force to override".into());
+            }
+            append(&wal, &repo, ws, &actor, Op::Claim {
+                glob: glob.clone(),
+                ttl_secs: *ttl,
+            })?;
+            println!("claimed {glob} (ws {ws}, ttl {ttl}s)");
+            Ok(())
+        }
+        Cmd::Release { glob, ws } => {
+            append(&wal, &repo, ws, &actor, Op::Release {
+                glob: glob.clone(),
+            })?;
+            println!("released {glob}");
+            Ok(())
+        }
+        Cmd::Claims => {
+            let all = all_events(&wal, &repo)?;
+            for c in claims::active(&all, now()) {
+                println!(
+                    "{} (ws {}, actor {}, expires {})",
+                    c.glob, c.ws, c.actor, c.expires
+                );
+            }
+            Ok(())
+        }
+        Cmd::Write {
+            path,
+            ws,
+            file,
+            intent,
+        } => {
+            let content = match file {
+                Some(f) => std::fs::read(f).map_err(|e| e.to_string())?,
+                None => {
+                    let mut b = Vec::new();
+                    std::io::stdin()
+                        .read_to_end(&mut b)
+                        .map_err(|e| e.to_string())?;
+                    b
+                }
+            };
+            let blob = sturn_git::store_blob(&repo, &content).map_err(|e| e.to_string())?;
+            let id = append(
+                &wal,
+                &repo,
+                ws,
+                &actor,
+                Op::Write {
+                    path: path.clone(),
+                    blob: blob.clone(),
+                    intent: intent.clone(),
+                },
+            )?;
+            println!("write {path} (blob {blob}, event {id})");
+            Ok(())
+        }
+        Cmd::Intent { text, ws } => {
+            append(&wal, &repo, ws, &actor, Op::Intent {
+                text: text.clone(),
+            })?;
+            Ok(())
+        }
+        Cmd::Log { ws } => {
+            let names = match ws {
+                Some(w) => vec![w.clone()],
+                None => wal.workspaces(&repo).map_err(|e| e.to_string())?,
+            };
+            for n in names {
+                for ev in wal.events(&repo, &n).map_err(|e| e.to_string())? {
+                    println!("{}", serde_json::to_string(&ev).map_err(|e| e.to_string())?);
+                }
+            }
+            Ok(())
+        }
+        Cmd::Snap {
+            ws,
+            message,
+            branch: b,
+        } => {
+            let base = ws_impl.tip(&repo, ws).map_err(|e| e.to_string())?;
+            let events = wal.events(&repo, ws).map_err(|e| e.to_string())?;
+            let commit = sturn_git::snap_commit(
+                &repo,
+                &base,
+                &events,
+                message,
+                b.as_deref().unwrap_or(&branch),
+            )
+            .map_err(|e| e.to_string())?;
+            ws_impl.create(&repo, ws, &commit).map_err(|e| e.to_string())?;
+            append(&wal, &repo, ws, &actor, Op::Snapshot {
+                message: message.clone(),
+            })?;
+            println!("snap {commit} → {}", b.as_deref().unwrap_or(&branch));
+            Ok(())
+        }
+        Cmd::Review {
+            event,
+            verdict,
+            ws,
+        } => {
+            let v = match verdict.as_str() {
+                "approve" => Verdict::Approve,
+                "reject" => Verdict::Reject,
+                _ => return Err("verdict: approve|reject".into()),
+            };
+            append(&wal, &repo, ws, &actor, Op::Review {
+                event: event.clone(),
+                verdict: v,
+            })?;
+            println!("{verdict} {event}");
+            Ok(())
+        }
+        Cmd::Push { remote } => {
+            if sturn_git::GitVcs.push(&repo, remote) {
+                println!("pushed heads + refs/sturn/* → {remote}");
+                Ok(())
+            } else {
+                Err("push failed".into())
+            }
+        }
+        Cmd::Daemon => {
+            let bus = sturn_bus_redb::RedbBus::open(bus_path).map_err(|e| e.to_string())?;
+            let mut heads: HashMap<String, Option<String>> = HashMap::new();
+            println!("sturn daemon — fan-out {repo_id}.* (poll {poll_ms}ms)");
+            loop {
+                for ws in wal.workspaces(&repo).unwrap_or_default() {
+                    let head = wal.head(&repo, &ws).unwrap_or(None);
+                    let prev = heads.get(&ws).cloned().unwrap_or(None);
+                    if head != prev {
+                        // Scaffold: republish the whole tail on any head
+                        // change. M2: walk only the delta.
+                        for ev in wal.events(&repo, &ws).unwrap_or_default() {
+                            let payload =
+                                serde_json::to_vec(&ev).unwrap_or_default();
+                            let _ = bus.publish(&repo_id, topic::OPS, &payload);
+                            let t = match &ev.op {
+                                Op::Claim { .. } | Op::Release { .. } => {
+                                    Some(topic::CLAIMS)
+                                }
+                                Op::Review { .. } => Some(topic::REVIEW),
+                                Op::Presence { .. } => Some(topic::PRESENCE),
+                                _ => None,
+                            };
+                            if let Some(t) = t {
+                                let _ = bus.publish(&repo_id, t, &payload);
+                            }
+                        }
+                        heads.insert(ws, head);
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_millis(poll_ms));
+            }
+        }
+        Cmd::Deploy { cmd } => match cmd {
+            DeployCmd::Service => {
+                let svc = sturn_systemd::SystemdService {
+                    unit: "sturn-daemon.service".into(),
+                    bin: std::env::current_exe().map_err(|e| e.to_string())?,
+                    env: std::env::var("HOME")
+                        .map(PathBuf::from)
+                        .unwrap_or_else(|_| ".".into())
+                        .join(".config/sturn/env"),
+                    config: cli.config.clone().map(PathBuf::from),
+                };
+                let p = svc.write().map_err(|e| e.to_string())?;
+                svc.enable().map_err(|e| e.to_string())?;
+                println!("enabled {}", p.display());
+                Ok(())
+            }
+            DeployCmd::Env => {
+                let dir = std::env::var("HOME")
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|_| ".".into())
+                    .join(".config/sturn");
+                let p = sturn_systemd::write_env_skeleton(&dir).map_err(|e| e.to_string())?;
+                println!("env skeleton: {}", p.display());
+                Ok(())
+            }
+        },
+    }
+}
+
+fn now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+fn append(
+    wal: &sturn_wal_git::GitWal,
+    repo: &Path,
+    ws: &str,
+    actor: &str,
+    op: Op,
+) -> Result<String, String> {
+    wal.append(repo, ws, &Event::new(ws, actor, op))
+        .map_err(|e| e.to_string())
+}
+
+/// Every workspace's events — claims are swarm-wide, so conflict
+/// checks fold all WALs, not just the caller's.
+fn all_events(wal: &sturn_wal_git::GitWal, repo: &Path) -> Result<Vec<Event>, String> {
+    let mut all = Vec::new();
+    for ws in wal.workspaces(repo).map_err(|e| e.to_string())? {
+        all.extend(wal.events(repo, &ws).map_err(|e| e.to_string())?);
+    }
+    Ok(all)
+}

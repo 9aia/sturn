@@ -1,0 +1,12 @@
+[package]
+name = "sturn-ws"
+description = "Ws port: virtual workspaces over the git ODB"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["vcs", "sturn", "agents"]
+categories = ["development-tools"]
+
+[dependencies]
+

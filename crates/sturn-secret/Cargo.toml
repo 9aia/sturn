@@ -1,0 +1,12 @@
+[package]
+name = "sturn-secret"
+description = "Secrets port: named-secret resolution"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["vcs", "sturn", "agents"]
+categories = ["development-tools"]
+
+[dependencies]
+

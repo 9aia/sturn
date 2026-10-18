@@ -1,0 +1,16 @@
+# sturn.toml — one per coordinated repo. Secrets never live here.
+
+[repo]
+dir = "."                 # the git repo being coordinated
+# id = "9aia/sturn"       # topic prefix; defaults to dir basename
+# branch = "main"         # snap target
+
+# [wal]
+# ref_prefix = "refs/sturn/wal"
+
+# [bus]
+# store = "~/.local/state/sturn/bus.redb"
+# poll_ms = 100
+
+# [actor]
+# name = "agent-7"        # default: $STURN_ACTOR → $USER
