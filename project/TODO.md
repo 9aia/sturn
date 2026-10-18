@@ -12,7 +12,7 @@
 - [x] subscription: unix socket `bus.sock`, `sturn sub <topic>` → JSONL
 - [x] real glob matching (`*`, `**`) in claim conflicts
 - [x] claim TTL + `join`/`leave` presence — leave sweeps actor claims
-- [ ] bus: redb key prefix index (stop full-table scans)
+- [x] bus: seq-counter table — O(1) publish (poll still prefix-scans)
 
 ## M3 — agent surface
 - [x] sturn-mcp: real MCP server over the tools (`sturn mcp`,
@@ -31,6 +31,8 @@
 - [x] MCP `subs wait_ms` — long-poll live feed for agents
 - [x] signed ops: `[signing] key` → ssh-keygen -Y sign, `sturn verify`
 - [x] `sturn bridge` — snapshot ops → GitHub-shaped HMAC webhook to bupha
+- [x] review gates: `[review] require = true` — snap refuses unreviewed tree ops
+- [x] multi-repo daemon: `[bus] repos = [...]` fans out extra repos
 
 ## M5 — dogfood
 - [x] sturn coordinates agents editing sturn — commit a2fb761

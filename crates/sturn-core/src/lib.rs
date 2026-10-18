@@ -249,6 +249,10 @@ pub struct BusCfg {
     /// Daemon poll interval for WAL→topic fan-out, ms.
     #[serde(default = "default_poll_ms")]
     pub poll_ms: u64,
+    /// Extra repo dirs this daemon also fans out — multi-repo from
+    /// one process. Topic ids derive from dir basename.
+    #[serde(default)]
+    pub repos: Vec<PathBuf>,
 }
 
 /// `[actor]` — this process's identity on ops it appends.
@@ -300,6 +304,7 @@ impl Default for BusCfg {
         BusCfg {
             store: default_bus_store(),
             poll_ms: default_poll_ms(),
+            repos: vec![],
         }
     }
 }

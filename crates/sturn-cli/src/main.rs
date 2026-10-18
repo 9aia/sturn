@@ -669,25 +669,41 @@ fn run(cli: &Cli) -> Result<(), String> {
                     }
                 });
             }
-            let mut heads: HashMap<String, Option<String>> = HashMap::new();
+            // Multi-repo: this repo + any [bus] repos. Topics key
+            // per repo id; heads key per (dir, ws).
+            let mut dirs: Vec<PathBuf> = vec![repo.clone()];
+            dirs.extend(
+                cfg.as_ref().map(|c| c.bus.repos.clone()).unwrap_or_default(),
+            );
+            let mut heads: HashMap<(PathBuf, String), Option<String>> = HashMap::new();
             println!(
-                "sturn daemon — fan-out {repo_id}.* (poll {poll_ms}ms, sub {})",
+                "sturn daemon — fan-out {} repo(s) (poll {poll_ms}ms, sub {})",
+                dirs.len(),
                 sock_path.display()
             );
             loop {
-                for ws in wal.workspaces(&repo).unwrap_or_default() {
-                    let head = wal.head(&repo, &ws).unwrap_or(None);
-                    let prev = heads.get(&ws).cloned().unwrap_or(None);
+                for dir in &dirs {
+                let rid = if *dir == repo {
+                    repo_id.clone()
+                } else {
+                    dir.file_name()
+                        .map(|s| s.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| "repo".into())
+                };
+                for ws in wal.workspaces(dir).unwrap_or_default() {
+                    let head = wal.head(dir, &ws).unwrap_or(None);
+                    let key = (dir.clone(), ws.clone());
+                    let prev = heads.get(&key).cloned().unwrap_or(None);
                     if head != prev {
                         // Only the delta — refs moved, walk the range.
                         for ev in wal
-                            .events_since(&repo, &ws, prev.as_deref())
+                            .events_since(dir, &ws, prev.as_deref())
                             .unwrap_or_default()
                         {
                             let payload =
                                 Arc::new(serde_json::to_vec(&ev).unwrap_or_default());
-                            let _ = bus.publish(&repo_id, topic::OPS, &payload);
-                            fanout(&subs, &repo_id, topic::OPS, &payload);
+                            let _ = bus.publish(&rid, topic::OPS, &payload);
+                            fanout(&subs, &rid, topic::OPS, &payload);
                             let t = match &ev.op {
                                 Op::Claim { .. } | Op::Release { .. } => {
                                     Some(topic::CLAIMS)
@@ -697,12 +713,13 @@ fn run(cli: &Cli) -> Result<(), String> {
                                 _ => None,
                             };
                             if let Some(t) = t {
-                                let _ = bus.publish(&repo_id, t, &payload);
-                                fanout(&subs, &repo_id, t, &payload);
+                                let _ = bus.publish(&rid, t, &payload);
+                                fanout(&subs, &rid, t, &payload);
                             }
                         }
-                        heads.insert(ws, head);
+                        heads.insert(key, head);
                     }
+                }
                 }
                 std::thread::sleep(Duration::from_millis(poll_ms));
             }

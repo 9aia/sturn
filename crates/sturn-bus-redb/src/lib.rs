@@ -9,6 +9,8 @@ use std::path::PathBuf;
 use sturn_bus::Bus;
 
 const TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("bus");
+/// `repo|topic` → next seq — O(1) publish instead of a prefix scan.
+const SEQ: TableDefinition<&str, u64> = TableDefinition::new("seq");
 
 /// redb-backed local bus. Durable across daemon restarts — and even
 /// if the file is lost, the WAL in git refs rebuilds everything.
@@ -41,16 +43,29 @@ impl Bus for RedbBus {
         let tx = self.db.begin_write().map_err(io::Error::other)?;
         let seq;
         {
-            let mut t = tx.open_table(TABLE).map_err(io::Error::other)?;
             let pfx = Self::prefix(repo, topic);
-            seq = t
-                .iter()
+            let ck = pfx.trim_end_matches('|');
+            let mut t = tx.open_table(TABLE).map_err(io::Error::other)?;
+            let mut st = tx.open_table(SEQ).map_err(io::Error::other)?;
+            seq = st
+                .get(ck)
                 .map_err(io::Error::other)?
-                .flatten()
-                .filter(|(k, _)| k.value().starts_with(&pfx))
-                .count() as u64;
+                .map(|v| v.value())
+                // Migrate: first publish after upgrade counts existing
+                // keys once, then the counter takes over.
+                .unwrap_or_else(|| 0);
+            let seq = if seq == 0 {
+                t.iter()
+                    .map_err(io::Error::other)?
+                    .flatten()
+                    .filter(|(k, _)| k.value().starts_with(&pfx))
+                    .count() as u64
+            } else {
+                seq
+            };
             t.insert(Self::key(repo, topic, seq).as_str(), payload)
                 .map_err(io::Error::other)?;
+            st.insert(ck, seq + 1).map_err(io::Error::other)?;
         }
         tx.commit().map_err(io::Error::other)?;
         Ok(seq)
