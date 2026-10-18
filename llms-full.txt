@@ -1,0 +1,357 @@
+---
+url: /sturn/tutorials/first-swarm.md
+---
+# Your first swarm
+
+Goal: two agents editing one repo, zero checkouts, one prevented
+conflict.
+
+## Setup
+
+```sh
+git init demo && cd demo
+git commit -qm init --allow-empty
+sturn init
+sturn daemon &            # or: sturn deploy service
+```
+
+## Two workspaces
+
+```sh
+sturn ws new agent-a
+sturn ws new agent-b
+```
+
+Both point at `HEAD`. Nothing was written to disk — no worktree,
+no index, no checkout.
+
+## Claim before you edit
+
+```sh
+STURN_ACTOR=agent-a sturn claim "src/**" --ws agent-a
+# claimed src/** (ws agent-a, ttl 3600s)
+
+STURN_ACTOR=agent-b sturn claim "src/lib.rs" --ws agent-b
+# conflict: agent-a claimed src/** (ws agent-a, expires …)
+# sturn: claim denied — --force to override
+```
+
+Agent-b learns in milliseconds that `src/` is taken and picks
+`tests/**` instead. In git, both would have edited the file and
+discovered it at merge.
+
+## Write ops, snap, repeat
+
+```sh
+echo '…' | sturn write src/lib.rs --ws agent-a
+echo '…' | sturn write tests/lib.rs --ws agent-b
+sturn snap agent-a -m "a: lib"   # → real commit on main
+sturn snap agent-b -m "b: test"  # → real commit on main
+```
+
+`git log` shows two ordinary signed-able commits. `git for-each-ref
+refs/sturn/*` shows the coordination layer GitHub never needed to
+understand.
+
+---
+
+---
+url: /sturn/how-to/hydrate.md
+---
+# Hydrate a workspace
+
+Agents read through the ODB; compilers need POSIX files. Hydration
+materializes the ws *view* — tip commit **plus** uncommitted WAL
+ops, matching what `ws_read` sees.
+
+```sh
+sturn ws hydrate agent-7 /tmp/ws-7            # whole view
+sturn ws hydrate agent-7 /tmp/ws-7 --path src # subset
+```
+
+Or hydrate + run + clean in one step:
+
+```sh
+sturn exec --ws agent-7 -- cargo check        # tmpfs, gone after
+sturn exec --ws agent-7 --keep -- cargo test  # keep the dir
+```
+
+* Target tmpfs (`/dev/shm`/`/tmp`) — it's a projection, delete freely.
+* Exit status propagates: `sturn exec` fails iff the command does.
+* Writes inside the hydrated dir do **not** flow back — ops are the
+  only write path. (Write-back hydration is a backlog item.)
+* FUSE mounts for humans land last — `git` works meanwhile.
+
+---
+
+---
+url: /sturn/how-to/daemon.md
+---
+# Run the daemon
+
+`sturn daemon` polls WAL heads and fans new events onto topics
+(`repo.<id>.ops|claims|review|presence`) in the embedded bus store.
+
+```sh
+sturn daemon                      # foreground
+sturn deploy service              # systemd user unit, Restart=always
+```
+
+## If the daemon is down
+
+Nothing is lost. The bus is a cache — ops still live in
+`refs/sturn/wal/*` and replicate via `git push`/`git fetch`.
+Subscribers catch up by replaying the WAL. The daemon only removes
+latency; it never owns truth.
+
+## Consumers today
+
+* `sturn claims` — fold all WALs into live advisory locks
+* M2: SSE/unix-socket subscribers; M3: the MCP `subs` tool
+
+---
+
+---
+url: /sturn/explanation/architecture.md
+---
+# Architecture
+
+Three layers, strictly ordered by authority:
+
+```
+        ┌────────── evented layer ──────────┐
+agents  │  ops: write/rename/claim/intent/… │
+        │  virtual workspaces (ws = pointer) │
+        │  bus: repo.<id>.{ops,claims,…}     │
+        └──────┬─────────────────┬───────────┘
+               │ append          │ append (offline)
+        refs/sturn/wal/* ── git ODB ── refs/sturn/ws/*
+               │
+        normal git push/fetch → GitHub — free, signed, ordinary
+```
+
+## Invariants
+
+1. **The WAL is the state.** Anything derivable from
+   `refs/sturn/wal/*` is a cache (bus cursors, materialized views).
+2. **Merges stay git's.** Ops never encode merge semantics — claims
+   prevent collisions; `snap` squashes into ordinary commits.
+3. **Coordination before work.** Claims publish *before* edits.
+   Discovering a conflict at merge is the failure mode git taught us.
+
+## What each piece owes
+
+* `refs/sturn/wal/<ws>` — source of truth, replicates for free
+* daemon + bus — latency reduction only; optional
+* `refs/sturn/ws/<name>` — workspace namespaces; hydration opt-in
+* `snap` — the bridge back to ordinary git history
+
+---
+
+---
+url: /sturn/explanation/no-crdt.md
+---
+# Why no CRDT for code
+
+CRDTs are right for the *log*, wrong for the *tree*.
+
+**For the WAL:** when replicas append ops and diverge, a CRDT-style
+merge (grow-only set + causal order) converges the log with no
+coordination — same events, same state. That part we keep.
+
+**For the tree:** a CRDT auto-merge produces a *syntactically*
+merged file, not a semantically correct one. Two agents inserting
+different `main()` bodies converge to a file that compiles only by
+luck. Code needs decisions, not convergence.
+
+So sturn splits the difference:
+
+* The **log** merges deterministically (CRDT semantics; a
+  `libgrite-git` impl is on the backlog).
+* The **tree** is produced by `snap` — a deterministic reduction
+  over ops on a base. When ops collide semantically, that's a
+  decision for a reviewer, not a merge algorithm.
+* **Claims** make most collisions never happen — prevention beats
+  resolution.
+
+---
+
+---
+url: /sturn/reference/ops.md
+---
+# Ops
+
+The event vocabulary appended to `refs/sturn/wal/<ws>`. JSON,
+content-addressed (blob sha = event id), one commit per append.
+
+## Tree ops
+
+| Op | Fields | Effect at `snap` |
+|---|---|---|
+| `write` | `path`, `blob`, `intent?` | replace/create file |
+| `rename` | `from`, `to` | move entry |
+| `delete` | `path` | remove entry |
+
+## Coordination ops
+
+| Op | Fields | Effect |
+|---|---|---|
+| `claim` | `glob`, `ttl_secs` | advisory lock; auto-expires |
+| `release` | `glob` | drop a claim |
+| `intent` | `text` | provenance — why the work exists |
+| `review` | `event`, `verdict` | approve/reject an event id |
+| `snapshot` | `message` | marker — ops before it are committed |
+| `presence` | `status` | actor joined/left |
+
+## Envelope
+
+```json
+{"id":"<blob sha>","ws":"agent-7","actor":"agent-7","ts":1792292994,
+ "op":{"op":"write","path":"src/lib.rs","blob":"<sha>","intent":"…"}}
+```
+
+---
+
+---
+url: /sturn/reference/cli.md
+---
+# CLI reference
+
+Global flags: `--repo <dir>` (default cwd) · `--config <path>`.
+
+| Command | What it does |
+|---|---|
+| `sturn init` | write `sturn.toml`; confirm ref namespaces |
+| `sturn ws new <name> [--base]` | create workspace ref — no checkout |
+| `sturn ws ls` | list workspaces |
+| `sturn ws read <ws> <path>` | blob contents, straight from the ODB |
+| `sturn ws hydrate <ws> <dir> [--path P]…` | materialize tip + uncommitted ops |
+| `sturn claim <glob> --ws <w> [--ttl N] [--force]` | advisory lock; exits 1 on live conflict |
+| `sturn release <glob> --ws <w>` | drop a claim |
+| `sturn claims` | live claims across every workspace |
+| `sturn write <path> --ws <w> [--file F] [--intent T]` | append a write op (stdin → blob) |
+| `sturn intent <text> --ws <w>` | record provenance |
+| `sturn log [--ws <w>]` | replay the WAL as JSONL |
+| `sturn snap <ws> -m <msg> [--branch B]` | fold ops into a real commit |
+| `sturn review <event-id> <approve\|reject> --ws <w>` | continuous review |
+| `sturn push [--remote R]` | push heads + `refs/sturn/*` |
+| `sturn daemon` | WAL → topic fan-out loop + `bus.sock` push |
+| `sturn sub <topic>` | stream ops|claims|review|presence as JSONL |
+| `sturn mcp` | MCP stdio server — the agent tool surface |
+| `sturn exec --ws <w> [--keep] -- cmd…` | hydrate to tmpfs, run, clean up |
+| `sturn join\|leave <ws>` | presence; leave sweeps actor claims |
+| `sturn rename\|delete … --ws` | tree ops that keep intent |
+| `sturn verify [--ws W]` | verify event sigs vs allowed_signers |
+| `sturn compact [--ws W]` | drop pre-snapshot WAL history (archived) |
+| `sturn bridge --to <url>` | snapshot ops → HMAC webhook (bupha CI) |
+| `sturn mount <ws> <dir>` | read-only FUSE mount of the ws tree |
+| `sturn deploy service\|env` | systemd unit / secrets skeleton |
+
+---
+
+---
+url: /sturn/reference/config.md
+---
+# Config reference
+
+`sturn.toml` — searched at `$STURN_CONFIG`, `./sturn.toml`,
+`~/.config/sturn/sturn.toml`. Unknown fields are rejected. Secrets
+never live here.
+
+```toml
+[repo]
+dir = "."              # required — the git repo being coordinated
+id = "9aia/sturn"      # topic prefix; default: dir basename
+branch = "main"        # snap target; default: main
+
+[wal]
+ref_prefix = "refs/sturn/wal"   # default
+
+[bus]
+store = "~/.local/state/sturn/bus.redb"   # default
+poll_ms = 100                             # daemon fan-out interval
+# repos = ["../other-repo"]             # extra repos to fan out
+
+[review]
+require = true         # snap refuses unreviewed tree ops
+
+[signing]
+key = "~/.ssh/id_ed25519"             # sign every event (ssh-keygen)
+# allowed_signers = "..."
+
+[actor]
+name = "agent-7"       # default: $STURN_ACTOR → $USER → "anon"
+```
+
+See `examples/sturn.toml.example` in the repo.
+
+---
+
+---
+url: /sturn/reference/crate-api.md
+---
+# Crate map
+
+Ports (traits only) and impls — new backends are new impl crates,
+never core changes.
+
+| Crate | Role |
+|---|---|
+| `sturn-core` | `Event`/`Op`/`Verdict`, `Config`, topic names |
+| `sturn-wal` → `sturn-wal-git` | append-only op log in git refs (CAS) |
+| `sturn-bus` → `sturn-bus-redb` | topic pub/sub cache over the WAL |
+| `sturn-ws` → `sturn-ws-git` | virtual workspaces over the ODB |
+| `sturn-vcs` → `sturn-git` | remote sync/push; `snap_commit` bridge |
+| `sturn-claim` | pure claim logic: fold → live locks → conflicts |
+| `sturn-mcp` | the agent tool contract (M3 wires the server) |
+| `sturn-config` → `sturn-config-toml` | config source |
+| `sturn-secret` → `sturn-keyring`/`sturn-dotenv` | secret resolution |
+| `sturn-service` → `sturn-systemd` | daemon lifecycle |
+| `sturn-cli` | `sturn` binary — the composition root |
+
+Rustdoc: `/api/sturn_core/` etc. after `bun run docs:api`.
+
+---
+
+---
+url: /sturn/getting-started.md
+---
+# Getting started
+
+```sh
+cargo install --git https://github.com/9aia/sturn sturn
+cd your-repo
+sturn init
+```
+
+`init` writes a `sturn.toml` and confirms the ref namespaces. From
+here, workspaces are the unit of parallel work:
+
+```sh
+sturn ws new agent-7      # refs/sturn/ws/agent-7 → HEAD. No checkout.
+sturn ws ls
+```
+
+Append ops to the workspace's log:
+
+```sh
+echo 'fn helper() { 42 }' | sturn write src/lib.rs --ws agent-7 --intent "add helper"
+sturn claim "src/**" --ws agent-7
+sturn log --ws agent-7    # JSONL replay of the WAL
+```
+
+Land the work as an ordinary commit:
+
+```sh
+sturn snap agent-7 -m "add helper"   # ops → real commit on main
+sturn push                           # heads + refs/sturn/* → origin
+```
+
+Run the coordination daemon so other actors see ops live:
+
+```sh
+sturn daemon             # WAL → repo.<id>.{ops,claims,review,presence}
+sturn deploy service     # systemd user unit
+```
+
+Next: [your first swarm](/tutorials/first-swarm).

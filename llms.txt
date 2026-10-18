@@ -1,0 +1,32 @@
+# sturn
+
+> agents murmurate, not merge
+
+Evented coordination over the git object store — the WAL is the state, the tree is a projection, the bus is a cache.
+
+## Table of Contents
+
+### Tutorials
+
+- [Your first swarm](/sturn/tutorials/first-swarm.md)
+
+### How-to
+
+- [Hydrate a workspace](/sturn/how-to/hydrate.md)
+- [Run the daemon](/sturn/how-to/daemon.md)
+
+### Explanation
+
+- [Architecture](/sturn/explanation/architecture.md)
+- [Why no CRDT for code](/sturn/explanation/no-crdt.md)
+
+### Reference
+
+- [Ops](/sturn/reference/ops.md)
+- [CLI reference](/sturn/reference/cli.md)
+- [Config reference](/sturn/reference/config.md)
+- [Crate map](/sturn/reference/crate-api.md)
+
+### Other
+
+- [Getting started](/sturn/getting-started.md)
