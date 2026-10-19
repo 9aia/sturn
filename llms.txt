@@ -13,6 +13,7 @@ Evented coordination over the git object store — the WAL is the state, the tre
 ### How-to
 
 - [Hydrate a workspace](/sturn/how-to/hydrate.md)
+- [How-to: mount a workspace](/sturn/how-to/mount.md)
 - [Run the daemon](/sturn/how-to/daemon.md)
 
 ### Explanation
