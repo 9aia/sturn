@@ -455,6 +455,90 @@ impl Filesystem for SturnFs<'_> {
         reply.ok();
     }
 
+    fn fsync(
+        &mut self,
+        _req: &Request,
+        ino: u64,
+        _fh: u64,
+        _datasync: bool,
+        reply: ReplyEmpty,
+    ) {
+        // durability point — emit the op NOW, not on release.
+        // editors that fsync-per-save get their op immediately.
+        if let Some((path, buf)) = self.open.get(&ino) {
+            if let Ok(blob) = self.wsi.store(self.repo, buf) {
+                self.append(Op::Write {
+                    path: path.clone(),
+                    blob,
+                    intent: Some("fuse fsync".into()),
+                });
+            }
+        }
+        reply.ok();
+    }
+
+    fn flush(&mut self, _req: &Request, _ino: u64, _fh: u64, _lock: u64, reply: ReplyEmpty) {
+        // close(dup(fd)) flushes; release does the real write-back.
+        reply.ok();
+    }
+
+    fn mkdir(
+        &mut self,
+        _req: &Request,
+        parent: u64,
+        name: &OsStr,
+        _mode: u32,
+        _umask: u32,
+        reply: ReplyEntry,
+    ) {
+        if self.wal.is_none() {
+            reply.error(libc::EROFS);
+            return;
+        }
+        // dirs are implicit in git trees — local entry only,
+        // no op until a file lands inside.
+        let pname = name.to_string_lossy().into_owned();
+        let pe = &self.entries[&parent];
+        let path = if pe.path.is_empty() {
+            pname
+        } else {
+            format!("{}/{pname}", pe.path)
+        };
+        let ino = self.add_entry(&path, true);
+        reply.entry(&TTL, &attr(ino, 0, true), 0);
+    }
+
+    fn rmdir(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEmpty) {
+        if self.wal.is_none() {
+            reply.error(libc::EROFS);
+            return;
+        }
+        let pname = name.to_string_lossy().into_owned();
+        let pe = &self.entries[&parent];
+        let path = if pe.path.is_empty() {
+            pname
+        } else {
+            format!("{}/{pname}", pe.path)
+        };
+        // refuse non-empty dirs — files inside are real ops
+        let has_kids = self
+            .kids
+            .get(&self.by_path[&path])
+            .map(|k| !k.is_empty())
+            .unwrap_or(false);
+        if has_kids {
+            reply.error(libc::ENOTEMPTY);
+            return;
+        }
+        if let Some(ino) = self.by_path.remove(&path) {
+            self.entries.remove(&ino);
+            if let Some(k) = self.kids.get_mut(&parent) {
+                k.retain(|(_, i)| *i != ino);
+            }
+        }
+        reply.ok();
+    }
+
     fn unlink(&mut self, _req: &Request, _parent: u64, name: &OsStr, reply: ReplyEmpty) {
         if self.wal.is_none() {
             reply.error(libc::EROFS);
