@@ -33,6 +33,7 @@ export default defineConfig({
         text: "How-to",
         items: [
           { text: "Hydrate a workspace", link: "/how-to/hydrate" },
+          { text: "Mount a workspace", link: "/how-to/mount" },
           { text: "Run the daemon", link: "/how-to/daemon" },
         ],
       },
