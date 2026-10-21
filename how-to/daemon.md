@@ -6,6 +6,9 @@
 ```sh
 sturn daemon                      # foreground
 sturn deploy service              # systemd user unit, Restart=always
+sturn service disable             # stop now + skip at login (unit kept)
+sturn service enable              # back on, now and at login
+sturn service status              # enabled=/active= probe
 ```
 
 ## If the daemon is down
