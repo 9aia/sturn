@@ -101,6 +101,27 @@ pub fn unit_status(unit: &str) -> io::Result<String> {
     ))
 }
 
+/// systemctl --user restart — bounce the daemon in place.
+pub fn restart_service(unit: &str) -> io::Result<()> {
+    run("systemctl", &["--user", "restart", unit])
+}
+
+/// journalctl --user tail — recent lines, or `-f` hands the terminal
+/// to the follow stream. Returns journalctl's exit code.
+pub fn service_logs(unit: &str, follow: bool) -> io::Result<i32> {
+    let mut args = vec!["--user", "-u", unit, "--no-pager"];
+    if follow {
+        args.push("-f");
+    } else {
+        args.extend(["-n", "50"]);
+    }
+    Ok(Command::new("journalctl")
+        .args(&args)
+        .status()?
+        .code()
+        .unwrap_or(-1))
+}
+
 /// Disable + remove the user unit. Best-effort stop first — an absent
 /// or never-enabled unit still gets its file removed.
 pub fn disable_service(unit: &str) -> io::Result<PathBuf> {

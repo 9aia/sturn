@@ -198,6 +198,11 @@ enum Cmd {
         #[command(subcommand)]
         cmd: DeployCmd,
     },
+    /// Teardown counterparts of `deploy`.
+    Destroy {
+        #[command(subcommand)]
+        cmd: DestroySub,
+    },
     /// Toggle the daemon unit without removing it — free the box
     /// when fan-out isn't needed, `enable` brings it back.
     Service {
@@ -241,6 +246,12 @@ enum DeployCmd {
 }
 
 #[derive(Subcommand)]
+enum DestroySub {
+    /// Disable + remove the systemd user unit.
+    Service,
+}
+
+#[derive(Subcommand)]
 enum ServiceCmd {
     /// Enable + start the daemon unit now and at login.
     Enable,
@@ -249,6 +260,14 @@ enum ServiceCmd {
     Disable,
     /// Whether the daemon unit is enabled and running.
     Status,
+    /// Bounce the daemon unit in place.
+    Restart,
+    /// Recent journal lines — `-f` follows the stream live.
+    Logs {
+        /// Follow the log stream (journalctl -f).
+        #[arg(short = 'f', long = "f")]
+        follow: bool,
+    },
 }
 
 fn main() {
@@ -821,6 +840,14 @@ fn run(cli: &Cli) -> Result<(), String> {
                 Ok(())
             }
         },
+        Cmd::Destroy { cmd } => match cmd {
+            DestroySub::Service => {
+                let p = sturn_systemd::disable_service("sturn-daemon.service")
+                    .map_err(|e| e.to_string())?;
+                println!("removed {}", p.display());
+                Ok(())
+            }
+        },
         Cmd::Service { cmd } => {
             // Toggle only — `deploy service` writes the unit, and the
             // file stays put through enable/disable cycles.
@@ -837,6 +864,17 @@ fn run(cli: &Cli) -> Result<(), String> {
                 ServiceCmd::Status => {
                     let s = sturn_systemd::unit_status(unit).map_err(|e| e.to_string())?;
                     println!("{s}");
+                }
+                ServiceCmd::Restart => {
+                    sturn_systemd::restart_service(unit).map_err(|e| e.to_string())?;
+                    println!("sturn-daemon restarted");
+                }
+                ServiceCmd::Logs { follow } => {
+                    let code = sturn_systemd::service_logs(unit, *follow)
+                        .map_err(|e| e.to_string())?;
+                    if code != 0 {
+                        std::process::exit(code);
+                    }
                 }
             }
             Ok(())
