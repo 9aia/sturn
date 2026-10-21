@@ -29,4 +29,5 @@ Global flags: `--repo <dir>` (default cwd) · `--config <path>`.
 | `sturn bridge --to <url>` | snapshot ops → HMAC webhook (bupha CI) |
 | `sturn mount <ws> <dir> [--rw]` | FUSE mount; --rw edits flow back as ops |
 | `sturn deploy service\|env` | systemd unit / secrets skeleton |
-| `sturn service enable\|disable\|status` | toggle the daemon unit (kept) — stop frees resources until re-enabled |
+| `sturn service enable\|disable\|status\|restart\|logs [-f]` | toggle/bounce the daemon unit (kept); logs tails the journal |
+| `sturn destroy service` | disable + remove the systemd user unit |
