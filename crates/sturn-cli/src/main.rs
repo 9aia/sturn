@@ -198,6 +198,12 @@ enum Cmd {
         #[command(subcommand)]
         cmd: DeployCmd,
     },
+    /// Toggle the daemon unit without removing it — free the box
+    /// when fan-out isn't needed, `enable` brings it back.
+    Service {
+        #[command(subcommand)]
+        cmd: ServiceCmd,
+    },
 }
 
 #[derive(Subcommand)]
@@ -232,6 +238,17 @@ enum DeployCmd {
     Service,
     /// Seed ~/.config/sturn/env (0600, names only).
     Env,
+}
+
+#[derive(Subcommand)]
+enum ServiceCmd {
+    /// Enable + start the daemon unit now and at login.
+    Enable,
+    /// Stop the daemon now; stays stopped across logins until
+    /// `service enable` (the unit file is kept).
+    Disable,
+    /// Whether the daemon unit is enabled and running.
+    Status,
 }
 
 fn main() {
@@ -804,6 +821,26 @@ fn run(cli: &Cli) -> Result<(), String> {
                 Ok(())
             }
         },
+        Cmd::Service { cmd } => {
+            // Toggle only — `deploy service` writes the unit, and the
+            // file stays put through enable/disable cycles.
+            let unit = "sturn-daemon.service";
+            match cmd {
+                ServiceCmd::Enable => {
+                    sturn_systemd::enable_service(unit).map_err(|e| e.to_string())?;
+                    println!("sturn-daemon enabled — running now and at login");
+                }
+                ServiceCmd::Disable => {
+                    sturn_systemd::stop_service(unit).map_err(|e| e.to_string())?;
+                    println!("sturn-daemon disabled — stopped, will not restart at login");
+                }
+                ServiceCmd::Status => {
+                    let s = sturn_systemd::unit_status(unit).map_err(|e| e.to_string())?;
+                    println!("{s}");
+                }
+            }
+            Ok(())
+        }
     }
 }
 
