@@ -102,8 +102,15 @@ pub fn snap_commit(
     message: &str,
     branch: &str,
 ) -> io::Result<String> {
-    let idx: PathBuf =
-        std::env::temp_dir().join(format!("sturn-index-{}", std::process::id()));
+    // Per-call scratch index — two snaps in one process (daemon
+    // handling concurrent ws folds, parallel tests) must not share
+    // GIT_INDEX_FILE or they interleave updates and lock.
+    static SNAP_IDX: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let idx: PathBuf = std::env::temp_dir().join(format!(
+        "sturn-index-{}-{}",
+        std::process::id(),
+        SNAP_IDX.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
     let gi = |args: &[&str]| -> io::Result<String> {
         let o = Command::new("git")
             .arg("-C")
@@ -164,6 +171,9 @@ pub fn snap_commit(
     let tree = gi(&["write-tree"])?;
     let _ = std::fs::remove_file(&idx);
     let commit = git(repo, &["commit-tree", &tree, "-p", base, "-m", message])?;
-    git(repo, &["update-ref", &format!("refs/heads/{branch}"), &commit])?;
+    git(
+        repo,
+        &["update-ref", &format!("refs/heads/{branch}"), &commit],
+    )?;
     Ok(commit)
 }

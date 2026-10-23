@@ -154,27 +154,22 @@ fn ws_read(ctx: &Ctx, a: &Value) -> Value {
         });
         if let Some(e) = ov.get(path) {
             return match e {
-                Some(sha) => Ok(String::from_utf8_lossy(
-                    &ctx.wsi.blob(ctx.repo, sha)?,
-                )
-                .into_owned()),
+                Some(sha) => {
+                    Ok(String::from_utf8_lossy(&ctx.wsi.blob(ctx.repo, sha)?).into_owned())
+                }
                 None => Err(std::io::Error::other("path deleted in ws overlay")),
             };
         }
-        Ok(String::from_utf8_lossy(
-            &ctx.wsi.read(ctx.repo, &tip, path)?,
-        )
-        .into_owned())
+        Ok(String::from_utf8_lossy(&ctx.wsi.read(ctx.repo, &tip, path)?).into_owned())
     })();
     r.map_or_else(|e| tool_err(e), tool_text)
 }
 
 fn ws_write(ctx: &Ctx, a: &Value) -> Value {
-    let (ws, path, content) =
-        match (arg(a, "ws"), arg(a, "path"), arg(a, "content")) {
-            (Ok(w), Ok(p), Ok(c)) => (w, p, c),
-            _ => return tool_err("missing ws/path/content"),
-        };
+    let (ws, path, content) = match (arg(a, "ws"), arg(a, "path"), arg(a, "content")) {
+        (Ok(w), Ok(p), Ok(c)) => (w, p, c),
+        _ => return tool_err("missing ws/path/content"),
+    };
     let r = (|| -> std::io::Result<String> {
         let blob = ctx.wsi.store(ctx.repo, content.as_bytes())?;
         ctx.wal.append(
@@ -186,10 +181,7 @@ fn ws_write(ctx: &Ctx, a: &Value) -> Value {
                 Op::Write {
                     path: path.into(),
                     blob,
-                    intent: a
-                        .get("intent")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
+                    intent: a.get("intent").and_then(|v| v.as_str()).map(String::from),
                 },
             ),
         )
@@ -289,13 +281,7 @@ fn ws_delete(ctx: &Ctx, a: &Value) -> Value {
         .append(
             ctx.repo,
             ws,
-            &Event::new(
-                ws,
-                ctx.actor,
-                Op::Delete {
-                    path: path.into(),
-                },
-            ),
+            &Event::new(ws, ctx.actor, Op::Delete { path: path.into() }),
         )
         .map(|id| tool_text(format!("delete {path} (event {id})")))
         .unwrap_or_else(|e| tool_err(e))
@@ -308,11 +294,7 @@ fn claim(ctx: &Ctx, a: &Value) -> Value {
     };
     let r = (|| -> Result<String, String> {
         let mut all = Vec::new();
-        for w in ctx
-            .wal
-            .workspaces(ctx.repo)
-            .map_err(|e| e.to_string())?
-        {
+        for w in ctx.wal.workspaces(ctx.repo).map_err(|e| e.to_string())? {
             all.extend(ctx.wal.events(ctx.repo, &w).map_err(|e| e.to_string())?);
         }
         let live = claims::active(&all, now());
@@ -328,10 +310,7 @@ fn claim(ctx: &Ctx, a: &Value) -> Value {
                 .join("; ");
             return Err(format!("conflict: {detail}"));
         }
-        let ttl = a
-            .get("ttl_secs")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(3600);
+        let ttl = a.get("ttl_secs").and_then(|v| v.as_u64()).unwrap_or(3600);
         ctx.wal
             .append(
                 ctx.repo,
@@ -360,13 +339,7 @@ fn release(ctx: &Ctx, a: &Value) -> Value {
         .append(
             ctx.repo,
             ws,
-            &Event::new(
-                ws,
-                ctx.actor,
-                Op::Release {
-                    glob: glob.into(),
-                },
-            ),
+            &Event::new(ws, ctx.actor, Op::Release { glob: glob.into() }),
         )
         .map(|_| tool_text(format!("released {glob}")))
         .unwrap_or_else(|e| tool_err(e))
@@ -395,24 +368,17 @@ fn intent(ctx: &Ctx, a: &Value) -> Value {
         .append(
             ctx.repo,
             ws,
-            &Event::new(
-                ws,
-                ctx.actor,
-                Op::Intent {
-                    text: text.into(),
-                },
-            ),
+            &Event::new(ws, ctx.actor, Op::Intent { text: text.into() }),
         )
         .map(|id| tool_text(format!("intent {id}")))
         .unwrap_or_else(|e| tool_err(e))
 }
 
 fn review(ctx: &Ctx, a: &Value) -> Value {
-    let (ws, event, verdict) =
-        match (arg(a, "ws"), arg(a, "event"), arg(a, "verdict")) {
-            (Ok(w), Ok(e), Ok(v)) => (w, e, v),
-            _ => return tool_err("missing ws/event/verdict"),
-        };
+    let (ws, event, verdict) = match (arg(a, "ws"), arg(a, "event"), arg(a, "verdict")) {
+        (Ok(w), Ok(e), Ok(v)) => (w, e, v),
+        _ => return tool_err("missing ws/event/verdict"),
+    };
     let v = match verdict {
         "approve" => Verdict::Approve,
         "reject" => Verdict::Reject,
@@ -449,12 +415,7 @@ fn subs(ctx: &Ctx, a: &Value) -> Value {
         (|| -> std::io::Result<_> {
             let mut ids = std::collections::HashSet::new();
             for w in ctx.wal.workspaces(ctx.repo)? {
-                ids.extend(
-                    ctx.wal
-                        .events(ctx.repo, &w)?
-                        .into_iter()
-                        .map(|e| e.id),
-                );
+                ids.extend(ctx.wal.events(ctx.repo, &w)?.into_iter().map(|e| e.id));
             }
             Ok(ids)
         })()
@@ -548,9 +509,13 @@ pub fn serve(ctx: &Ctx) -> std::io::Result<()> {
         let _ = ctx.wal.append(
             ctx.repo,
             ws,
-            &Event::new(ws, ctx.actor, Op::Presence {
-                status: "joined".into(),
-            }),
+            &Event::new(
+                ws,
+                ctx.actor,
+                Op::Presence {
+                    status: "joined".into(),
+                },
+            ),
         );
     }
     let stdin = std::io::stdin().lock();
@@ -606,10 +571,483 @@ pub fn serve(ctx: &Ctx) -> std::io::Result<()> {
         let _ = ctx.wal.append(
             ctx.repo,
             ws,
-            &Event::new(ws, ctx.actor, Op::Presence {
-                status: "left".into(),
-            }),
+            &Event::new(
+                ws,
+                ctx.actor,
+                Op::Presence {
+                    status: "left".into(),
+                },
+            ),
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    //! Tool-level coverage: every `tools/call` verb against in-memory
+    //! Wal/Ws fakes, plus the tool schema list. `serve` itself (the
+    //! stdio loop) is exercised by sturn-cli's e2e.
+
+    use super::*;
+    use std::collections::BTreeMap;
+    use std::io;
+    use std::sync::Mutex;
+
+    struct FakeWal {
+        log: Mutex<BTreeMap<String, Vec<Event>>>,
+        n: Mutex<u64>,
+    }
+
+    impl FakeWal {
+        fn new() -> Self {
+            Self {
+                log: Mutex::new(BTreeMap::new()),
+                n: Mutex::new(0),
+            }
+        }
+    }
+
+    impl Wal for FakeWal {
+        fn append(&self, _r: &Path, ws: &str, e: &Event) -> io::Result<String> {
+            let mut ev = e.clone();
+            let mut n = self.n.lock().unwrap();
+            *n += 1;
+            ev.id = format!("e{n}");
+            let id = ev.id.clone();
+            self.log
+                .lock()
+                .unwrap()
+                .entry(ws.to_string())
+                .or_default()
+                .push(ev);
+            Ok(id)
+        }
+        fn events_since(&self, _r: &Path, ws: &str, from: Option<&str>) -> io::Result<Vec<Event>> {
+            let log = self.log.lock().unwrap();
+            let all = log.get(ws).cloned().unwrap_or_default();
+            Ok(match from {
+                None => all,
+                Some(f) => {
+                    let pos = all.iter().position(|e| e.id == f).map_or(0, |i| i + 1);
+                    all[pos..].to_vec()
+                }
+            })
+        }
+        fn head(&self, _r: &Path, ws: &str) -> io::Result<Option<String>> {
+            Ok(self
+                .log
+                .lock()
+                .unwrap()
+                .get(ws)
+                .and_then(|v| v.last())
+                .map(|e| e.id.clone()))
+        }
+        fn workspaces(&self, _r: &Path) -> io::Result<Vec<String>> {
+            Ok(self.log.lock().unwrap().keys().cloned().collect())
+        }
+        fn compact(&self, _r: &Path, _ws: &str) -> io::Result<usize> {
+            Ok(0)
+        }
+    }
+
+    struct FakeWs {
+        /// Tip-tree contents: path → bytes.
+        files: BTreeMap<String, Vec<u8>>,
+        /// ODB: sha → bytes.
+        blobs: Mutex<BTreeMap<String, Vec<u8>>>,
+        tips: Mutex<BTreeMap<String, String>>,
+        n: Mutex<u64>,
+    }
+
+    impl FakeWs {
+        fn new() -> Self {
+            let mut files = BTreeMap::new();
+            files.insert("a.txt".to_string(), b"alpha\nline two\n".to_vec());
+            files.insert("src/b.rs".to_string(), b"fn b() {}\n".to_vec());
+            Self {
+                files,
+                blobs: Mutex::new(BTreeMap::new()),
+                tips: Mutex::new(BTreeMap::new()),
+                n: Mutex::new(0),
+            }
+        }
+    }
+
+    impl Ws for FakeWs {
+        fn read(&self, _r: &Path, _rev: &str, path: &str) -> io::Result<Vec<u8>> {
+            self.files
+                .get(path)
+                .cloned()
+                .ok_or_else(|| io::Error::other("not found"))
+        }
+        fn list(&self, _r: &Path, _rev: &str) -> io::Result<Vec<String>> {
+            Ok(self.files.keys().cloned().collect())
+        }
+        fn materialize(
+            &self,
+            _r: &Path,
+            _rev: &str,
+            _dir: &Path,
+            _paths: &[String],
+        ) -> io::Result<()> {
+            Ok(())
+        }
+        fn create(&self, _r: &Path, name: &str, base: &str) -> io::Result<()> {
+            self.tips
+                .lock()
+                .unwrap()
+                .insert(name.to_string(), base.to_string());
+            Ok(())
+        }
+        fn entry(&self, _r: &Path, _rev: &str, path: &str) -> io::Result<Option<String>> {
+            Ok(self.files.get(path).map(|c| {
+                // Register the tip content as a blob so `blob()` on
+                // the returned sha resolves, like a real ODB.
+                let sha = format!("tip-{path}");
+                self.blobs.lock().unwrap().insert(sha.clone(), c.clone());
+                sha
+            }))
+        }
+        fn blob(&self, _r: &Path, sha: &str) -> io::Result<Vec<u8>> {
+            self.blobs
+                .lock()
+                .unwrap()
+                .get(sha)
+                .cloned()
+                .ok_or_else(|| io::Error::other("blob not found"))
+        }
+        fn store(&self, _r: &Path, content: &[u8]) -> io::Result<String> {
+            let mut n = self.n.lock().unwrap();
+            *n += 1;
+            let sha = format!("blob{n}");
+            self.blobs
+                .lock()
+                .unwrap()
+                .insert(sha.clone(), content.to_vec());
+            Ok(sha)
+        }
+        fn tip(&self, _r: &Path, name: &str) -> io::Result<String> {
+            Ok(self
+                .tips
+                .lock()
+                .unwrap()
+                .get(name)
+                .cloned()
+                .unwrap_or_else(|| "tip".into()))
+        }
+        fn workspaces(&self, _r: &Path) -> io::Result<Vec<String>> {
+            Ok(self.tips.lock().unwrap().keys().cloned().collect())
+        }
+    }
+
+    fn ctx<'a>(
+        wal: &'a FakeWal,
+        wsi: &'a FakeWs,
+        snap: &'a dyn Fn(&str, &str, &str) -> io::Result<String>,
+    ) -> Ctx<'a> {
+        Ctx {
+            repo: Path::new("/repo"),
+            repo_id: "test/repo",
+            wal,
+            wsi,
+            actor: "agent-a",
+            branch: "main",
+            ws: Some("w1"),
+            snap,
+        }
+    }
+
+    fn text(v: &Value) -> &str {
+        v["content"][0]["text"].as_str().unwrap()
+    }
+
+    fn is_err(v: &Value) -> bool {
+        v.get("isError").and_then(|b| b.as_bool()).unwrap_or(false)
+    }
+
+    fn ok_snap(_w: &str, _m: &str, _b: &str) -> io::Result<String> {
+        Ok("cafe123".into())
+    }
+
+    #[test]
+    fn tool_vocabulary_and_schemas() {
+        assert_eq!(TOOLS.len(), 11);
+        let list = tool_list();
+        let tools = list["tools"].as_array().unwrap();
+        assert_eq!(tools.len(), 12); // list includes `release`
+        assert!(tools.iter().all(|t| t["inputSchema"]["type"] == "object"));
+    }
+
+    #[test]
+    fn ws_read_from_tip_and_overlay() {
+        let wal = FakeWal::new();
+        let wsi = FakeWs::new();
+        let c = ctx(&wal, &wsi, &ok_snap);
+
+        // Tip read.
+        let v = call(&c, "ws_read", &json!({"ws": "w1", "path": "a.txt"}));
+        assert!(!is_err(&v));
+        assert!(text(&v).contains("alpha"));
+
+        // Overlay read: a pending Write wins over the tip.
+        let sha = wsi.store(Path::new("/repo"), b"pending\n").unwrap();
+        wal.append(
+            Path::new("/repo"),
+            "w1",
+            &Event::new(
+                "w1",
+                "agent-a",
+                Op::Write {
+                    path: "new.rs".into(),
+                    blob: sha,
+                    intent: None,
+                },
+            ),
+        )
+        .unwrap();
+        let v = call(&c, "ws_read", &json!({"ws": "w1", "path": "new.rs"}));
+        assert_eq!(text(&v), "pending\n");
+
+        // Deleted in overlay → error.
+        wal.append(
+            Path::new("/repo"),
+            "w1",
+            &Event::new(
+                "w1",
+                "agent-a",
+                Op::Delete {
+                    path: "a.txt".into(),
+                },
+            ),
+        )
+        .unwrap();
+        let v = call(&c, "ws_read", &json!({"ws": "w1", "path": "a.txt"}));
+        assert!(is_err(&v));
+
+        // Missing arg → error.
+        assert!(is_err(&call(&c, "ws_read", &json!({"ws": "w1"}))));
+    }
+
+    #[test]
+    fn ws_write_appends_op() {
+        let wal = FakeWal::new();
+        let wsi = FakeWs::new();
+        let c = ctx(&wal, &wsi, &ok_snap);
+        let v = call(
+            &c,
+            "ws_write",
+            &json!({"ws": "w1", "path": "p.rs", "content": "x", "intent": "why"}),
+        );
+        assert!(!is_err(&v));
+        assert!(text(&v).starts_with("event e"));
+        let events = wal.events(Path::new("/repo"), "w1").unwrap();
+        match &events.last().unwrap().op {
+            Op::Write { path, intent, .. } => {
+                assert_eq!(path, "p.rs");
+                assert_eq!(intent.as_deref(), Some("why"));
+            }
+            other => panic!("expected Write, got {other:?}"),
+        }
+        assert!(is_err(&call(&c, "ws_write", &json!({"ws": "w1"}))));
+    }
+
+    #[test]
+    fn ws_glob_filters_paths() {
+        let wal = FakeWal::new();
+        let wsi = FakeWs::new();
+        let c = ctx(&wal, &wsi, &ok_snap);
+        let v = call(&c, "ws_glob", &json!({"ws": "w1", "pattern": "src/**"}));
+        assert_eq!(text(&v), "src/b.rs");
+        // Default pattern lists everything.
+        let v = call(&c, "ws_glob", &json!({"ws": "w1"}));
+        assert!(text(&v).contains("a.txt"));
+        assert!(text(&v).contains("src/b.rs"));
+    }
+
+    #[test]
+    fn ws_grep_finds_lines() {
+        let wal = FakeWal::new();
+        let wsi = FakeWs::new();
+        let c = ctx(&wal, &wsi, &ok_snap);
+        let v = call(&c, "ws_grep", &json!({"ws": "w1", "pattern": "line"}));
+        assert!(text(&v).contains("a.txt:2: line two"));
+        assert!(!text(&v).contains("b.rs"));
+        assert!(is_err(&call(&c, "ws_grep", &json!({"ws": "w1"}))));
+    }
+
+    #[test]
+    fn ws_rename_and_delete_append_ops() {
+        let wal = FakeWal::new();
+        let wsi = FakeWs::new();
+        let c = ctx(&wal, &wsi, &ok_snap);
+        let v = call(
+            &c,
+            "ws_rename",
+            &json!({"ws": "w1", "from": "a.txt", "to": "b.txt"}),
+        );
+        assert!(text(&v).contains("rename a.txt → b.txt"));
+        let v = call(&c, "ws_delete", &json!({"ws": "w1", "path": "a.txt"}));
+        assert!(text(&v).contains("delete a.txt"));
+        assert!(is_err(&call(&c, "ws_rename", &json!({"ws": "w1"}))));
+        assert!(is_err(&call(&c, "ws_delete", &json!({"ws": "w1"}))));
+    }
+
+    #[test]
+    fn claim_conflict_and_release() {
+        let wal = FakeWal::new();
+        let wsi = FakeWs::new();
+        let c = ctx(&wal, &wsi, &ok_snap);
+
+        // Another ws holds the glob → conflict.
+        wal.append(
+            Path::new("/repo"),
+            "w2",
+            &Event::new(
+                "w2",
+                "agent-b",
+                Op::Claim {
+                    glob: "src/**".into(),
+                    ttl_secs: 3600,
+                },
+            ),
+        )
+        .unwrap();
+        let v = call(&c, "claim", &json!({"ws": "w1", "glob": "src/x.rs"}));
+        assert!(is_err(&v));
+        assert!(text(&v).contains("conflict"));
+
+        // Disjoint glob → claimed, event appended.
+        let v = call(
+            &c,
+            "claim",
+            &json!({"ws": "w1", "glob": "docs/**", "ttl_secs": 60}),
+        );
+        assert!(text(&v).contains("claimed docs/**"));
+        let events = wal.events(Path::new("/repo"), "w1").unwrap();
+        assert!(matches!(
+            events.last().unwrap().op,
+            Op::Claim { ttl_secs: 60, .. }
+        ));
+
+        let v = call(&c, "release", &json!({"ws": "w1", "glob": "docs/**"}));
+        assert!(text(&v).contains("released docs/**"));
+        assert!(is_err(&call(&c, "claim", &json!({"ws": "w1"}))));
+    }
+
+    #[test]
+    fn snap_intent_review() {
+        let wal = FakeWal::new();
+        let wsi = FakeWs::new();
+        let c = ctx(&wal, &wsi, &ok_snap);
+
+        let v = call(&c, "snap", &json!({"ws": "w1", "message": "ship"}));
+        assert!(text(&v).contains("snap cafe123 → main"));
+        let v = call(
+            &c,
+            "snap",
+            &json!({"ws": "w1", "message": "m", "branch": "dev"}),
+        );
+        assert!(text(&v).contains("→ dev"));
+        assert!(is_err(&call(&c, "snap", &json!({"ws": "w1"}))));
+
+        let v = call(&c, "intent", &json!({"ws": "w1", "text": "why"}));
+        assert!(text(&v).starts_with("intent e"));
+        assert!(is_err(&call(&c, "intent", &json!({"ws": "w1"}))));
+
+        let v = call(
+            &c,
+            "review",
+            &json!({"ws": "w1", "event": "e1", "verdict": "approve"}),
+        );
+        assert!(text(&v).contains("approve e1"));
+        let v = call(
+            &c,
+            "review",
+            &json!({"ws": "w1", "event": "e1", "verdict": "nope"}),
+        );
+        assert!(is_err(&v));
+    }
+
+    #[test]
+    fn subs_filters_topics() {
+        let wal = FakeWal::new();
+        let wsi = FakeWs::new();
+        let c = ctx(&wal, &wsi, &ok_snap);
+        wal.append(
+            Path::new("/repo"),
+            "w1",
+            &Event::new("w1", "a", Op::Intent { text: "t".into() }),
+        )
+        .unwrap();
+        wal.append(
+            Path::new("/repo"),
+            "w1",
+            &Event::new(
+                "w1",
+                "a",
+                Op::Claim {
+                    glob: "x".into(),
+                    ttl_secs: 10,
+                },
+            ),
+        )
+        .unwrap();
+        wal.append(
+            Path::new("/repo"),
+            "w1",
+            &Event::new(
+                "w1",
+                "a",
+                Op::Review {
+                    event: "e1".into(),
+                    verdict: Verdict::Approve,
+                },
+            ),
+        )
+        .unwrap();
+        wal.append(
+            Path::new("/repo"),
+            "w1",
+            &Event::new(
+                "w1",
+                "a",
+                Op::Presence {
+                    status: "joined".into(),
+                },
+            ),
+        )
+        .unwrap();
+
+        // ops = firehose.
+        let v = call(&c, "subs", &json!({"ws": "w1"}));
+        assert_eq!(text(&v).lines().count(), 4);
+        // claims only.
+        let v = call(&c, "subs", &json!({"topic": "claims"}));
+        assert_eq!(text(&v).lines().count(), 1);
+        assert!(text(&v).contains("\"claim\""));
+        // review / presence / unknown.
+        let v = call(&c, "subs", &json!({"topic": "review"}));
+        assert!(text(&v).contains("\"review\""));
+        let v = call(&c, "subs", &json!({"topic": "presence"}));
+        assert!(text(&v).contains("\"presence\""));
+        let v = call(&c, "subs", &json!({"topic": "bogus"}));
+        assert_eq!(text(&v), "");
+        // limit clips the tail.
+        let v = call(&c, "subs", &json!({"limit": 2}));
+        assert_eq!(text(&v).lines().count(), 2);
+        // wait_ms=1 polls briefly then returns — deadline path.
+        let v = call(&c, "subs", &json!({"wait_ms": 1}));
+        assert!(!is_err(&v));
+    }
+
+    #[test]
+    fn unknown_tool_is_error() {
+        let wal = FakeWal::new();
+        let wsi = FakeWs::new();
+        let c = ctx(&wal, &wsi, &ok_snap);
+        let v = call(&c, "bogus", &json!({}));
+        assert!(is_err(&v));
+        assert!(text(&v).contains("unknown tool"));
+    }
 }

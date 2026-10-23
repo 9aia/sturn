@@ -20,6 +20,8 @@ composition root.
 - New WAL/bus/ws backend = a new impl crate, not a core change.
 - `cargo build --workspace` and `cargo test --workspace` must stay
   green.
+- Coverage: `scripts/coverage.sh` — cargo-llvm-cov HTML report in
+  `target/llvm-cov/html`; pass `--fail-under-lines 100` to gate.
 - Keep the binary dependency-light and sync; no async runtime.
 - Commits: conventional prefixes (`feat:`/`fix:`/`refactor:`/`docs:`/`chore:`).
 - Never commit secrets — `sturn.toml` takes names, not values.

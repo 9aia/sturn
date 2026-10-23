@@ -76,15 +76,22 @@ impl Bus for RedbBus {
         let mut out = Vec::new();
         if let Ok(t) = tx.open_table(TABLE) {
             let pfx = Self::prefix(repo, topic);
-            // Range scan from the cursor — keys sort by zero-padded seq.
-            let start = Self::key(repo, topic, *cursor + 1);
+            // Range scan from the cursor — keys sort by zero-padded
+            // seq. `cursor` is the last-seen seq: u64::MAX is the
+            // fresh-consumer sentinel (wraps to seq 0); anything else
+            // resumes *after* it.
+            let start = Self::key(repo, topic, cursor.checked_add(1).unwrap_or(0));
             for r in t
                 .range(start.as_str()..)
                 .map_err(io::Error::other)?
                 .flatten()
             {
                 let (k, v) = r;
-                match k.value().strip_prefix(&pfx).and_then(|r| r.parse::<u64>().ok()) {
+                match k
+                    .value()
+                    .strip_prefix(&pfx)
+                    .and_then(|r| r.parse::<u64>().ok())
+                {
                     Some(seq) => out.push((seq, v.value().to_vec())),
                     None => break,
                 }
