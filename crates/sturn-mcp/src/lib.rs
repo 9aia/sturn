@@ -235,8 +235,9 @@ fn ws_grep(ctx: &Ctx, a: &Value) -> Value {
         let mut hits = Vec::new();
         for p in ws_paths(ctx, ws)? {
             let bytes = match ov.get(&p) {
-                Some(Some(sha)) => ctx.wsi.blob(ctx.repo, sha)?,
-                Some(None) => continue,
+                // ws_paths already dropped pending deletes — the
+                // Some(None) arm only fires if the lists disagree.
+                Some(Some(sha)) => ctx.wsi.blob(ctx.repo, sha)?, Some(None) => continue,
                 None => ctx.wsi.read(ctx.repo, &tip, &p)?,
             };
             for (n, line) in String::from_utf8_lossy(&bytes).lines().enumerate() {
@@ -842,13 +843,9 @@ mod tests {
         assert!(!is_err(&v));
         assert!(text(&v).starts_with("event e"));
         let events = wal.events(Path::new("/repo"), "w1").unwrap();
-        match &events.last().unwrap().op {
-            Op::Write { path, intent, .. } => {
-                assert_eq!(path, "p.rs");
-                assert_eq!(intent.as_deref(), Some("why"));
-            }
-            other => panic!("expected Write, got {other:?}"),
-        }
+        let Op::Write { path, intent, .. } = &events.last().unwrap().op else { panic!("expected Write") };
+        assert_eq!(path, "p.rs");
+        assert_eq!(intent.as_deref(), Some("why"));
         assert!(is_err(&call(&c, "ws_write", &json!({"ws": "w1"}))));
     }
 
@@ -1051,6 +1048,30 @@ mod tests {
         assert!(text(&v).contains("unknown tool"));
     }
 
+    #[test]
+    fn pending_rename_resolves_through_overlay() {
+        // A Rename op makes overlay() call the `resolve` closure —
+        // the tip lookup for the source path.
+        let wal = FakeWal::new();
+        let wsi = FakeWs::new();
+        let c = ctx(&wal, &wsi, &ok_snap);
+        call(
+            &c,
+            "ws_rename",
+            &json!({"ws": "w1", "from": "a.txt", "to": "renamed.txt"}),
+        );
+        // ws_read sees the renamed content through the overlay.
+        let v = call(&c, "ws_read", &json!({"ws": "w1", "path": "renamed.txt"}));
+        assert_eq!(text(&v), "alpha\nline two\n");
+        // ws_glob lists the new name, drops the old.
+        let v = call(&c, "ws_glob", &json!({"ws": "w1"}));
+        assert!(text(&v).contains("renamed.txt"));
+        assert!(!text(&v).contains("a.txt"));
+        // ws_grep searches the resolved overlay blob.
+        let v = call(&c, "ws_grep", &json!({"ws": "w1", "pattern": "two"}));
+        assert_eq!(text(&v), "renamed.txt:2: line two");
+    }
+
     // ---------- coverage extensions ----------
 
     /// Wal that fails every call — drives tool_err paths.
@@ -1244,5 +1265,41 @@ mod tests {
         // snap default branch comes from ctx.
         let v = call(&c, "snap", &json!({"ws": "w1", "message": "m"}));
         assert!(text(&v).contains("main"));
+    }
+
+    #[test]
+    fn fake_impls_full_surface() {
+        // The tools don't need every Wal/Ws method — exercise the
+        // rest directly so the fakes themselves are covered.
+        let wal = FakeWal::new();
+        let wsi = FakeWs::new();
+        let r = Path::new("/repo");
+        wal.append(r, "w1", &Event::new("w1", "a", Op::Intent { text: "t".into() }))
+            .unwrap();
+        // events_since with a cursor — found and missed ids.
+        assert!(wal.events_since(r, "w1", Some("e1")).unwrap().is_empty());
+        assert_eq!(wal.events_since(r, "w1", Some("ghost")).unwrap().len(), 1);
+        assert_eq!(wal.head(r, "w1").unwrap().as_deref(), Some("e1"));
+        assert!(wal.head(r, "ghost").unwrap().is_none());
+        assert_eq!(wal.compact(r, "w1").unwrap(), 0);
+        // FakeWs: materialize/create/entry/workspaces.
+        wsi.materialize(r, "tip", r, &[]).unwrap();
+        wsi.create(r, "w2", "base").unwrap();
+        assert_eq!(wsi.tip(r, "w2").unwrap(), "base");
+        assert!(wsi.entry(r, "tip", "a.txt").unwrap().is_some());
+        assert!(wsi.entry(r, "tip", "ghost").unwrap().is_none());
+        assert_eq!(wsi.workspaces(r).unwrap(), vec!["w2".to_string()]);
+        // ErrWal/ErrWs methods the tools never reach.
+        assert!(ErrWal.events_since(r, "w", None).is_err());
+        assert!(ErrWal.events_since(r, "w", Some("e")).is_err());
+        assert!(ErrWal.head(r, "w").is_err());
+        assert!(ErrWal.compact(r, "w").is_err());
+        assert!(ErrWs.read(r, "t", "p").is_err());
+        assert!(ErrWs.list(r, "t").is_err());
+        assert!(ErrWs.materialize(r, "t", r, &[]).is_err());
+        assert!(ErrWs.create(r, "w", "b").is_err());
+        assert!(ErrWs.entry(r, "t", "p").is_err());
+        assert!(ErrWs.blob(r, "s").is_err());
+        assert!(ErrWs.workspaces(r).is_err());
     }
 }

@@ -213,6 +213,17 @@ fn store_blob_and_snap_errors() {
     git(&dir, &["init", "-q", "-b", "main"]);
     git(&dir, &["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init", "--allow-empty"]);
     assert!(sturn_git::snap_commit(&dir, "bogus-base", &[], "m", "main").is_err());
+
+    let dir = repo("snap-err2");
+    let base = git(&dir, &["rev-parse", "HEAD"]);
+    // Rename whose `from` is absent from base → rev-parse fails.
+    let events = vec![ev(Op::Rename {
+        from: "ghost.txt".into(),
+        to: "x.txt".into(),
+    })];
+    assert!(sturn_git::snap_commit(&dir, &base, &events, "m", "main").is_err());
+    // An invalid refname → the final update-ref fails.
+    assert!(sturn_git::snap_commit(&dir, &base, &[], "m", "bad..ref").is_err());
 }
 
 #[test]

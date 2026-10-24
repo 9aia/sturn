@@ -98,4 +98,8 @@ fn malformed_and_empty_lines_are_skipped() {
     let s2 = DotenvSecrets { path: nested };
     s2.set("K", "V").unwrap();
     assert_eq!(s2.get("K").as_deref(), Some("V"));
+    // A path with no parent skips the mkdir guard — then the write
+    // itself fails on the empty name.
+    let s3 = DotenvSecrets { path: std::path::PathBuf::new() };
+    assert!(s3.set("K", "V").is_err());
 }

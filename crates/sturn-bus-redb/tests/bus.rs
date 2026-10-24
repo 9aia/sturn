@@ -75,6 +75,18 @@ fn topics_lists_seen_topics_sorted() {
 // ---------- coverage extensions ----------
 
 #[test]
+fn open_edge_cases_and_tableless_reads() {
+    // Parentless path → the create_dir_all guard is skipped and
+    // redb's create fails on the empty name.
+    assert!(RedbBus::open(std::path::PathBuf::new()).is_err());
+    // A fresh store has no tables yet — poll/topics degrade to empty.
+    let bus = RedbBus::open(scratch("fresh").join("b.redb")).unwrap();
+    assert!(bus.topics("r").unwrap().is_empty());
+    let mut c = u64::MAX;
+    assert!(bus.poll("r", "ops", &mut c).unwrap().is_empty());
+}
+
+#[test]
 fn poll_resume_and_topic_isolation() {
     let d = std::env::temp_dir().join(format!("sturn-bus-{}-resume", std::process::id()));
     let _ = std::fs::remove_dir_all(&d);

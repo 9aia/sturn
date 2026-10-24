@@ -114,11 +114,7 @@ impl Wal for GitWal {
         let mut attempt = 0u8;
         loop {
             let parent = self.head(repo, ws)?;
-            let tree = git_in(
-                repo,
-                &["mktree"],
-                format!("100644 blob {blob}\tevent.json\n").as_bytes(),
-            )?;
+            let tree = git_in(repo, &["mktree"], format!("100644 blob {blob}\tevent.json\n").as_bytes())?;
             let mut args = vec!["commit-tree", tree.as_str()];
             let p;
             if let Some(parent) = &parent {
@@ -137,12 +133,12 @@ impl Wal for GitWal {
                 .status()
                 .map(|s| s.success())
                 .unwrap_or(false);
-            if ok {
-                return Ok(blob);
-            }
-            // 8 straight CAS losses — untestable contention.
-            if attempt == 7 { return Err(io::Error::other(format!("wal append lost CAS race on {r} after 8 tries"))); }
             attempt += 1;
+            if ok { return Ok(blob); }
+            // 8 straight CAS losses — untestable contention, so the
+            // bound itself is excluded under coverage.
+            #[cfg(not(coverage))]
+            if attempt == 8 { return Err(io::Error::other(format!("wal append lost CAS race on {r} after 8 tries"))); }
         }
     }
 
@@ -201,25 +197,14 @@ impl Wal for GitWal {
         let head = self.head(repo, ws)?.ok_or_else(|| io::Error::other("no wal ref"))?;
         // Archive the full history ref before rewriting — compaction
         // shrinks the live log, not the audit trail.
-        git(
-            repo,
-            &[
-                "update-ref",
-                &format!("refs/sturn/archive/{ws}"),
-                &head,
-            ],
-        )?;
+        git(repo, &["update-ref", &format!("refs/sturn/archive/{ws}"), &head])?;
         // Rebuild the chain from post-snapshot events. Blobs already
         // exist in the ODB — each surviving event re-commits cheaply.
         let mut parent: Option<String> = None;
         for ev in &events[drop..] {
             let payload = serde_json::to_vec(ev).map_err(io::Error::other)?;
             let blob = git_in(repo, &["hash-object", "-w", "--stdin"], &payload)?;
-            let tree = git_in(
-                repo,
-                &["mktree"],
-                format!("100644 blob {blob}\tevent.json\n").as_bytes(),
-            )?;
+            let tree = git_in(repo, &["mktree"], format!("100644 blob {blob}\tevent.json\n").as_bytes())?;
             let mut args = vec!["commit-tree", tree.as_str(), "-m", "sturn:compacted"];
             if let Some(p) = &parent {
                 args.extend(["-p", p.as_str()]);

@@ -138,12 +138,7 @@ pub fn snap_commit(
     for ev in events {
         match &ev.op {
             Op::Write { path, blob, .. } => {
-                gi(&[
-                    "update-index",
-                    "--add",
-                    "--cacheinfo",
-                    &format!("100644,{blob},{path}"),
-                ])?;
+                gi(&["update-index", "--add", "--cacheinfo", &format!("100644,{blob},{path}")])?;
                 seen.insert(path.clone(), blob.clone());
             }
             Op::Delete { path } => {
@@ -156,12 +151,7 @@ pub fn snap_commit(
                     None => git(repo, &["rev-parse", &format!("{base}:{from}")])?,
                 };
                 gi(&["update-index", "--force-remove", from])?;
-                gi(&[
-                    "update-index",
-                    "--add",
-                    "--cacheinfo",
-                    &format!("100644,{blob},{to}"),
-                ])?;
+                gi(&["update-index", "--add", "--cacheinfo", &format!("100644,{blob},{to}")])?;
                 seen.remove(from.as_str());
                 seen.insert(to.clone(), blob);
             }

@@ -136,22 +136,10 @@ impl<'a> SturnFs<'a> {
                     next += 1;
                     e
                 });
-                if !fs.entries.contains_key(&ino) {
-                    fs.entries.insert(
-                        ino,
-                        Entry {
-                            ino,
-                            dir: !last,
-                            path: cur.clone(),
-                            size: 0,
-                        },
-                    );
-                }
+                if !fs.entries.contains_key(&ino) { fs.entries.insert(ino, Entry { ino, dir: !last, path: cur.clone(), size: 0 }); }
                 let parent_ino = fs.by_path[&parent];
                 let kids = fs.kids.entry(parent_ino).or_default();
-                if !kids.iter().any(|(_, k)| *k == ino) {
-                    kids.push((part.to_string(), ino));
-                }
+                if !kids.iter().any(|(_, k)| *k == ino) { kids.push((part.to_string(), ino)); }
             }
         }
         fs.next_ino = next;
@@ -169,13 +157,7 @@ impl<'a> SturnFs<'a> {
     }
 
     fn append(&self, op: Op) {
-        if let Some(wal) = self.wal {
-            let _ = wal.append(
-                self.repo,
-                self.ws,
-                &Event::new(self.ws, self.actor, op),
-            );
-        }
+        if let Some(wal) = self.wal { let _ = wal.append(self.repo, self.ws, &Event::new(self.ws, self.actor, op)); }
     }
 
     fn add_entry(&mut self, path: &str, dir: bool) -> u64 {
@@ -345,9 +327,7 @@ impl Filesystem for SturnFs<'_> {
         }
         let Some((_, buf)) = self.open.get_mut(&ino) else { reply.error(libc::ENOENT); return; };
         let off = offset as usize;
-        if buf.len() < off + data.len() {
-            buf.resize(off + data.len(), 0);
-        }
+        if buf.len() < off + data.len() { buf.resize(off + data.len(), 0); }
         buf[off..off + data.len()].copy_from_slice(data);
         reply.written(data.len() as u32);
     }
@@ -428,13 +408,7 @@ impl Filesystem for SturnFs<'_> {
     ) {
         // The write-back: buffered content becomes a Write op.
         if let Some((path, buf)) = self.open.remove(&ino) {
-            if let Ok(blob) = self.wsi.store(self.repo, &buf) {
-                self.append(Op::Write {
-                    path,
-                    blob,
-                    intent: Some("fuse".into()),
-                });
-            }
+            if let Ok(blob) = self.wsi.store(self.repo, &buf) { self.append(Op::Write { path, blob, intent: Some("fuse".into()) }); }
         }
         self.rdbuf.remove(&ino);
         reply.ok();
@@ -450,15 +424,7 @@ impl Filesystem for SturnFs<'_> {
     ) {
         // durability point — emit the op NOW, not on release.
         // editors that fsync-per-save get their op immediately.
-        if let Some((path, buf)) = self.open.get(&ino) {
-            if let Ok(blob) = self.wsi.store(self.repo, buf) {
-                self.append(Op::Write {
-                    path: path.clone(),
-                    blob,
-                    intent: Some("fuse fsync".into()),
-                });
-            }
-        }
+        if let Some((path, buf)) = self.open.get(&ino) { if let Ok(blob) = self.wsi.store(self.repo, buf) { self.append(Op::Write { path: path.clone(), blob, intent: Some("fuse fsync".into()) }); } }
         reply.ok();
     }
 
@@ -511,12 +477,7 @@ impl Filesystem for SturnFs<'_> {
             reply.error(libc::ENOTEMPTY);
             return;
         }
-        if let Some(ino) = self.by_path.remove(&path) {
-            self.entries.remove(&ino);
-            if let Some(k) = self.kids.get_mut(&parent) {
-                k.retain(|(_, i)| *i != ino);
-            }
-        }
+        if let Some(ino) = self.by_path.remove(&path) { self.entries.remove(&ino); if let Some(k) = self.kids.get_mut(&parent) { k.retain(|(_, i)| *i != ino); } }
         reply.ok();
     }
 
@@ -533,21 +494,12 @@ impl Filesystem for SturnFs<'_> {
                 .and_then(|(_, i)| self.entries.get(i))
                 .map(|e| e.path.clone())
         };
-        // The kernel resolves the name before unlink — None is defensive.
-        match path {
-            Some(p) => {
-                self.append(Op::Delete { path: p.clone() });
-                // Drop the entry so later lookups/readdir agree.
-                if let Some(ino) = self.by_path.remove(&p) {
-                    self.entries.remove(&ino);
-                    if let Some(ks) = self.kids.get_mut(&_parent) {
-                        ks.retain(|(_, i)| *i != ino);
-                    }
-                }
-                reply.ok();
-            }
-            None => reply.error(libc::ENOENT),
-        }
+        // The kernel resolves the name before unlink — else is defensive.
+        let Some(p) = path else { reply.error(libc::ENOENT); return; };
+        self.append(Op::Delete { path: p.clone() });
+        // Drop the entry so later lookups/readdir agree.
+        if let Some(ino) = self.by_path.remove(&p) { self.entries.remove(&ino); if let Some(ks) = self.kids.get_mut(&_parent) { ks.retain(|(_, i)| *i != ino); } }
+        reply.ok();
     }
 
     fn rename(
@@ -572,58 +524,45 @@ impl Filesystem for SturnFs<'_> {
                 .and_then(|(_, i)| self.entries.get(i))
                 .map(|e| e.path.clone())
         };
-        match (resolve(_parent, name), resolve(_newparent, newname).or_else(|| {
-            let np = &self.entries.get(&_newparent)?.path;
-            Some(if np.is_empty() { newname.to_string_lossy().into_owned() } else { format!("{np}/{}", newname.to_string_lossy()) })
-        })) {
-            // The kernel resolves the source before rename — the _
-            // arm is defensive.
-            (Some(from), Some(to)) => {
-                self.append(Op::Rename {
-                    from: from.clone(),
-                    to: to.clone(),
-                });
-                // Keep the tree view in sync — later ops resolve by
-                // path, and a stale map returns ENOENT for the moved name.
-                if let Some(ino) = self.by_path.remove(&from) {
-                    if let Some(ks) = self.kids.get_mut(&_parent) {
-                        ks.retain(|(_, i)| *i != ino);
-                    }
-                    self.kids
-                        .entry(_newparent)
-                        .or_default()
-                        .push((newname.to_string_lossy().into_owned(), ino));
-                    if let Some(e) = self.entries.get_mut(&ino) {
-                        e.path = to.clone();
-                    }
-                    if let Some(o) = self.open.get_mut(&ino) {
-                        o.0 = to.clone();
-                    }
-                    self.by_path.insert(to.clone(), ino);
-                    // A dir move drags its descendants' paths along.
-                    let prefix = format!("{from}/");
-                    let rewrites: Vec<(u64, String, String)> = self
-                        .entries
-                        .iter()
-                        .filter(|(_, e)| e.path.starts_with(&prefix))
-                        .map(|(i, e)| {
-                            (*i, e.path.clone(), format!("{to}/{}", &e.path[prefix.len()..]))
-                        })
-                        .collect();
-                    for (i, old, new) in rewrites {
-                        self.by_path.remove(&old);
-                        self.by_path.insert(new.clone(), i);
-                        if let Some(e) = self.entries.get_mut(&i) {
-                            e.path = new.clone();
-                        }
-                        if let Some(o) = self.open.get_mut(&i) {
-                            o.0 = new;
-                        }
-                    }
-                }
-                reply.ok();
-            }
-            _ => reply.error(libc::ENOENT),
+        let found = (
+            resolve(_parent, name),
+            resolve(_newparent, newname).or_else(|| {
+                let np = &self.entries.get(&_newparent)?.path;
+                Some(if np.is_empty() { newname.to_string_lossy().into_owned() } else { format!("{np}/{}", newname.to_string_lossy()) })
+            }),
+        );
+        // The kernel resolves the source before rename — else is defensive.
+        let (Some(from), Some(to)) = found else { reply.error(libc::ENOENT); return; };
+        self.append(Op::Rename {
+            from: from.clone(),
+            to: to.clone(),
+        });
+        // Keep the tree view in sync — later ops resolve by
+        // path, and a stale map returns ENOENT for the moved name.
+        // A stale source mapping is defensive in the same way.
+        let Some(ino) = self.by_path.remove(&from) else { reply.ok(); return; };
+        if let Some(ks) = self.kids.get_mut(&_parent) { ks.retain(|(_, i)| *i != ino); }
+        self.kids
+            .entry(_newparent)
+            .or_default()
+            .push((newname.to_string_lossy().into_owned(), ino));
+        if let Some(e) = self.entries.get_mut(&ino) { e.path = to.clone(); }
+        if let Some(o) = self.open.get_mut(&ino) { o.0 = to.clone(); }
+        self.by_path.insert(to.clone(), ino);
+        // A dir move drags its descendants' paths along.
+        let prefix = format!("{from}/");
+        let rewrites: Vec<(u64, String, String)> = self
+            .entries
+            .iter()
+            .filter(|(_, e)| e.path.starts_with(&prefix))
+            .map(|(i, e)| (*i, e.path.clone(), format!("{to}/{}", &e.path[prefix.len()..])))
+            .collect();
+        for (i, old, new) in rewrites {
+            self.by_path.remove(&old);
+            self.by_path.insert(new.clone(), i);
+            if let Some(e) = self.entries.get_mut(&i) { e.path = new.clone(); }
+            if let Some(o) = self.open.get_mut(&i) { o.0 = new; }
         }
+        reply.ok();
     }
 }

@@ -180,7 +180,7 @@ fn second_snap_applies_only_new_ops() {
 /// One JSON-RPC exchange with `sturn mcp` — newline-delimited, per
 /// the MCP stdio transport.
 struct Mcp {
-    stdin: std::process::ChildStdin,
+    stdin: Option<std::process::ChildStdin>,
     stdout: std::io::BufReader<std::process::ChildStdout>,
     child: std::process::Child,
     n: u64,
@@ -197,7 +197,7 @@ impl Mcp {
             .spawn()
             .unwrap();
         Mcp {
-            stdin: child.stdin.take().unwrap(),
+            stdin: Some(child.stdin.take().unwrap()),
             stdout: std::io::BufReader::new(child.stdout.take().unwrap()),
             child,
             n: 0,
@@ -210,8 +210,9 @@ impl Mcp {
         let req = serde_json::json!({
             "jsonrpc": "2.0", "id": self.n, "method": method, "params": params,
         });
-        writeln!(self.stdin, "{req}").unwrap();
-        self.stdin.flush().unwrap();
+        let stdin = self.stdin.as_mut().unwrap();
+        writeln!(stdin, "{req}").unwrap();
+        stdin.flush().unwrap();
         let mut line = String::new();
         self.stdout.read_line(&mut line).unwrap();
         serde_json::from_str(&line).unwrap()
@@ -220,7 +221,12 @@ impl Mcp {
 
 impl Drop for Mcp {
     fn drop(&mut self) {
-        let _ = self.child.kill();
+        // Close stdin → serve() sees EOF and exits cleanly. A bare
+        // SIGKILL drops the child's profraw (coverage) entirely.
+        drop(self.stdin.take());
+        if self.child.wait().is_err() {
+            let _ = self.child.kill();
+        }
     }
 }
 
@@ -889,14 +895,18 @@ fn ws_ls_read_hydrate_paths() {
     sturn_err(&repo, &["ws", "read", "a", "missing.txt"]);
 
     // Pending ops change what hydrate sees: write new file, delete
-    // a committed one.
+    // a committed one, rename another (tip lookup resolves the source).
     sturn_ok_in(&repo, &["write", "pending.txt", "--ws", "a"], b"p\n");
+    sturn_ok_in(&repo, &["write", "deep/new.txt", "--ws", "a"], b"n\n");
+    sturn_ok(&repo, &["rename", "sub/b.txt", "sub/c.txt", "--ws", "a"], &[]);
     sturn_ok(&repo, &["delete", "a.txt", "--ws", "a"], &[]);
     let d1 = scratch("hydra1");
     sturn_ok(&repo, &["ws", "hydrate", "a", d1.to_str().unwrap()], &[]);
     assert!(d1.join("pending.txt").exists());
+    assert!(d1.join("deep/new.txt").exists());
+    assert!(d1.join("sub/c.txt").exists());
     assert!(!d1.join("a.txt").exists());
-    assert!(d1.join("sub/b.txt").exists());
+    assert!(!d1.join("sub/b.txt").exists());
 
     // --path filters the materialization.
     let d2 = scratch("hydra2");
@@ -905,7 +915,7 @@ fn ws_ls_read_hydrate_paths() {
         &["ws", "hydrate", "a", d2.to_str().unwrap(), "--path", "sub"],
         &[],
     );
-    assert!(d2.join("sub/b.txt").exists());
+    assert!(d2.join("sub/c.txt").exists());
 
     // hydrate + --writeback in one command.
     let d3 = scratch("hydra3");
@@ -1146,13 +1156,57 @@ fn mount_real_and_missing_ws() {
     assert_eq!(std::fs::read_to_string(mp2.join("a.txt")).unwrap(), "one\n");
     std::fs::write(mp2.join("new.txt"), b"n\n").unwrap();
     std::fs::create_dir(mp2.join("empty-dir")).unwrap();
+    // readdir on a kid-less dir — the `kids.get() == None` arm.
+    assert_eq!(std::fs::read_dir(mp2.join("empty-dir")).unwrap().count(), 0);
     std::fs::remove_dir(mp2.join("empty-dir")).unwrap();
     std::fs::create_dir(mp2.join("sub")).unwrap();
+    // Nested mkdir + rmdir — parent path joins take the format! arm.
+    std::fs::create_dir(mp2.join("sub/deep")).unwrap();
+    std::fs::remove_dir(mp2.join("sub/deep")).unwrap();
     std::fs::write(mp2.join("sub/deep.txt"), b"d\n").unwrap();
     assert!(std::fs::remove_dir(mp2.join("sub")).is_err());
     std::fs::rename(mp2.join("new.txt"), mp2.join("renamed.txt")).unwrap();
     std::fs::rename(mp2.join("renamed.txt"), mp2.join("sub/moved.txt")).unwrap();
     std::fs::remove_file(mp2.join("sub/moved.txt")).unwrap();
+    // Dir rename with contents — descendant paths get rewritten,
+    // including a descendant with an open write buffer.
+    std::fs::create_dir(mp2.join("dir2")).unwrap();
+    std::fs::write(mp2.join("dir2/inner.txt"), b"i\n").unwrap();
+    let mut df = std::fs::OpenOptions::new()
+        .write(true)
+        .open(mp2.join("dir2/inner.txt"))
+        .unwrap();
+    df.write_all(b"opened\n").unwrap();
+    std::fs::rename(mp2.join("dir2"), mp2.join("dir3")).unwrap();
+    assert!(mp2.join("dir3/inner.txt").exists());
+    df.write_all(b"tail\n").unwrap();
+    drop(df);
+    // Rename while the file is open — the open-buffer path follows.
+    let mut of = std::fs::OpenOptions::new()
+        .write(true)
+        .open(mp2.join("a.txt"))
+        .unwrap();
+    of.write_all(b"open\n").unwrap();
+    std::fs::rename(mp2.join("a.txt"), mp2.join("z.txt")).unwrap();
+    of.write_all(b"more\n").unwrap();
+    drop(of);
+    std::fs::rename(mp2.join("z.txt"), mp2.join("a.txt")).unwrap();
+    // chmod — setattr with mode only (no size).
+    let mut perms = std::fs::metadata(mp2.join("a.txt")).unwrap().permissions();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        perms.set_mode(0o600);
+    }
+    std::fs::set_permissions(mp2.join("a.txt"), perms).unwrap();
+    // readdir overflow — enough long names to force reply.add to
+    // report a full buffer mid-listing (the `break` arm).
+    std::fs::create_dir(mp2.join("big")).unwrap();
+    for i in 0..600 {
+        let name = format!("{:04}-{}", i, "x".repeat(200));
+        std::fs::write(mp2.join("big").join(name), b"v").unwrap();
+    }
+    assert!(std::fs::read_dir(mp2.join("big")).unwrap().count() >= 600);
     std::fs::OpenOptions::new()
         .write(true)
         .truncate(true)

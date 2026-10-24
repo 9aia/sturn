@@ -147,5 +147,33 @@ fn systemctl_and_journalctl_stubs() {
     assert!(err.to_string().contains("systemctl"), "{err}");
     // daemon-reload is best-effort inside disable; enable path
     // covers the error.
+
+    // The unit file exists as a *directory* → the render's write
+    // fails through the `?`.
+    let home3 = scratch("home3");
+    std::env::set_var("HOME", &home3);
+    std::fs::create_dir_all(
+        home3.join(".config/systemd/user/sturn-daemon.service"),
+    )
+    .unwrap();
+    assert!(write_service_unit(
+        PathBuf::from("/bin/sturn").as_path(),
+        PathBuf::from("/env").as_path(),
+        None,
+    )
+    .is_err());
+    // env dir exists but is read-only → the skeleton write fails.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let cfgdir = scratch("envdir");
+        let mut p = std::fs::metadata(&cfgdir).unwrap().permissions();
+        p.set_mode(0o500);
+        std::fs::set_permissions(&cfgdir, p).unwrap();
+        assert!(write_env_skeleton(&cfgdir).is_err());
+        let mut p = std::fs::metadata(&cfgdir).unwrap().permissions();
+        p.set_mode(0o700);
+        std::fs::set_permissions(&cfgdir, p).unwrap();
+    }
     std::env::set_var("PATH", old_path);
 }

@@ -134,9 +134,26 @@ fn read_and_blob_errors_surface() {
     assert!(ws.store(Path::new("/no/such/repo-xyz"), b"x").is_err());
     // list on a bogus rev → error.
     assert!(ws.list(&dir, "bogus-rev").is_err());
+    // workspaces on a bogus repo → for-each-ref errors.
+    assert!(ws.workspaces(Path::new("/no/such/repo-xyz")).is_err());
     // materialize on a bogus rev → archive|tar error.
     let out = std::env::temp_dir().join(format!("sturn-ws-{}-mat-err", std::process::id()));
     assert!(ws.materialize(&dir, "bogus-rev", &out, &[]).is_err());
+    // Read-only objects dir → hash-object reads stdin then fails the
+    // write: the store() `hash-object failed` arm, not the spawn or
+    // stdin error arms.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let objects = dir.join(".git/objects");
+        let mut p = std::fs::metadata(&objects).unwrap().permissions();
+        p.set_mode(0o555);
+        std::fs::set_permissions(&objects, p).unwrap();
+        assert!(ws.store(&dir, b"x").is_err());
+        let mut p = std::fs::metadata(&objects).unwrap().permissions();
+        p.set_mode(0o755);
+        std::fs::set_permissions(&objects, p).unwrap();
+    }
 }
 
 #[test]

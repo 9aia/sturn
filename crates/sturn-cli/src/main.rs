@@ -420,31 +420,22 @@ fn run(cli: &Cli) -> Result<(), String> {
                 }
                 return Err("claim denied — --force to override".into());
             }
-            append(&wal, &repo, ws, &actor, Op::Claim {
-                glob: glob.clone(),
-                ttl_secs: *ttl,
-            })?;
+            append(&wal, &repo, ws, &actor, Op::Claim { glob: glob.clone(), ttl_secs: *ttl, })?;
             println!("claimed {glob} (ws {ws}, ttl {ttl}s)");
             Ok(())
         }
         Cmd::Release { glob, ws } => {
-            append(&wal, &repo, ws, &actor, Op::Release {
-                glob: glob.clone(),
-            })?;
+            append(&wal, &repo, ws, &actor, Op::Release { glob: glob.clone(), })?;
             println!("released {glob}");
             Ok(())
         }
         Cmd::Join { ws } => {
-            append(&wal, &repo, ws, &actor, Op::Presence {
-                status: "joined".into(),
-            })?;
+            append(&wal, &repo, ws, &actor, Op::Presence { status: "joined".into(), })?;
             println!("{actor} joined {ws}");
             Ok(())
         }
         Cmd::Leave { ws } => {
-            append(&wal, &repo, ws, &actor, Op::Presence {
-                status: "left".into(),
-            })?;
+            append(&wal, &repo, ws, &actor, Op::Presence { status: "left".into(), })?;
             println!("{actor} left {ws} — claims swept");
             Ok(())
         }
@@ -536,39 +527,22 @@ fn run(cli: &Cli) -> Result<(), String> {
                 }
             };
             let blob = sturn_git::store_blob(&repo, &content).map_err(|e| e.to_string())?;
-            let id = append(
-                &wal,
-                &repo,
-                ws,
-                &actor,
-                Op::Write {
-                    path: path.clone(),
-                    blob: blob.clone(),
-                    intent: intent.clone(),
-                },
-            )?;
+            let id = append(&wal, &repo, ws, &actor, Op::Write { path: path.clone(), blob: blob.clone(), intent: intent.clone() })?;
             println!("write {path} (blob {blob}, event {id})");
             Ok(())
         }
         Cmd::Rename { from, to, ws } => {
-            append(&wal, &repo, ws, &actor, Op::Rename {
-                from: from.clone(),
-                to: to.clone(),
-            })?;
+            append(&wal, &repo, ws, &actor, Op::Rename { from: from.clone(), to: to.clone(), })?;
             println!("rename {from} → {to}");
             Ok(())
         }
         Cmd::Delete { path, ws } => {
-            append(&wal, &repo, ws, &actor, Op::Delete {
-                path: path.clone(),
-            })?;
+            append(&wal, &repo, ws, &actor, Op::Delete { path: path.clone(), })?;
             println!("delete {path}");
             Ok(())
         }
         Cmd::Intent { text, ws } => {
-            append(&wal, &repo, ws, &actor, Op::Intent {
-                text: text.clone(),
-            })?;
+            append(&wal, &repo, ws, &actor, Op::Intent { text: text.clone(), })?;
             Ok(())
         }
         Cmd::Compact { ws } => {
@@ -678,10 +652,7 @@ fn run(cli: &Cli) -> Result<(), String> {
                 "reject" => Verdict::Reject,
                 _ => return Err("verdict: approve|reject".into()),
             };
-            append(&wal, &repo, ws, &actor, Op::Review {
-                event: event.clone(),
-                verdict: v,
-            })?;
+            append(&wal, &repo, ws, &actor, Op::Review { event: event.clone(), verdict: v, })?;
             println!("{verdict} {event}");
             Ok(())
         }
@@ -836,12 +807,7 @@ fn do_snap(
         }
         let unreviewed: Vec<&Event> = events[since..]
             .iter()
-            .filter(|e| {
-                matches!(
-                    e.op,
-                    Op::Write { .. } | Op::Rename { .. } | Op::Delete { .. }
-                )
-            })
+            .filter(|e| matches!(e.op, Op::Write { .. } | Op::Rename { .. } | Op::Delete { .. }))
             .filter(|e| !approved.contains(&e.id))
             .collect();
         if !unreviewed.is_empty() {
@@ -855,17 +821,7 @@ fn do_snap(
     }
     let commit = sturn_git::snap_commit(repo, &base, &events[since..], message, branch)?;
     wsi.create(repo, ws, &commit)?;
-    wal.append(
-        repo,
-        ws,
-        &Event::new(
-            ws,
-            actor,
-            Op::Snapshot {
-                message: message.into(),
-            },
-        ),
-    )?;
+    wal.append(repo, ws, &Event::new(ws, actor, Op::Snapshot { message: message.into() }))?;
     Ok(commit)
 }
 
@@ -935,9 +891,7 @@ fn bridge_tick(
             .unwrap_or_default()
         {
             if let Op::Snapshot { .. } = ev.op {
-                if let Ok(sha) = wsi.tip(repo, &ws) {
-                    let _ = post_push(to, secret, repo_id, branch, &sha, &ev.actor);
-                }
+                if let Ok(sha) = wsi.tip(repo, &ws) { let _ = post_push(to, secret, repo_id, branch, &sha, &ev.actor); }
             }
         }
         heads.insert(ws, head);
@@ -1134,9 +1088,7 @@ fn hydrate_ws(
         let f = dir.join(&p);
         match v {
             Some(sha) => {
-                if let Some(d) = f.parent() {
-                    std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
-                }
+                if let Some(d) = f.parent() { std::fs::create_dir_all(d).map_err(|e| e.to_string())?; }
                 std::fs::write(&f, wsi.blob(repo, &sha).map_err(|e| e.to_string())?)
                     .map_err(|e| e.to_string())?;
             }
@@ -1216,16 +1168,12 @@ fn writeback_ops(
     // expected path → content bytes (overlay wins, else tip)
     let mut expected: HashMap<String, Vec<u8>> = HashMap::new();
     for p in wsi.list(repo, &tip).map_err(|e| e.to_string())? {
-        if let Ok(b) = wsi.read(repo, &tip, &p) {
-            expected.insert(p, b);
-        }
+        if let Ok(b) = wsi.read(repo, &tip, &p) { expected.insert(p, b); }
     }
     for (p, v) in &ov {
         match v {
             Some(sha) => {
-                if let Ok(b) = wsi.blob(repo, sha) {
-                    expected.insert(p.clone(), b);
-                }
+                if let Ok(b) = wsi.blob(repo, sha) { expected.insert(p.clone(), b); }
             }
             None => {
                 expected.remove(p);
@@ -1388,12 +1336,7 @@ mod tests {
             .args(args)
             .output()
             .unwrap();
-        assert!(
-            o.status.success(),
-            "git {}: {}",
-            args.join(" "),
-            String::from_utf8_lossy(&o.stderr)
-        );
+        assert!(o.status.success(), "git {}: {}", args.join(" "), String::from_utf8_lossy(&o.stderr));
     }
 
     fn scratch(name: &str) -> PathBuf {

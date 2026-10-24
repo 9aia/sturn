@@ -111,11 +111,7 @@ impl Bus for RedbBus {
             let pfx = format!("{repo}|");
             for r in t.iter().map_err(io::Error::other)?.flatten() {
                 let (k, _) = r;
-                if let Some(rest) = k.value().strip_prefix(&pfx) {
-                    if let Some((topic, _)) = rest.rsplit_once('|') {
-                        out.insert(topic.to_string());
-                    }
-                }
+                if let Some(rest) = k.value().strip_prefix(&pfx) { if let Some((topic, _)) = rest.rsplit_once('|') { out.insert(topic.to_string()); } }
             }
         }
         Ok(out.into_iter().collect())
