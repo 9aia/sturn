@@ -33,6 +33,10 @@ fn git(dir: &Path, args: &[&str]) -> String {
 fn repo(name: &str) -> PathBuf {
     let d = scratch(name);
     git(&d, &["init", "-q", "-b", "main"]);
+    // Repo-local identity — commit-tree needs one and the test
+    // env may have no global git config.
+    git(&d, &["config", "user.email", "t@t"]);
+    git(&d, &["config", "user.name", "t"]);
     git(
         &d,
         &[
@@ -185,4 +189,147 @@ fn custom_ref_prefix() {
         .unwrap();
     assert!(wal.head(&repo, "ws").unwrap().is_some());
     assert_eq!(wal.workspaces(&repo).unwrap(), vec!["ws"]);
+}
+
+// ---------- coverage extensions ----------
+
+fn git_stdin(dir: &Path, args: &[&str], input: &[u8]) -> String {
+    use std::io::Write;
+    let mut c = Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(args)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    c.stdin.take().unwrap().write_all(input).unwrap();
+    let o = c.wait_with_output().unwrap();
+    assert!(
+        o.status.success(),
+        "git {}: {}",
+        args.join(" "),
+        String::from_utf8_lossy(&o.stderr)
+    );
+    String::from_utf8_lossy(&o.stdout).trim().to_string()
+}
+
+#[test]
+fn signed_events_roundtrip() {
+    let repo = repo("signed");
+    let key = repo.join("sigkey");
+    let o = Command::new("ssh-keygen")
+        .args(["-q", "-t", "ed25519", "-N", "", "-f"])
+        .arg(&key)
+        .output()
+        .unwrap();
+    assert!(o.status.success());
+    let wal = GitWal {
+        ref_prefix: "refs/sturn/wal".into(),
+        sign_key: Some(key),
+    };
+    wal.append(&repo, "ws", &ev(Op::Intent { text: "t".into() }))
+        .unwrap();
+    let events = wal.events(&repo, "ws").unwrap();
+    assert!(events[0].sig.is_some(), "expected a signature");
+}
+
+#[test]
+fn signing_failure_propagates() {
+    let repo = repo("signfail");
+    let wal = GitWal {
+        ref_prefix: "refs/sturn/wal".into(),
+        sign_key: Some(PathBuf::from("/no/such/key")),
+    };
+    let err = wal
+        .append(&repo, "ws", &ev(Op::Intent { text: "t".into() }))
+        .unwrap_err();
+    assert!(err.to_string().contains("sign"), "{err}");
+}
+
+#[test]
+fn append_errors_on_bad_repo() {
+    let wal = GitWal::default();
+    let err = wal
+        .append(
+            Path::new("/no/such/repo-xyz"),
+            "ws",
+            &ev(Op::Intent { text: "t".into() }),
+        )
+        .unwrap_err();
+    assert!(!err.to_string().is_empty());
+}
+
+#[test]
+fn events_since_handles_bad_json_and_backfills_id() {
+    let repo = repo("rawev");
+    // A malformed event.json → parse error surfaces.
+    let blob = git_stdin(&repo, &["hash-object", "-w", "--stdin"], b"not json");
+    let tree = git_stdin(
+        &repo,
+        &["mktree"],
+        format!("100644 blob {blob}\tevent.json\n").as_bytes(),
+    );
+    let commit = git(&repo, &["commit-tree", &tree, "-m", "x"]);
+    git(&repo, &["update-ref", "refs/sturn/wal/bad", &commit]);
+    let wal = GitWal::default();
+    let err = wal.events(&repo, "bad").unwrap_err();
+    assert!(err.to_string().contains("bad event"), "{err}");
+
+    // An event written before id assignment → id backfilled from
+    // the blob sha.
+    let blob = git_stdin(
+        &repo,
+        &["hash-object", "-w", "--stdin"],
+        br#"{"id":"","ws":"ws","actor":"a","ts":1,"op":{"op":"intent","text":"x"}}"#,
+    );
+    let tree = git_stdin(
+        &repo,
+        &["mktree"],
+        format!("100644 blob {blob}\tevent.json\n").as_bytes(),
+    );
+    let commit = git(&repo, &["commit-tree", &tree, "-m", "x"]);
+    git(&repo, &["update-ref", "refs/sturn/wal/legacy", &commit]);
+    let events = wal.events(&repo, "legacy").unwrap();
+    assert_eq!(events.len(), 1);
+    assert!(!events[0].id.is_empty(), "id should be backfilled");
+}
+
+#[test]
+fn events_on_repo_without_wal_ref() {
+    let repo = repo("emptywal");
+    let wal = GitWal::default();
+    assert!(wal.events(&repo, "ws").unwrap().is_empty());
+    // compact with no events is a noop.
+    assert_eq!(wal.compact(&repo, "ws").unwrap(), 0);
+}
+
+#[test]
+fn compact_keeps_only_snapshot_and_after() {
+    let repo = repo("compact2");
+    let wal = GitWal::default();
+    for i in 0..3 {
+        wal.append(
+            &repo,
+            "ws",
+            &ev(Op::Intent {
+                text: format!("pre-{i}"),
+            }),
+        )
+        .unwrap();
+    }
+    wal.append(
+        &repo,
+        "ws",
+        &ev(Op::Snapshot {
+            message: "s".into(),
+        }),
+    )
+    .unwrap();
+    let dropped = wal.compact(&repo, "ws").unwrap();
+    assert_eq!(dropped, 3);
+    let events = wal.events(&repo, "ws").unwrap();
+    assert_eq!(events.len(), 1);
+    assert!(matches!(events[0].op, Op::Snapshot { .. }));
 }

@@ -162,7 +162,9 @@ fn signing_bytes_clear_sig_and_roundtrip() {
     let bytes = e.signing_bytes();
     let back: Event = serde_json::from_slice(&bytes).unwrap();
     assert!(back.sig.is_none());
-    assert_eq!(back.id, "id");
+    // id is derived (assigned by the wal *after* signing) — the
+    // signed payload can't include it.
+    assert!(back.id.is_empty());
     // Deterministic across calls.
     assert_eq!(bytes, e.signing_bytes());
 }
@@ -299,4 +301,85 @@ fn topic_vocabulary() {
     assert_eq!(topic::REVIEW, "review");
     assert_eq!(topic::PRESENCE, "presence");
     assert_eq!(topic::ALL.len(), 4);
+}
+
+// ---------- coverage extensions ----------
+
+#[test]
+fn config_defaults_fill_every_section() {
+    // Minimal config (sturn-core's serde defaults fill the rest;
+    // the TOML text path is covered in sturn-config-toml's tests).
+    let cfg: sturn_core::Config = serde_json::from_str(r#"{"repo":{"dir":"/x"}}"#).unwrap();
+    assert_eq!(cfg.wal.ref_prefix, "refs/sturn/wal");
+    assert_eq!(cfg.bus.poll_ms, 100);
+    assert!(cfg.bus.store.ends_with(".local/state/sturn/bus.redb"));
+    assert!(cfg.bus.repos.is_empty());
+    assert!(cfg.actor.name.is_none());
+    assert!(cfg.signing.key.is_none());
+    assert!(cfg.signing.allowed_signers.is_none());
+    assert!(!cfg.review.require);
+    assert_eq!(cfg.repo.branch, "main");
+}
+
+#[test]
+fn op_serde_edges() {
+    // Claim without ttl_secs → default_ttl().
+    let ev: Event = serde_json::from_str(
+        r#"{"ws":"w","actor":"a","ts":1,"op":{"op":"claim","glob":"x"}}"#,
+    )
+    .unwrap();
+    match ev.op {
+        Op::Claim { ttl_secs, .. } => assert_eq!(ttl_secs, 3600),
+        _ => panic!("expected claim"),
+    }
+    // Verdict reject round-trips lowercase.
+    let v = serde_json::to_string(&Verdict::Reject).unwrap();
+    assert_eq!(v, "\"reject\"");
+    // Event with a sig serializes it; signing_bytes strips it.
+    let mut e = Event::new("w", "a", Op::Intent { text: "t".into() });
+    e.sig = Some("SIG".into());
+    let j = serde_json::to_string(&e).unwrap();
+    assert!(j.contains("\"sig\":\"SIG\""));
+    let unsigned = serde_json::from_slice::<Event>(&e.signing_bytes()).unwrap();
+    assert!(unsigned.sig.is_none());
+    // No sig → field omitted entirely.
+    let e2 = Event::new("w", "a", Op::Intent { text: "t".into() });
+    assert!(!serde_json::to_string(&e2).unwrap().contains("sig"));
+}
+
+#[test]
+fn overlay_rename_resolution() {
+    // Rename whose `from` was overlaid earlier in the batch.
+    let mut evs = vec![
+        Event::new(
+            "w",
+            "a",
+            Op::Write { path: "x".into(), blob: "b1".into(), intent: None },
+        ),
+        Event::new(
+            "w",
+            "a",
+            Op::Rename { from: "x".into(), to: "y".into() },
+        ),
+    ];
+    let ov = sturn_core::overlay(&evs, |_| None);
+    assert_eq!(ov.get("y"), Some(&Some("b1".to_string())));
+    assert_eq!(ov.get("x"), Some(&None));
+    // Rename of a base-tree path → resolve() supplies the blob.
+    let evs2 = vec![Event::new(
+        "w",
+        "a",
+        Op::Rename { from: "old".into(), to: "new".into() },
+    )];
+    let ov = sturn_core::overlay(&evs2, |p| (p == "old").then(|| "b9".to_string()));
+    assert_eq!(ov.get("new"), Some(&Some("b9".to_string())));
+    // Rename with no resolvable blob → `to` gets nothing.
+    let evs3 = vec![Event::new(
+        "w",
+        "a",
+        Op::Rename { from: "ghost".into(), to: "t".into() },
+    )];
+    let ov = sturn_core::overlay(&evs3, |_| None);
+    assert_eq!(ov.get("t"), None);
+    evs.clear();
 }

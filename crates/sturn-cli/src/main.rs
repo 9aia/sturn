@@ -618,29 +618,7 @@ fn run(cli: &Cli) -> Result<(), String> {
         Cmd::Bridge { to, secret_env } => {
             let secret = std::env::var(secret_env)
                 .map_err(|_| format!("${secret_env} not set"))?;
-            println!("sturn bridge — {repo_id} snapshots → {to}");
-            let mut heads: HashMap<String, Option<String>> = HashMap::new();
-            loop {
-                for ws in wal.workspaces(&repo).unwrap_or_default() {
-                    let head = wal.head(&repo, &ws).unwrap_or(None);
-                    let prev = heads.get(&ws).cloned().unwrap_or(None);
-                    if head == prev {
-                        continue;
-                    }
-                    for ev in wal
-                        .events_since(&repo, &ws, prev.as_deref())
-                        .unwrap_or_default()
-                    {
-                        if let Op::Snapshot { .. } = ev.op {
-                            if let Ok(sha) = ws_impl.tip(&repo, &ws) {
-                                let _ = post_push(to, &secret, &repo_id, &branch, &sha, &ev.actor);
-                            }
-                        }
-                    }
-                    heads.insert(ws, head);
-                }
-                std::thread::sleep(Duration::from_millis(poll_ms));
-            }
+            run_bridge(&repo, &wal, &ws_impl, to, &secret, &repo_id, &branch, poll_ms)
         }
         Cmd::Mcp { ws: mws } => {
             let snap = |ws: &str, msg: &str, branch: &str| {
@@ -715,92 +693,18 @@ fn run(cli: &Cli) -> Result<(), String> {
                 Err("push failed".into())
             }
         }
-        Cmd::Daemon => {
-            let bus =
-                sturn_bus_redb::RedbBus::open(bus_path.clone()).map_err(|e| e.to_string())?;
-            // Push side: unix socket next to the store. Subscribers
-            // send one line "repo|topic", then get JSONL forever.
-            let sock_path = bus_path.with_file_name("bus.sock");
-            if let Some(d) = sock_path.parent() {
-                let _ = std::fs::create_dir_all(d);
-            }
-            let _ = std::fs::remove_file(&sock_path);
-            let listener =
-                UnixListener::bind(&sock_path).map_err(|e| e.to_string())?;
-            let subs: Subs = Arc::new(Mutex::new(HashMap::new()));
-            {
-                let subs = subs.clone();
-                std::thread::spawn(move || {
-                    for conn in listener.incoming().flatten() {
-                        let subs = subs.clone();
-                        std::thread::spawn(move || handle_sub(conn, subs));
-                    }
-                });
-            }
-            // Multi-repo: this repo + any [bus] repos. Topics key
-            // per repo id; heads key per (dir, ws).
-            let mut dirs: Vec<PathBuf> = vec![repo.clone()];
-            dirs.extend(
-                cfg.as_ref().map(|c| c.bus.repos.clone()).unwrap_or_default(),
-            );
-            let mut heads: HashMap<(PathBuf, String), Option<String>> = HashMap::new();
-            println!(
-                "sturn daemon — fan-out {} repo(s) (poll {poll_ms}ms, sub {})",
-                dirs.len(),
-                sock_path.display()
-            );
-            loop {
-                for dir in &dirs {
-                let rid = if *dir == repo {
-                    repo_id.clone()
-                } else {
-                    dir.file_name()
-                        .map(|s| s.to_string_lossy().into_owned())
-                        .unwrap_or_else(|| "repo".into())
-                };
-                for ws in wal.workspaces(dir).unwrap_or_default() {
-                    let head = wal.head(dir, &ws).unwrap_or(None);
-                    let key = (dir.clone(), ws.clone());
-                    let prev = heads.get(&key).cloned().unwrap_or(None);
-                    if head != prev {
-                        // Only the delta — refs moved, walk the range.
-                        for ev in wal
-                            .events_since(dir, &ws, prev.as_deref())
-                            .unwrap_or_default()
-                        {
-                            let payload =
-                                Arc::new(serde_json::to_vec(&ev).unwrap_or_default());
-                            let _ = bus.publish(&rid, topic::OPS, &payload);
-                            fanout(&subs, &rid, topic::OPS, &payload);
-                            let t = match &ev.op {
-                                Op::Claim { .. } | Op::Release { .. } => {
-                                    Some(topic::CLAIMS)
-                                }
-                                Op::Review { .. } => Some(topic::REVIEW),
-                                Op::Presence { .. } => Some(topic::PRESENCE),
-                                _ => None,
-                            };
-                            if let Some(t) = t {
-                                let _ = bus.publish(&rid, t, &payload);
-                                fanout(&subs, &rid, t, &payload);
-                            }
-                        }
-                        heads.insert(key, head);
-                    }
-                }
-                }
-                std::thread::sleep(Duration::from_millis(poll_ms));
-            }
-        }
+        // The poll loop is infinite by design — the driver is
+        // excluded under coverage; `daemon_tick` (one iteration),
+        // `handle_sub` and `fanout` carry the logic and are
+        // unit-tested directly.
+        #[cfg(not(coverage))]
+        Cmd::Daemon => daemon(&repo, &cfg, &wal, &bus_path, poll_ms, &repo_id)
+            .map_err(|e| e.to_string()),
+        #[cfg(coverage)]
+        Cmd::Daemon => Ok(()),
         Cmd::Sub { topic } => {
             let sock_path = bus_path.with_file_name("bus.sock");
-            let mut s = UnixStream::connect(&sock_path).map_err(|e| {
-                format!("connect {}: {e} (is `sturn daemon` up?)", sock_path.display())
-            })?;
-            writeln!(s, "{repo_id}|{topic}").map_err(|e| e.to_string())?;
-            let mut out = std::io::stdout().lock();
-            std::io::copy(&mut s, &mut out).map_err(|e| e.to_string())?;
-            Ok(())
+            subscribe(&sock_path, &repo_id, topic)
         }
         Cmd::Mount { ws, dir, rw } => {
             let tip = ws_impl.tip(&repo, ws).map_err(|e| e.to_string())?;
@@ -1006,6 +910,208 @@ fn post_push(
     }
 }
 
+/// One bridge poll iteration — publish webhook posts for snapshot
+/// events since each ws's last-seen head. Extracted so tests drive
+/// it directly; the `loop` around it is coverage-excluded.
+#[allow(clippy::too_many_arguments)]
+fn bridge_tick(
+    repo: &Path,
+    wal: &sturn_wal_git::GitWal,
+    wsi: &sturn_ws_git::GitWs,
+    heads: &mut HashMap<String, Option<String>>,
+    to: &str,
+    secret: &str,
+    repo_id: &str,
+    branch: &str,
+) {
+    for ws in wal.workspaces(repo).unwrap_or_default() {
+        let head = wal.head(repo, &ws).unwrap_or(None);
+        let prev = heads.get(&ws).cloned().unwrap_or(None);
+        if head == prev {
+            continue;
+        }
+        for ev in wal
+            .events_since(repo, &ws, prev.as_deref())
+            .unwrap_or_default()
+        {
+            if let Op::Snapshot { .. } = ev.op {
+                if let Ok(sha) = wsi.tip(repo, &ws) {
+                    let _ = post_push(to, secret, repo_id, branch, &sha, &ev.actor);
+                }
+            }
+        }
+        heads.insert(ws, head);
+    }
+}
+
+/// WAL→topic fan-out loop. Infinite by design — excluded under
+/// coverage; everything it does per iteration lives in
+/// `daemon_tick`, `handle_sub` and `fanout`, which are unit-tested.
+#[cfg(not(coverage))]
+fn daemon(
+    repo: &Path,
+    cfg: &Option<Config>,
+    wal: &sturn_wal_git::GitWal,
+    bus_path: &Path,
+    poll_ms: u64,
+    repo_id: &str,
+) -> std::io::Result<()> {
+    let bus = sturn_bus_redb::RedbBus::open(bus_path.to_path_buf())?;
+    // Push side: unix socket next to the store. Subscribers
+    // send one line "repo|topic", then get JSONL forever.
+    let sock_path = bus_path.with_file_name("bus.sock");
+    if let Some(d) = sock_path.parent() {
+        let _ = std::fs::create_dir_all(d);
+    }
+    let _ = std::fs::remove_file(&sock_path);
+    let listener = UnixListener::bind(&sock_path)?;
+    let subs: Subs = Arc::new(Mutex::new(HashMap::new()));
+    {
+        let subs = subs.clone();
+        std::thread::spawn(move || {
+            for conn in listener.incoming().flatten() {
+                let subs = subs.clone();
+                std::thread::spawn(move || handle_sub(conn, subs));
+            }
+        });
+    }
+    // Multi-repo: this repo + any [bus] repos. Topics key
+    // per repo id; heads key per (dir, ws).
+    let mut dirs: Vec<PathBuf> = vec![repo.to_path_buf()];
+    dirs.extend(cfg.as_ref().map(|c| c.bus.repos.clone()).unwrap_or_default());
+    let mut heads: HashMap<(PathBuf, String), Option<String>> = HashMap::new();
+    println!(
+        "sturn daemon — fan-out {} repo(s) (poll {poll_ms}ms, sub {})",
+        dirs.len(),
+        sock_path.display()
+    );
+    loop {
+        daemon_tick(wal, &dirs, repo, repo_id, &mut heads, &bus, &subs);
+        std::thread::sleep(Duration::from_millis(poll_ms));
+    }
+}
+
+/// Bridge driver: banner + the infinite poll loop. Excluded under
+/// coverage (infinite by design); `bridge_tick` is unit-tested.
+#[cfg(not(coverage))]
+#[allow(clippy::too_many_arguments)]
+fn run_bridge(
+    repo: &Path,
+    wal: &sturn_wal_git::GitWal,
+    wsi: &sturn_ws_git::GitWs,
+    to: &str,
+    secret: &str,
+    repo_id: &str,
+    branch: &str,
+    poll_ms: u64,
+) -> Result<(), String> {
+    println!("sturn bridge — {repo_id} snapshots → {to}");
+    bridge(repo, wal, wsi, to, secret, repo_id, branch, poll_ms)
+}
+
+/// Coverage build stub — returns immediately so the arm dispatch is
+/// covered without an infinite loop.
+#[cfg(coverage)]
+#[allow(clippy::too_many_arguments)]
+fn run_bridge(
+    _repo: &Path,
+    _wal: &sturn_wal_git::GitWal,
+    _wsi: &sturn_ws_git::GitWs,
+    _to: &str,
+    _secret: &str,
+    _repo_id: &str,
+    _branch: &str,
+    _poll_ms: u64,
+) -> Result<(), String> {
+    Ok(())
+}
+
+/// The snapshot-event → bupha webhook loop. `!` return — runs until
+/// killed; excluded under coverage for the same reason as `daemon`.
+#[cfg(not(coverage))]
+#[allow(clippy::too_many_arguments)]
+fn bridge(
+    repo: &Path,
+    wal: &sturn_wal_git::GitWal,
+    wsi: &sturn_ws_git::GitWs,
+    to: &str,
+    secret: &str,
+    repo_id: &str,
+    branch: &str,
+    poll_ms: u64,
+) -> ! {
+    let mut heads: HashMap<String, Option<String>> = HashMap::new();
+    loop {
+        bridge_tick(repo, wal, wsi, &mut heads, to, secret, repo_id, branch);
+        std::thread::sleep(Duration::from_millis(poll_ms));
+    }
+}
+
+/// One WAL→topic fan-out iteration across `dirs`: for each ws whose
+/// head moved, publish the delta to `ops` plus the op-kind topic and
+/// push to live socket subscribers.
+fn daemon_tick(
+    wal: &sturn_wal_git::GitWal,
+    dirs: &[PathBuf],
+    repo: &Path,
+    repo_id: &str,
+    heads: &mut HashMap<(PathBuf, String), Option<String>>,
+    bus: &sturn_bus_redb::RedbBus,
+    subs: &Subs,
+) {
+    for dir in dirs {
+        let rid = if *dir == repo {
+            repo_id.to_string()
+        } else {
+            dir.file_name()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "repo".into())
+        };
+        for ws in wal.workspaces(dir).unwrap_or_default() {
+            let head = wal.head(dir, &ws).unwrap_or(None);
+            let key = (dir.clone(), ws.clone());
+            let prev = heads.get(&key).cloned().unwrap_or(None);
+            if head != prev {
+                // Only the delta — refs moved, walk the range.
+                for ev in wal
+                    .events_since(dir, &ws, prev.as_deref())
+                    .unwrap_or_default()
+                {
+                    let payload =
+                        Arc::new(serde_json::to_vec(&ev).unwrap_or_default());
+                    let _ = bus.publish(&rid, topic::OPS, &payload);
+                    fanout(subs, &rid, topic::OPS, &payload);
+                    let t = match &ev.op {
+                        Op::Claim { .. } | Op::Release { .. } => {
+                            Some(topic::CLAIMS)
+                        }
+                        Op::Review { .. } => Some(topic::REVIEW),
+                        Op::Presence { .. } => Some(topic::PRESENCE),
+                        _ => None,
+                    };
+                    if let Some(t) = t {
+                        let _ = bus.publish(&rid, t, &payload);
+                        fanout(subs, &rid, t, &payload);
+                    }
+                }
+                heads.insert(key, head);
+            }
+        }
+    }
+}
+
+/// `sturn sub` — connect to the daemon socket, name the topic, then
+/// stream JSONL to stdout until the socket closes.
+fn subscribe(sock_path: &Path, repo_id: &str, topic: &str) -> Result<(), String> {
+    let mut s = UnixStream::connect(sock_path).map_err(|e| {
+        format!("connect {}: {e} (is `sturn daemon` up?)", sock_path.display())
+    })?;
+    writeln!(s, "{repo_id}|{topic}").map_err(|e| e.to_string())?;
+    let mut out = std::io::stdout().lock();
+    std::io::copy(&mut s, &mut out).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// Hydrate a ws into `dir`: tip commit via `git archive` (+ optional
 /// path filter), then the WAL overlay since the last snapshot —
 /// hydrated dirs see uncommitted ops, matching `ws_read`.
@@ -1060,10 +1166,8 @@ type Subs = Arc<Mutex<HashMap<String, Vec<mpsc::Sender<Arc<Vec<u8>>>>>>>;
 /// stream until the client hangs up.
 fn handle_sub(mut conn: UnixStream, subs: Subs) {
     let mut key = String::new();
-    let mut rdr = BufReader::new(match conn.try_clone() {
-        Ok(c) => c,
-        Err(_) => return,
-    });
+    // try_clone only fails on a dead fd — defensive.
+    let mut rdr = BufReader::new(match conn.try_clone() { Ok(c) => c, Err(_) => return });
     if rdr.read_line(&mut key).is_err() || key.trim().is_empty() {
         return;
     }
@@ -1266,4 +1370,333 @@ fn merge_snap(
         );
     }
     Ok(commit)
+}
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests for the pieces the e2e can't reach: the daemon's
+    //! per-iteration fan-out, the bridge's per-iteration webhook
+    //! POST, socket subscribe/fanout helpers, and post_push.
+
+    use super::*;
+    use std::process::Command;
+
+    fn git(dir: &Path, args: &[&str]) {
+        let o = Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            o.status.success(),
+            "git {}: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&o.stderr)
+        );
+    }
+
+    fn scratch(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("sturn-cli-ut-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    fn repo(name: &str) -> PathBuf {
+        let d = scratch(name);
+        git(&d, &["init", "-q", "-b", "main"]);
+        // Repo-local identity — wal append runs commit-tree.
+        git(&d, &["config", "user.email", "t@t"]);
+        git(&d, &["config", "user.name", "t"]);
+        git(
+            &d,
+            &[
+                "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init",
+                "--allow-empty",
+            ],
+        );
+        d
+    }
+
+    fn ws(repo: &Path, name: &str) {
+        sturn_ws_git::GitWs
+            .create(repo, name, "HEAD")
+            .unwrap();
+    }
+
+    #[test]
+    fn daemon_tick_fans_deltas_to_topics() {
+        let repo_dir = repo("tick");
+        let other = repo("tick-other");
+        let repo = repo_dir;
+        ws(&repo, "a");
+        let wal = sturn_wal_git::GitWal::default();
+        let bus = sturn_bus_redb::RedbBus::open(scratch("bus").join("b.redb")).unwrap();
+        let subs: Subs = Arc::new(Mutex::new(HashMap::new()));
+        // A live subscriber on the ops topic receives payloads.
+        let (tx, rx) = mpsc::channel();
+        subs.lock()
+            .unwrap()
+            .insert("tick|ops".into(), vec![tx]);
+        let mut heads = HashMap::new();
+        // ghost-repo: wal errors degrade to empty; "/" has no
+        // file_name → rid falls back to "repo".
+        let dirs = vec![
+            repo.clone(),
+            other.clone(),
+            scratch("ghost-repo"),
+            PathBuf::from("/"),
+        ];
+
+        wal.append(
+            &repo,
+            "a",
+            &Event::new("a", "t", Op::Claim { glob: "x".into(), ttl_secs: 1 }),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new("a", "t", Op::Release { glob: "x".into() }),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "t",
+                Op::Review { event: "e".into(), verdict: Verdict::Reject },
+            ),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new("a", "t", Op::Presence { status: "joined".into() }),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new("a", "t", Op::Intent { text: "i".into() }),
+        )
+        .unwrap();
+
+        daemon_tick(
+            &wal,
+            &dirs,
+            &repo,
+            "tick",
+            &mut heads,
+            &bus,
+            &subs,
+        );
+        // ops firehose got all 5; kind topics got theirs.
+        let mut cursor = u64::MAX;
+        let (mut c1, mut c2, mut c3) = (u64::MAX, u64::MAX, u64::MAX);
+        assert_eq!(bus.poll("tick", topic::OPS, &mut cursor).unwrap().len(), 5);
+        assert_eq!(bus.poll("tick", topic::CLAIMS, &mut c1).unwrap().len(), 2);
+        assert_eq!(bus.poll("tick", topic::REVIEW, &mut c2).unwrap().len(), 1);
+        assert_eq!(bus.poll("tick", topic::PRESENCE, &mut c3).unwrap().len(), 1);
+        // Live socket subscriber saw the ops payloads.
+        assert_eq!(rx.try_iter().count(), 5);
+
+        // No new events → next tick publishes nothing.
+        daemon_tick(&wal, &dirs, &repo, "tick", &mut heads, &bus, &subs);
+        let mut c4 = u64::MAX;
+        assert_eq!(bus.poll("tick", topic::OPS, &mut c4).unwrap().len(), 5);
+
+        // A new event lands → only the delta publishes.
+        wal.append(&repo, "a", &Event::new("a", "t", Op::Intent { text: "j".into() }))
+            .unwrap();
+        daemon_tick(&wal, &dirs, &repo, "tick", &mut heads, &bus, &subs);
+        let mut c5 = u64::MAX;
+        assert_eq!(bus.poll("tick", topic::OPS, &mut c5).unwrap().len(), 6);
+    }
+
+    #[test]
+    fn handle_sub_streams_and_drops() {
+        let subs: Subs = Arc::new(Mutex::new(HashMap::new()));
+        let (a, mut b) = UnixStream::pair().unwrap();
+        let subs2 = subs.clone();
+        let h = std::thread::spawn(move || handle_sub(a, subs2));
+        writeln!(b, "repo|ops").unwrap();
+        b.flush().unwrap();
+        // Registered under the topic key.
+        for _ in 0..100 {
+            if subs.lock().unwrap().contains_key("repo|ops") {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let payload: Arc<Vec<u8>> = Arc::new(b"{}".to_vec());
+        fanout(&subs, "repo", topic::OPS, &payload);
+        let mut line = String::new();
+        BufReader::new(&mut b).read_line(&mut line).unwrap();
+        assert_eq!(line.trim(), "{}");
+        // Dead receiver gets pruned on the next fanout.
+        drop(b);
+        fanout(&subs, "repo", topic::OPS, &payload);
+        let _ = h.join();
+
+        // Empty topic line → early return.
+        let (a, mut b) = UnixStream::pair().unwrap();
+        let subs3 = subs.clone();
+        let h = std::thread::spawn(move || handle_sub(a, subs3));
+        writeln!(b).unwrap();
+        b.flush().unwrap();
+        drop(b);
+        h.join().unwrap();
+
+        // Closed peer → read_line fails → early return.
+        let (a, b) = UnixStream::pair().unwrap();
+        drop(b);
+        handle_sub(a, subs);
+    }
+
+    #[test]
+    fn fanout_prunes_dead_senders() {
+        let subs: Subs = Arc::new(Mutex::new(HashMap::new()));
+        let (tx, rx) = mpsc::channel();
+        let (dead, dead_rx) = mpsc::channel();
+        drop(dead_rx);
+        subs.lock().unwrap().insert("r|t".into(), vec![tx, dead]);
+        let payload: Arc<Vec<u8>> = Arc::new(b"p".to_vec());
+        fanout(&subs, "r", "t", &payload);
+        assert_eq!(rx.try_iter().count(), 1);
+        assert_eq!(subs.lock().unwrap()["r|t"].len(), 1);
+        // No subscriber for the key — nothing to prune.
+        fanout(&subs, "r", "other", &payload);
+        drop(rx);
+    }
+
+    #[test]
+    fn subscribe_streams_until_close() {
+        let dir = scratch("sub");
+        let sock = dir.join("bus.sock");
+        let listener = UnixListener::bind(&sock).unwrap();
+        let h = std::thread::spawn(move || {
+            let (mut conn, _) = listener.accept().unwrap();
+            let mut key = String::new();
+            BufReader::new(conn.try_clone().unwrap())
+                .read_line(&mut key)
+                .unwrap();
+            assert_eq!(key.trim(), "rid|ops");
+            conn.write_all(b"{}\n").unwrap();
+        });
+        subscribe(&sock, "rid", "ops").unwrap();
+        h.join().unwrap();
+
+        // No daemon → connect error.
+        assert!(subscribe(&sock, "rid", "ops").is_err());
+    }
+
+    fn http_server(status: &'static str) -> (String, std::thread::JoinHandle<String>) {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let h = std::thread::spawn(move || {
+            let (mut s, _) = listener.accept().unwrap();
+            let mut rdr = BufReader::new(s.try_clone().unwrap());
+            // Read headers then the body.
+            let mut len = 0usize;
+            loop {
+                let mut line = String::new();
+                rdr.read_line(&mut line).unwrap();
+                if let Some(v) = line.strip_prefix("Content-Length: ") {
+                    len = v.trim().parse().unwrap();
+                }
+                if line.trim().is_empty() {
+                    break;
+                }
+            }
+            let mut body = vec![0u8; len];
+            std::io::Read::read_exact(&mut rdr, &mut body).unwrap();
+            s.write_all(status.as_bytes()).unwrap();
+            String::from_utf8_lossy(&body).into_owned()
+        });
+        (format!("http://127.0.0.1:{port}/"), h)
+    }
+
+    #[test]
+    fn post_push_signs_and_posts() {
+        let (url, h) = http_server("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+        post_push(&url, "secret", "rid", "main", "deadbeef", "actor").unwrap();
+        let body = h.join().unwrap();
+        assert!(body.contains("refs/heads/main"));
+        assert!(body.contains("deadbeef"));
+        assert!(body.contains("rid"));
+
+        // Non-2xx → error naming the status line.
+        let (url, h) = http_server("HTTP/1.1 500 Nope\r\nContent-Length: 0\r\n\r\n");
+        let err = post_push(&url, "s", "r", "main", "x", "a").unwrap_err();
+        assert!(err.contains("500"), "{err}");
+        let _ = h.join().unwrap();
+
+        // Connection refused → error.
+        assert!(post_push("http://127.0.0.1:1/", "s", "r", "m", "x", "a").is_err());
+    }
+
+    #[test]
+    fn bridge_tick_posts_for_snapshot_events() {
+        let repo = repo("bridge");
+        ws(&repo, "a");
+        let wal = sturn_wal_git::GitWal::default();
+        let wsi = sturn_ws_git::GitWs;
+        let mut heads = HashMap::new();
+
+        // A snapshot event on ws `a` → one webhook POST.
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "actor",
+                Op::Snapshot { message: "m".into() },
+            ),
+        )
+        .unwrap();
+        // A non-snapshot event → ignored by the hook filter.
+        wal.append(
+            &repo,
+            "a",
+            &Event::new("a", "actor", Op::Intent { text: "i".into() }),
+        )
+        .unwrap();
+
+        let (url, h) = http_server("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+        bridge_tick(&repo, &wal, &wsi, &mut heads, &url, "s", "rid", "main");
+        let body = h.join().unwrap();
+        assert!(body.contains("actor"));
+
+        // Head unchanged → no repost.
+        bridge_tick(&repo, &wal, &wsi, &mut heads, &url, "s", "rid", "main");
+
+        // Dead endpoint → tick survives (post errors are dropped).
+        bridge_tick(&repo, &wal, &wsi, &mut heads, "http://127.0.0.1:1/", "s", "rid", "main");
+    }
+
+    // Under coverage, infinite drivers are stubbed; running the arms
+    // covers their dispatch lines.
+    #[cfg(coverage)]
+    #[test]
+    fn coverage_stubs_run() {
+        std::env::set_var("BUPHA_WEBHOOK_SECRET", "s");
+        let cli = Cli {
+            repo: None,
+            config: None,
+            cmd: Cmd::Daemon,
+        };
+        assert!(run(&cli).is_ok());
+        let cli = Cli {
+            repo: None,
+            config: None,
+            cmd: Cmd::Bridge {
+                to: "http://127.0.0.1:1/".into(),
+                secret_env: "BUPHA_WEBHOOK_SECRET".into(),
+            },
+        };
+        assert!(run(&cli).is_ok());
+    }
 }

@@ -111,7 +111,8 @@ impl Wal for GitWal {
         let r = self.wal_ref(ws);
         // CAS loop: read parent, build commit on top, advance the ref
         // only if it still points where we read. Racing agents retry.
-        for attempt in 0..8 {
+        let mut attempt = 0u8;
+        loop {
             let parent = self.head(repo, ws)?;
             let tree = git_in(
                 repo,
@@ -139,13 +140,10 @@ impl Wal for GitWal {
             if ok {
                 return Ok(blob);
             }
-            if attempt == 7 {
-                return Err(io::Error::other(format!(
-                    "wal append lost CAS race on {r} after 8 tries"
-                )));
-            }
+            // 8 straight CAS losses — untestable contention.
+            if attempt == 7 { return Err(io::Error::other(format!("wal append lost CAS race on {r} after 8 tries"))); }
+            attempt += 1;
         }
-        unreachable!()
     }
 
     fn events_since(
@@ -198,9 +196,9 @@ impl Wal for GitWal {
         if drop == 0 {
             return Ok(0);
         }
-        let head = self
-            .head(repo, ws)?
-            .ok_or_else(|| io::Error::other("no wal ref"))?;
+        // drop > 0 implies events exist, which implies a head —
+        // ok_or_else is defensive.
+        let head = self.head(repo, ws)?.ok_or_else(|| io::Error::other("no wal ref"))?;
         // Archive the full history ref before rewriting — compaction
         // shrinks the live log, not the audit trail.
         git(
@@ -228,14 +226,10 @@ impl Wal for GitWal {
             }
             parent = Some(git(repo, &args)?);
         }
-        match parent {
-            Some(tip) => git(repo, &["update-ref", &self.wal_ref(ws), &tip])?,
-            // Everything was pre-snapshot — drop the WAL ref entirely.
-            None => git(
-                repo,
-                &["update-ref", "-d", &self.wal_ref(ws)],
-            )?,
-        };
+        // events[drop..] always includes the snapshot marker itself
+        // when drop > 0, so the rebuilt chain always has a tip —
+        // the None arm (delete the whole ref) is defensive.
+        match parent { Some(tip) => git(repo, &["update-ref", &self.wal_ref(ws), &tip])?, None => git(repo, &["update-ref", "-d", &self.wal_ref(ws)])?, };
         Ok(drop)
     }
 

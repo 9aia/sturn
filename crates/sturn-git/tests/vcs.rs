@@ -34,6 +34,10 @@ fn scratch(name: &str) -> PathBuf {
 fn repo(name: &str) -> PathBuf {
     let d = scratch(name);
     git(&d, &["init", "-q", "-b", "main"]);
+    // Repo-local identity — commit-tree needs one and the test
+    // env may have no global git config.
+    git(&d, &["config", "user.email", "t@t"]);
+    git(&d, &["config", "user.name", "t"]);
     std::fs::write(d.join("a.txt"), b"base\n").unwrap();
     git(&d, &["add", "-A"]);
     git(
@@ -183,4 +187,101 @@ fn push_and_sync_bare_remote() {
     let refs = git(&remote, &["for-each-ref", "--format=%(refname)"]);
     assert!(refs.contains("refs/heads/main"));
     assert!(refs.contains("refs/sturn/wal/ws1"));
+}
+
+// ---------- coverage extensions ----------
+
+#[test]
+fn vcs_failures_return_false() {
+    let dir = scratch("vcs-false");
+    git(&dir, &["init", "-q", "-b", "main"]);
+    git(&dir, &["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init", "--allow-empty"]);
+    let vcs = GitVcs;
+    // No remote configured → sync and push fail closed (false).
+    assert!(!vcs.sync(&dir));
+    assert!(!vcs.push(&dir, "origin"));
+    // Missing object → false.
+    assert!(!vcs.has_commit(&dir, &"0".repeat(40)));
+}
+
+#[test]
+fn store_blob_and_snap_errors() {
+    // hash-object in a bogus repo → error.
+    assert!(sturn_git::store_blob(Path::new("/no/such/repo-xyz"), b"x").is_err());
+    // snap_commit on a bogus base → read-tree error.
+    let dir = scratch("snap-err");
+    git(&dir, &["init", "-q", "-b", "main"]);
+    git(&dir, &["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init", "--allow-empty"]);
+    assert!(sturn_git::snap_commit(&dir, "bogus-base", &[], "m", "main").is_err());
+}
+
+#[test]
+fn snap_commit_write_then_rename_uses_seen() {
+    let dir = scratch("snap-seen");
+    git(&dir, &["init", "-q", "-b", "main"]);
+    git(&dir, &["config", "user.email", "t@t"]);
+    git(&dir, &["config", "user.name", "t"]);
+    git(&dir, &["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init", "--allow-empty"]);
+    // Write then rename in the SAME batch — the rename's `from`
+    // never existed in base; `seen` supplies the blob.
+    let blob = sturn_git::store_blob(&dir, b"content\n").unwrap();
+    let events = vec![
+        Event::new(
+            "w",
+            "t",
+            Op::Write {
+                path: "tmp.txt".into(),
+                blob: blob.clone(),
+                intent: None,
+            },
+        ),
+        Event::new(
+            "w",
+            "t",
+            Op::Rename {
+                from: "tmp.txt".into(),
+                to: "final.txt".into(),
+            },
+        ),
+        // Non-tree ops are skipped by the overlay walk.
+        Event::new("w", "t", Op::Intent { text: "meta".into() }),
+        Event::new(
+            "w",
+            "t",
+            Op::Claim {
+                glob: "x".into(),
+                ttl_secs: 1,
+            },
+        ),
+    ];
+    let base = git(&dir, &["rev-parse", "HEAD"]);
+    sturn_git::snap_commit(&dir, &base, &events, "m", "main").unwrap();
+    assert_eq!(git(&dir, &["show", "HEAD:final.txt"]), "content");
+    // Renamed-to path then deleted in the same batch → seen updates.
+    let events = vec![
+        Event::new(
+            "w",
+            "t",
+            Op::Rename {
+                from: "final.txt".into(),
+                to: "gone.txt".into(),
+            },
+        ),
+        Event::new(
+            "w",
+            "t",
+            Op::Delete {
+                path: "gone.txt".into(),
+            },
+        ),
+    ];
+    let base = git(&dir, &["rev-parse", "HEAD"]);
+    sturn_git::snap_commit(&dir, &base, &events, "m", "main").unwrap();
+    let o = Command::new("git")
+        .arg("-C")
+        .arg(&dir)
+        .args(["cat-file", "-e", "HEAD:gone.txt"])
+        .output()
+        .unwrap();
+    assert!(!o.status.success(), "gone.txt should be deleted");
 }

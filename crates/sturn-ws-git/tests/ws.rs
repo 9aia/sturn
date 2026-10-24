@@ -113,3 +113,40 @@ fn tip_missing_ws_errors() {
     let repo = repo("tip-miss");
     assert!(GitWs.tip(&repo, "ghost").is_err());
 }
+
+// ---------- coverage extensions ----------
+
+#[test]
+fn read_and_blob_errors_surface() {
+    let dir = repo("errs");
+    let ws = GitWs;
+    ws.create(&dir, "w", "HEAD").unwrap();
+    // Missing path in an existing tree.
+    let tip = ws.tip(&dir, "w").unwrap();
+    let err = ws.read(&dir, &tip, "missing.txt").unwrap_err();
+    assert!(err.to_string().contains("not found"), "{err}");
+    // Missing blob.
+    let err = ws.blob(&dir, "0".repeat(40).as_str()).unwrap_err();
+    assert!(err.to_string().contains("not found"), "{err}");
+    // entry() on a missing path → None; on present → Some.
+    assert!(ws.entry(&dir, &tip, "missing.txt").unwrap().is_none());
+    // store into a bogus repo → git plumbing error.
+    assert!(ws.store(Path::new("/no/such/repo-xyz"), b"x").is_err());
+    // list on a bogus rev → error.
+    assert!(ws.list(&dir, "bogus-rev").is_err());
+    // materialize on a bogus rev → archive|tar error.
+    let out = std::env::temp_dir().join(format!("sturn-ws-{}-mat-err", std::process::id()));
+    assert!(ws.materialize(&dir, "bogus-rev", &out, &[]).is_err());
+}
+
+#[test]
+fn workspaces_ignores_other_ref_namespaces() {
+    let dir = repo("ns");
+    let ws = GitWs;
+    // A ref under refs/sturn but not refs/sturn/ws — must not list.
+    git(&dir, &["update-ref", "refs/sturn/wal/x", "HEAD"]);
+    git(&dir, &["update-ref", "refs/other/y", "HEAD"]);
+    assert!(ws.workspaces(&dir).unwrap().is_empty());
+    ws.create(&dir, "w2", "HEAD").unwrap();
+    assert_eq!(ws.workspaces(&dir).unwrap(), vec!["w2"]);
+}

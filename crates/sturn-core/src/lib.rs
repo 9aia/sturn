@@ -152,11 +152,14 @@ impl Event {
         }
     }
 
-    /// Canonical bytes for signing — the event with `sig` cleared.
-    /// serde field order is deterministic, so this round-trips.
+    /// Canonical bytes for signing — the event with `sig` and `id`
+    /// cleared. `id` is derived (the wal assigns the blob sha *after*
+    /// signing), so it can't be part of the signed payload; serde
+    /// field order is deterministic, so this round-trips.
     pub fn signing_bytes(&self) -> Vec<u8> {
         let mut e = self.clone();
         e.sig = None;
+        e.id = String::new();
         serde_json::to_vec(&e).unwrap_or_default()
     }
 }

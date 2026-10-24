@@ -742,8 +742,8 @@ mod tests {
     }
 
     fn ctx<'a>(
-        wal: &'a FakeWal,
-        wsi: &'a FakeWs,
+        wal: &'a dyn Wal,
+        wsi: &'a dyn Ws,
         snap: &'a dyn Fn(&str, &str, &str) -> io::Result<String>,
     ) -> Ctx<'a> {
         Ctx {
@@ -1049,5 +1049,200 @@ mod tests {
         let v = call(&c, "bogus", &json!({}));
         assert!(is_err(&v));
         assert!(text(&v).contains("unknown tool"));
+    }
+
+    // ---------- coverage extensions ----------
+
+    /// Wal that fails every call — drives tool_err paths.
+    struct ErrWal;
+    impl Wal for ErrWal {
+        fn append(&self, _r: &Path, _w: &str, _e: &Event) -> io::Result<String> {
+            Err(io::Error::other("wal down"))
+        }
+        fn events_since(&self, _r: &Path, _w: &str, _f: Option<&str>) -> io::Result<Vec<Event>> {
+            Err(io::Error::other("wal down"))
+        }
+        fn head(&self, _r: &Path, _w: &str) -> io::Result<Option<String>> {
+            Err(io::Error::other("wal down"))
+        }
+        fn workspaces(&self, _r: &Path) -> io::Result<Vec<String>> {
+            Err(io::Error::other("wal down"))
+        }
+        fn compact(&self, _r: &Path, _w: &str) -> io::Result<usize> {
+            Err(io::Error::other("wal down"))
+        }
+    }
+
+    /// Ws that fails every call — drives view()/entry errors.
+    struct ErrWs;
+    impl Ws for ErrWs {
+        fn read(&self, _r: &Path, _rev: &str, _p: &str) -> io::Result<Vec<u8>> {
+            Err(io::Error::other("ws down"))
+        }
+        fn list(&self, _r: &Path, _rev: &str) -> io::Result<Vec<String>> {
+            Err(io::Error::other("ws down"))
+        }
+        fn materialize(&self, _r: &Path, _rev: &str, _d: &Path, _p: &[String]) -> io::Result<()> {
+            Err(io::Error::other("ws down"))
+        }
+        fn create(&self, _r: &Path, _n: &str, _b: &str) -> io::Result<()> {
+            Err(io::Error::other("ws down"))
+        }
+        fn entry(&self, _r: &Path, _rev: &str, _p: &str) -> io::Result<Option<String>> {
+            Err(io::Error::other("ws down"))
+        }
+        fn blob(&self, _r: &Path, _s: &str) -> io::Result<Vec<u8>> {
+            Err(io::Error::other("ws down"))
+        }
+        fn store(&self, _r: &Path, _c: &[u8]) -> io::Result<String> {
+            Err(io::Error::other("ws down"))
+        }
+        fn tip(&self, _r: &Path, _n: &str) -> io::Result<String> {
+            Err(io::Error::other("ws down"))
+        }
+        fn workspaces(&self, _r: &Path) -> io::Result<Vec<String>> {
+            Err(io::Error::other("ws down"))
+        }
+    }
+
+    fn bad_snap(_w: &str, _m: &str, _b: &str) -> io::Result<String> {
+        Err(io::Error::other("snap refused"))
+    }
+
+    #[test]
+    fn every_tool_errors_on_missing_args() {
+        let wal = FakeWal::new();
+        let wsi = FakeWs::new();
+        let c = ctx(&wal, &wsi, &ok_snap);
+        for tool in [
+            "ws_read", "ws_write", "ws_glob", "ws_grep", "ws_rename", "ws_delete",
+            "claim", "release", "snap", "intent", "review",
+        ] {
+            let v = call(&c, tool, &json!({}));
+            assert!(is_err(&v), "{tool} should fail without args: {v}");
+        }
+    }
+
+    #[test]
+    fn tools_surface_backend_errors() {
+        let wal = ErrWal;
+        let wsi = ErrWs;
+        let c = ctx(&wal, &wsi, &bad_snap);
+        for tool in [
+            "ws_read", "ws_glob", "ws_grep", "subs",
+        ] {
+            let v = call(
+                &c,
+                tool,
+                &json!({"ws": "w1", "path": "p", "pattern": "x"}),
+            );
+            assert!(is_err(&v), "{tool} should fail with dead backend: {v}");
+        }
+        for tool in ["ws_write", "ws_rename", "ws_delete", "release", "intent", "review"] {
+            let v = call(
+                &c,
+                tool,
+                &json!({"ws":"w1","path":"p","content":"c","from":"a","to":"b","glob":"g","text":"t","event":"e","verdict":"approve"}),
+            );
+            assert!(is_err(&v), "{tool} should fail with dead backend: {v}");
+        }
+        // claim fails when the ws fold can't even list workspaces.
+        let v = call(&c, "claim", &json!({"ws": "w1", "glob": "g"}));
+        assert!(is_err(&v));
+        // snap closure errors propagate.
+        let v = call(&c, "snap", &json!({"ws": "w1", "message": "m"}));
+        assert!(is_err(&v));
+        assert!(text(&v).contains("snap refused"));
+    }
+
+    #[test]
+    fn ws_grep_sees_overlay_writes_and_skips_deletes() {
+        let wal = FakeWal::new();
+        let wsi = FakeWs::new();
+        let c = ctx(&wal, &wsi, &ok_snap);
+        // Pending write lands in grep results.
+        call(
+            &c,
+            "ws_write",
+            &json!({"ws": "w1", "path": "new.rs", "content": "needle here\n"}),
+        );
+        // Deleting the tip file removes it from the search space.
+        call(&c, "ws_delete", &json!({"ws": "w1", "path": "a.txt"}));
+        let v = call(&c, "ws_grep", &json!({"ws": "w1", "pattern": "needle"}));
+        assert_eq!(text(&v), "new.rs:1: needle here");
+        let v = call(&c, "ws_grep", &json!({"ws": "w1", "pattern": "alpha"}));
+        assert_eq!(text(&v), "");
+    }
+
+    #[test]
+    fn review_rejects_and_claim_append_error() {
+        let wal = FakeWal::new();
+        let wsi = FakeWs::new();
+        let c = ctx(&wal, &wsi, &ok_snap);
+        let v = call(
+            &c,
+            "review",
+            &json!({"ws": "w1", "event": "e9", "verdict": "reject"}),
+        );
+        assert!(text(&v).contains("reject e9"));
+        // claim arg variants — glob present but ws missing.
+        assert!(is_err(&call(&c, "claim", &json!({"glob": "g"}))));
+        assert!(is_err(&call(&c, "release", &json!({"ws": "w1"}))));
+        assert!(is_err(&call(&c, "ws_glob", &json!({}))));
+        // review: verdict present, event missing.
+        assert!(is_err(
+            &call(&c, "review", &json!({"ws": "w1", "verdict": "approve"}))
+        ));
+    }
+
+    #[test]
+    fn subs_wait_picks_up_fresh_events() {
+        let wal = FakeWal::new();
+        let wsi = FakeWs::new();
+        let c = ctx(&wal, &wsi, &ok_snap);
+        // wait_ms long-polls; an event appended mid-wait breaks it.
+        let repo = Path::new("/repo").to_path_buf();
+        let v = std::thread::scope(|s| {
+            s.spawn(|| {
+                std::thread::sleep(std::time::Duration::from_millis(60));
+                wal.append(
+                    &repo,
+                    "w1",
+                    &Event::new("w1", "a", Op::Intent { text: "late".into() }),
+                )
+                .unwrap();
+            });
+            call(&c, "subs", &json!({"wait_ms": 2000}))
+        });
+        assert!(!is_err(&v));
+        assert!(text(&v).contains("late"), "{v:?}");
+
+        // baseline computation failure → falls back to no wait.
+        let wal = ErrWal;
+        let c2 = ctx(&wal, &wsi, &ok_snap);
+        let v = call(&c2, "subs", &json!({"wait_ms": 10}));
+        assert!(is_err(&v));
+    }
+
+    #[test]
+    fn view_and_arg_edge_cases() {
+        let wal = FakeWal::new();
+        let wsi = FakeWs::new();
+        let c = ctx(&wal, &wsi, &ok_snap);
+        // ws_read on a ws the fake can't find still reads tip —
+        // but reading a path that doesn't exist errors.
+        let v = call(&c, "ws_read", &json!({"ws": "w1", "path": "ghost"}));
+        assert!(is_err(&v));
+        // ws_write with path but no content → missing-arg error.
+        assert!(is_err(&call(
+            &c,
+            "ws_write",
+            &json!({"ws": "w1", "path": "p"})
+        )));
+        // intent without text.
+        assert!(is_err(&call(&c, "intent", &json!({"ws": "w1"}))));
+        // snap default branch comes from ctx.
+        let v = call(&c, "snap", &json!({"ws": "w1", "message": "m"}));
+        assert!(text(&v).contains("main"));
     }
 }

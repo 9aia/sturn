@@ -75,3 +75,27 @@ fn set_writes_owner_only_file() {
     let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode, 0o600);
 }
+
+// ---------- coverage extensions ----------
+
+#[test]
+fn malformed_and_empty_lines_are_skipped() {
+    let d = std::env::temp_dir().join(format!("sturn-dotenv-{}-malformed", std::process::id()));
+    let _ = std::fs::remove_dir_all(&d);
+    std::fs::create_dir_all(&d).unwrap();
+    let path = d.join("env");
+    // No '=' at all, empty value, and a good line.
+    std::fs::write(&path, "garbage\nEMPTY=\nGOOD=val\n").unwrap();
+    let s = DotenvSecrets { path: path.clone() };
+    assert_eq!(s.get("garbage"), None);
+    assert_eq!(s.get("EMPTY"), None);
+    assert_eq!(s.get("GOOD").as_deref(), Some("val"));
+    // set on a file that already has the key replaces in place.
+    s.set("GOOD", "v2").unwrap();
+    assert_eq!(s.get("GOOD").as_deref(), Some("v2"));
+    // set on a path in a nested dir creates parents.
+    let nested = d.join("a/b/env");
+    let s2 = DotenvSecrets { path: nested };
+    s2.set("K", "V").unwrap();
+    assert_eq!(s2.get("K").as_deref(), Some("V"));
+}

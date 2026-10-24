@@ -111,3 +111,60 @@ fn malformed_toml_errors() {
     .unwrap_err();
     assert!(err.contains("parse"));
 }
+
+// ---------- coverage extensions ----------
+
+#[test]
+fn explicit_path_and_env_and_errors() {
+    let d = std::env::temp_dir().join(format!("sturn-toml-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&d);
+    std::fs::create_dir_all(&d).unwrap();
+
+    // Explicit --config path, valid file.
+    let good = d.join("good.toml");
+    std::fs::write(&good, "[repo]\ndir = \".\"\n").unwrap();
+    let cfg = TomlSource {
+        path: Some(good.to_str().unwrap().into()),
+    }
+    .load()
+    .unwrap();
+    assert_eq!(cfg.repo.dir, std::path::PathBuf::from("."));
+
+    // Explicit path, bad TOML → parse error naming the file.
+    let bad = d.join("bad.toml");
+    std::fs::write(&bad, "not [valid\n").unwrap();
+    let err = TomlSource {
+        path: Some(bad.to_str().unwrap().into()),
+    }
+    .load()
+    .unwrap_err();
+    assert!(err.contains("parse"), "{err}");
+
+    // $STURN_CONFIG drives the search when no explicit path.
+    std::env::set_var("STURN_CONFIG", good.to_str().unwrap());
+    let cfg = TomlSource { path: None }.load().unwrap();
+    assert_eq!(cfg.repo.dir, std::path::PathBuf::from("."));
+    std::env::set_var("STURN_CONFIG", d.join("missing.toml").to_str().unwrap());
+    let err = TomlSource { path: None }.load().unwrap_err();
+    assert!(err.contains("no sturn.toml"), "{err}");
+    std::env::remove_var("STURN_CONFIG");
+}
+
+#[test]
+fn minimal_config_uses_core_defaults() {
+    let d = std::env::temp_dir().join(format!("sturn-toml-{}-defaults", std::process::id()));
+    let _ = std::fs::remove_dir_all(&d);
+    std::fs::create_dir_all(&d).unwrap();
+    let f = d.join("sturn.toml");
+    std::fs::write(&f, "[repo]\ndir = \"/x\"\n").unwrap();
+    let cfg = TomlSource {
+        path: Some(f.to_str().unwrap().into()),
+    }
+    .load()
+    .unwrap();
+    assert_eq!(cfg.repo.branch, "main");
+    assert_eq!(cfg.wal.ref_prefix, "refs/sturn/wal");
+    assert_eq!(cfg.bus.poll_ms, 100);
+    assert!(cfg.actor.name.is_none());
+    assert!(!cfg.review.require);
+}

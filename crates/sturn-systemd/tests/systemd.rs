@@ -74,3 +74,78 @@ fn unit_status_never_throws() {
     assert!(s.starts_with("enabled="), "{s}");
     assert!(s.contains(" active="), "{s}");
 }
+
+// ---------- coverage extensions ----------
+// All PATH manipulation lives in ONE test so nothing else in this
+// binary races the process-wide env.
+
+#[test]
+fn systemctl_and_journalctl_stubs() {
+    let stub = scratch("sbin");
+    let home = scratch("home2");
+
+    // Before stubs land on PATH, the probe degrades to "unknown".
+    let empty = scratch("empty-bin");
+    let old_path = std::env::var("PATH").unwrap_or_default();
+    std::env::set_var("PATH", &empty);
+    let s = sturn_systemd::unit_status("u.service").unwrap();
+    assert!(s.contains("unknown"), "{s}");
+
+    // Stub systemctl (success) + journalctl (echo args, fail on -f).
+    std::fs::write(stub.join("systemctl"), b"#!/bin/sh\nexit 0\n").unwrap();
+    std::fs::write(
+        stub.join("journalctl"),
+        b"#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = \"-f\" ] && exit 3; done\necho tail\nexit 0\n",
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        for n in ["systemctl", "journalctl"] {
+            let mut p = std::fs::metadata(stub.join(n)).unwrap().permissions();
+            p.set_mode(0o755);
+            std::fs::set_permissions(stub.join(n), p).unwrap();
+        }
+    }
+    std::env::set_var("PATH", format!("{}:{old_path}", stub.display()));
+
+    // Every run() wrapper goes through the stub.
+    sturn_systemd::enable_service("u").unwrap();
+    sturn_systemd::stop_service("u").unwrap();
+    sturn_systemd::restart_service("u").unwrap();
+    // unit_status now returns the stub's (empty) states.
+    let s = sturn_systemd::unit_status("u").unwrap();
+    assert!(s.starts_with("enabled="), "{s}");
+    // service_logs returns journalctl's exit code, -f or not.
+    assert_eq!(sturn_systemd::service_logs("u", false).unwrap(), 0);
+    assert_eq!(sturn_systemd::service_logs("u", true).unwrap(), 3);
+
+    // disable_service with and without a unit file present.
+    std::env::set_var("HOME", &home);
+    let unit_dir = home.join(".config/systemd/user");
+    std::fs::create_dir_all(&unit_dir).unwrap();
+    std::fs::write(unit_dir.join("u.service"), b"x").unwrap();
+    let removed = sturn_systemd::disable_service("u.service").unwrap();
+    assert!(!removed.exists());
+    let missing = sturn_systemd::disable_service("absent.service").unwrap();
+    assert!(!missing.exists());
+
+    // The Service port impl delegates to the same helpers.
+    use sturn_service::Service;
+    let svc = sturn_systemd::SystemdService {
+        unit: "u.service".into(),
+        bin: "/bin/sturn".into(),
+        env: "/env".into(),
+        config: None,
+    };
+    svc.enable().unwrap();
+    svc.disable().unwrap();
+
+    // A failing stub → run() surfaces an io error.
+    std::fs::write(stub.join("systemctl"), b"#!/bin/sh\nexit 9\n").unwrap();
+    let err = sturn_systemd::enable_service("u").unwrap_err();
+    assert!(err.to_string().contains("systemctl"), "{err}");
+    // daemon-reload is best-effort inside disable; enable path
+    // covers the error.
+    std::env::set_var("PATH", old_path);
+}

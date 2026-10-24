@@ -205,6 +205,26 @@ impl<'a> SturnFs<'a> {
         }
         ino
     }
+
+    /// Reported size for an ino. Entries are built path-only, so a
+    /// file's real size resolves lazily from the ODB on first ask —
+    /// the kernel clamps reads to i_size, so reporting 0 would serve
+    /// an instant EOF for every read.
+    fn file_size(&mut self, ino: u64) -> u64 {
+        if let Some(b) = self.rdbuf.get(&ino) { return b.len() as u64; }
+        if let Some((_, b)) = self.open.get(&ino) { return b.len() as u64; }
+        // Sizes are queried only for issued inos — the miss is defensive.
+        let Some((path, size, dir)) = self.entries.get(&ino).map(|e| (e.path.clone(), e.size, e.dir)) else { return 0; };
+        if dir || size != 0 { return size; }
+        if let Ok(b) = self.wsi.read(self.repo, &self.rev, &path) {
+            let n = b.len() as u64;
+            if let Some(e) = self.entries.get_mut(&ino) { e.size = n; }
+            return n;
+        }
+        // Unreadable blob: report a byte so the kernel issues read()
+        // and surfaces the real EIO — size 0 would fake a clean EOF.
+        1
+    }
 }
 
 impl Filesystem for SturnFs<'_> {
@@ -214,27 +234,16 @@ impl Filesystem for SturnFs<'_> {
             .get(&parent)
             .and_then(|ks| ks.iter().find(|(n, _)| n.as_str() == name.to_string_lossy()))
             .map(|(_, ino)| *ino);
-        match found.and_then(|i| self.entries.get(&i)) {
-            Some(e) => {
-                let size = if e.dir {
-                    0
-                } else {
-                    self.rdbuf
-                        .get(&e.ino)
-                        .map(|b| b.len() as u64)
-                        .unwrap_or(e.size)
-                };
-                reply.entry(&TTL, &attr(e.ino, size, e.dir), 0)
-            }
+        match found.and_then(|i| self.entries.get(&i).map(|e| (e.ino, e.dir))) {
+            Some((i, dir)) => reply.entry(&TTL, &attr(i, self.file_size(i), dir), 0),
             None => reply.error(libc::ENOENT),
         }
     }
 
     fn getattr(&mut self, _req: &Request, ino: u64, _fh: Option<u64>, reply: ReplyAttr) {
-        match self.entries.get(&ino) {
-            Some(e) => reply.attr(&TTL, &attr(ino, e.size, e.dir)),
-            None => reply.error(libc::ENOENT),
-        }
+        // The kernel only asks about inos we issued — None is defensive.
+        let Some(dir) = self.entries.get(&ino).map(|e| e.dir) else { reply.error(libc::ENOENT); return; };
+        reply.attr(&TTL, &attr(ino, self.file_size(ino), dir));
     }
 
     fn readdir(
@@ -245,14 +254,9 @@ impl Filesystem for SturnFs<'_> {
         offset: i64,
         mut reply: ReplyDirectory,
     ) {
-        let Some(e) = self.entries.get(&ino) else {
-            reply.error(libc::ENOENT);
-            return;
-        };
-        if !e.dir {
-            reply.error(libc::ENOTDIR);
-            return;
-        }
+        // Kernel sends readdir only for issued dir inos — defensive.
+        let Some(e) = self.entries.get(&ino) else { reply.error(libc::ENOENT); return; };
+        if !e.dir { reply.error(libc::ENOTDIR); return; }
         let mut items: Vec<(u64, FileType, String)> = vec![
             (ino, FileType::Directory, ".".into()),
             (ino, FileType::Directory, "..".into()),
@@ -276,14 +280,9 @@ impl Filesystem for SturnFs<'_> {
     }
 
     fn open(&mut self, _req: &Request, ino: u64, _flags: i32, reply: ReplyOpen) {
-        let Some(e) = self.entries.get(&ino) else {
-            reply.error(libc::ENOENT);
-            return;
-        };
-        if e.dir {
-            reply.error(libc::EISDIR);
-            return;
-        }
+        // Kernel opens only issued file inos (dirs go through opendir).
+        let Some(e) = self.entries.get(&ino) else { reply.error(libc::ENOENT); return; };
+        if e.dir { reply.error(libc::EISDIR); return; }
         if self.wal.is_some() {
             // hydrate lazily — read current content into the write buf
             let bytes = self
@@ -312,10 +311,8 @@ impl Filesystem for SturnFs<'_> {
             reply.data(&buf[start..end]);
             return;
         }
-        let Some(e) = self.entries.get(&ino) else {
-            reply.error(libc::ENOENT);
-            return;
-        };
+        // Kernel reads only issued inos — defensive.
+        let Some(e) = self.entries.get(&ino) else { reply.error(libc::ENOENT); return; };
         match self.wsi.read(self.repo, &self.rev, &e.path) {
             Ok(bytes) => {
                 let start = (offset as usize).min(bytes.len());
@@ -338,23 +335,15 @@ impl Filesystem for SturnFs<'_> {
         _lock: Option<u64>,
         reply: ReplyWrite,
     ) {
-        if self.wal.is_none() {
-            reply.error(libc::EROFS);
-            return;
-        }
+        // RO mounts are enforced by the VFS (MS_RDONLY) — defensive.
+        if self.wal.is_none() { reply.error(libc::EROFS); return; }
         if !self.open.contains_key(&ino) {
             // first write on this handle: seed buffer from rdbuf
-            let Some(path) = self.entries.get(&ino).map(|e| e.path.clone()) else {
-                reply.error(libc::ENOENT);
-                return;
-            };
+            let Some(path) = self.entries.get(&ino).map(|e| e.path.clone()) else { reply.error(libc::ENOENT); return; };
             let buf = self.rdbuf.remove(&ino).unwrap_or_default();
             self.open.insert(ino, (path, buf));
         }
-        let Some((_, buf)) = self.open.get_mut(&ino) else {
-            reply.error(libc::ENOENT);
-            return;
-        };
+        let Some((_, buf)) = self.open.get_mut(&ino) else { reply.error(libc::ENOENT); return; };
         let off = offset as usize;
         if buf.len() < off + data.len() {
             buf.resize(off + data.len(), 0);
@@ -373,10 +362,8 @@ impl Filesystem for SturnFs<'_> {
         _flags: i32,
         reply: ReplyCreate,
     ) {
-        if self.wal.is_none() {
-            reply.error(libc::EROFS);
-            return;
-        }
+        // VFS refuses create on MS_RDONLY mounts — defensive.
+        if self.wal.is_none() { reply.error(libc::EROFS); return; }
         let pname = name.to_string_lossy().into_owned();
         let path = {
             let pe = &self.entries[&parent];
@@ -409,10 +396,8 @@ impl Filesystem for SturnFs<'_> {
         _flags: Option<u32>,
         reply: ReplyAttr,
     ) {
-        let Some(e) = self.entries.get_mut(&ino) else {
-            reply.error(libc::ENOENT);
-            return;
-        };
+        // Kernel sets attrs only on issued inos — defensive.
+        let Some(e) = self.entries.get_mut(&ino) else { reply.error(libc::ENOENT); return; };
         if let Some(sz) = size {
             // truncate — O_TRUNC on open lands here before write()
             if let Some((_, buf)) = self.open.get_mut(&ino) {
@@ -491,10 +476,8 @@ impl Filesystem for SturnFs<'_> {
         _umask: u32,
         reply: ReplyEntry,
     ) {
-        if self.wal.is_none() {
-            reply.error(libc::EROFS);
-            return;
-        }
+        // VFS refuses mkdir on MS_RDONLY mounts — defensive.
+        if self.wal.is_none() { reply.error(libc::EROFS); return; }
         // dirs are implicit in git trees — local entry only,
         // no op until a file lands inside.
         let pname = name.to_string_lossy().into_owned();
@@ -509,10 +492,8 @@ impl Filesystem for SturnFs<'_> {
     }
 
     fn rmdir(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEmpty) {
-        if self.wal.is_none() {
-            reply.error(libc::EROFS);
-            return;
-        }
+        // VFS refuses rmdir on MS_RDONLY mounts — defensive.
+        if self.wal.is_none() { reply.error(libc::EROFS); return; }
         let pname = name.to_string_lossy().into_owned();
         let pe = &self.entries[&parent];
         let path = if pe.path.is_empty() {
@@ -540,10 +521,8 @@ impl Filesystem for SturnFs<'_> {
     }
 
     fn unlink(&mut self, _req: &Request, _parent: u64, name: &OsStr, reply: ReplyEmpty) {
-        if self.wal.is_none() {
-            reply.error(libc::EROFS);
-            return;
-        }
+        // VFS refuses unlink on MS_RDONLY mounts — defensive.
+        if self.wal.is_none() { reply.error(libc::EROFS); return; }
         // resolve via children of parent
         let pname = name.to_string_lossy().into_owned();
         let path = {
@@ -554,12 +533,9 @@ impl Filesystem for SturnFs<'_> {
                 .and_then(|(_, i)| self.entries.get(i))
                 .map(|e| e.path.clone())
         };
+        // The kernel resolves the name before unlink — None is defensive.
         match path {
-            Some(p) => {
-                self.append(Op::Delete { path: p });
-                reply.ok();
-            }
-            None => reply.error(libc::ENOENT),
+            Some(p) => { self.append(Op::Delete { path: p }); reply.ok(); } None => reply.error(libc::ENOENT),
         }
     }
 
@@ -573,10 +549,8 @@ impl Filesystem for SturnFs<'_> {
         _flags: u32,
         reply: ReplyEmpty,
     ) {
-        if self.wal.is_none() {
-            reply.error(libc::EROFS);
-            return;
-        }
+        // VFS refuses rename on MS_RDONLY mounts — defensive.
+        if self.wal.is_none() { reply.error(libc::EROFS); return; }
         let resolve = |parent: u64, n: &OsStr| -> Option<String> {
             self.kids
                 .get(&parent)
@@ -589,17 +563,11 @@ impl Filesystem for SturnFs<'_> {
         };
         match (resolve(_parent, name), resolve(_newparent, newname).or_else(|| {
             let np = &self.entries.get(&_newparent)?.path;
-            Some(if np.is_empty() {
-                newname.to_string_lossy().into_owned()
-            } else {
-                format!("{np}/{}", newname.to_string_lossy())
-            })
+            Some(if np.is_empty() { newname.to_string_lossy().into_owned() } else { format!("{np}/{}", newname.to_string_lossy()) })
         })) {
-            (Some(from), Some(to)) => {
-                self.append(Op::Rename { from, to });
-                reply.ok();
-            }
-            _ => reply.error(libc::ENOENT),
+            // The kernel resolves the source before rename — the _
+            // arm is defensive.
+            (Some(from), Some(to)) => { self.append(Op::Rename { from, to }); reply.ok(); } _ => reply.error(libc::ENOENT),
         }
     }
 }

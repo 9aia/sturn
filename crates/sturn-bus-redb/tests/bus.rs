@@ -71,3 +71,36 @@ fn topics_lists_seen_topics_sorted() {
     assert_eq!(bus.topics("other").unwrap(), vec!["ops"]);
     assert_eq!(bus.topics("none").unwrap(), Vec::<String>::new());
 }
+
+// ---------- coverage extensions ----------
+
+#[test]
+fn poll_resume_and_topic_isolation() {
+    let d = std::env::temp_dir().join(format!("sturn-bus-{}-resume", std::process::id()));
+    let _ = std::fs::remove_dir_all(&d);
+    let bus = RedbBus::open(d.join("bus.redb")).unwrap();
+    bus.publish("r", "a", b"1").unwrap();
+    bus.publish("r", "a", b"2").unwrap();
+    bus.publish("r", "b", b"x").unwrap();
+
+    // Fresh-consumer sentinel returns everything.
+    let mut c = u64::MAX;
+    assert_eq!(bus.poll("r", "a", &mut c).unwrap().len(), 2);
+    // Resuming after the cursor returns only new entries — and the
+    // scan breaks at the next topic's key.
+    bus.publish("r", "a", b"3").unwrap();
+    let got = bus.poll("r", "a", &mut c).unwrap();
+    assert_eq!(got, vec![b"3".to_vec()]);
+    // Explicit small cursor resumes after it.
+    let mut c0 = 0;
+    let got = bus.poll("r", "a", &mut c0).unwrap();
+    assert_eq!(got, vec![b"2".to_vec(), b"3".to_vec()]);
+    // Topics list isolates per repo.
+    let mut topics = bus.topics("r").unwrap();
+    topics.sort();
+    assert_eq!(topics, vec!["a", "b"]);
+    assert!(bus.topics("other").unwrap().is_empty());
+    // Poll an empty topic moves nothing.
+    let mut c2 = 7;
+    assert!(bus.poll("r", "zzz", &mut c2).unwrap().is_empty());
+}
