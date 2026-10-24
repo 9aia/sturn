@@ -535,7 +535,18 @@ impl Filesystem for SturnFs<'_> {
         };
         // The kernel resolves the name before unlink — None is defensive.
         match path {
-            Some(p) => { self.append(Op::Delete { path: p }); reply.ok(); } None => reply.error(libc::ENOENT),
+            Some(p) => {
+                self.append(Op::Delete { path: p.clone() });
+                // Drop the entry so later lookups/readdir agree.
+                if let Some(ino) = self.by_path.remove(&p) {
+                    self.entries.remove(&ino);
+                    if let Some(ks) = self.kids.get_mut(&_parent) {
+                        ks.retain(|(_, i)| *i != ino);
+                    }
+                }
+                reply.ok();
+            }
+            None => reply.error(libc::ENOENT),
         }
     }
 
@@ -567,7 +578,52 @@ impl Filesystem for SturnFs<'_> {
         })) {
             // The kernel resolves the source before rename — the _
             // arm is defensive.
-            (Some(from), Some(to)) => { self.append(Op::Rename { from, to }); reply.ok(); } _ => reply.error(libc::ENOENT),
+            (Some(from), Some(to)) => {
+                self.append(Op::Rename {
+                    from: from.clone(),
+                    to: to.clone(),
+                });
+                // Keep the tree view in sync — later ops resolve by
+                // path, and a stale map returns ENOENT for the moved name.
+                if let Some(ino) = self.by_path.remove(&from) {
+                    if let Some(ks) = self.kids.get_mut(&_parent) {
+                        ks.retain(|(_, i)| *i != ino);
+                    }
+                    self.kids
+                        .entry(_newparent)
+                        .or_default()
+                        .push((newname.to_string_lossy().into_owned(), ino));
+                    if let Some(e) = self.entries.get_mut(&ino) {
+                        e.path = to.clone();
+                    }
+                    if let Some(o) = self.open.get_mut(&ino) {
+                        o.0 = to.clone();
+                    }
+                    self.by_path.insert(to.clone(), ino);
+                    // A dir move drags its descendants' paths along.
+                    let prefix = format!("{from}/");
+                    let rewrites: Vec<(u64, String, String)> = self
+                        .entries
+                        .iter()
+                        .filter(|(_, e)| e.path.starts_with(&prefix))
+                        .map(|(i, e)| {
+                            (*i, e.path.clone(), format!("{to}/{}", &e.path[prefix.len()..]))
+                        })
+                        .collect();
+                    for (i, old, new) in rewrites {
+                        self.by_path.remove(&old);
+                        self.by_path.insert(new.clone(), i);
+                        if let Some(e) = self.entries.get_mut(&i) {
+                            e.path = new.clone();
+                        }
+                        if let Some(o) = self.open.get_mut(&i) {
+                            o.0 = new;
+                        }
+                    }
+                }
+                reply.ok();
+            }
+            _ => reply.error(libc::ENOENT),
         }
     }
 }

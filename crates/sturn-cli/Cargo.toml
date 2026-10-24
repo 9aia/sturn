@@ -34,3 +34,6 @@ clap.workspace = true
 hmac = "0.12"
 sha2 = "0.10"
 hex = "0.4"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }

@@ -3,7 +3,7 @@
 //! edits into Write/Delete/Rename ops.
 
 use std::collections::BTreeMap;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
