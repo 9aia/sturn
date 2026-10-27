@@ -156,7 +156,7 @@ enum Cmd {
     /// Bridge snapshot events to a bupha webhook — GitHub-shaped,
     /// HMAC-signed. Bupha runs CI on snaps with zero bupha changes.
     Bridge {
-        /// bupha listener URL (e.g. http://127.0.0.1:9000/).
+        /// bupha listener URL (e.g. http://127.0.0.1:29173/).
         #[arg(long)]
         to: String,
         /// Env var naming the webhook secret (HMAC-SHA256).
