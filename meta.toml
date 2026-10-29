@@ -1,0 +1,8 @@
+name = "sturn"
+
+[next]
+t = 12
+i = 1
+p = 1
+adr = 3
+pl = 1
