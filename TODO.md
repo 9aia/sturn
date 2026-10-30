@@ -2,6 +2,8 @@
 
 ## M1 — WAL round-trip (the core proof)
 
+- [ ] T-012 asks primitive — pending-response ops (ask/answer/cancel) + asks topic + verbs · pri:high · created:2026-10-30
+
 ## M2 — bus + claims (the delta)
 
 ## M3 — agent surface
