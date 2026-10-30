@@ -32,7 +32,7 @@ sturn push                           # heads + refs/sturn/* → origin
 Run the coordination daemon so other actors see ops live:
 
 ```sh
-sturn daemon             # WAL → repo.<id>.{ops,claims,review,presence}
+sturn daemon             # WAL → repo.<id>.{ops,claims,review,presence,asks}
 sturn deploy service     # systemd user unit
 ```
 

@@ -21,6 +21,18 @@ content-addressed (blob sha = event id), one commit per append.
 | `review` | `event`, `verdict` | approve/reject an event id |
 | `snapshot` | `message` | marker — ops before it are committed |
 | `presence` | `status` | actor joined/left |
+| `ask` | `subject`, `target`, `options?`, `ttl_secs` | pending *response* — open question; the event id is the ask handle |
+| `answer` | `ask`, `verdict` | close an ask with a verdict |
+| `cancel` | `ask` | withdraw an open ask |
+
+## Asks
+
+Claims are pending *ownership*; asks are pending *answers*. An
+`ask` opens under its event id and stays `open` until an `answer`
+or `cancel` op lands — or `ttl_secs` runs out (`0` = never). The
+question and its answer can live on different workspaces' WALs;
+responders filter `target` (`actor:<n>`, `human:<n>`, `node:<h>`,
+`claim-holder:<glob>`, `any`) to find asks meant for them.
 
 ## Envelope
 
