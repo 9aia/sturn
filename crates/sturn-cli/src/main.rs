@@ -153,6 +153,62 @@ enum Cmd {
     },
     /// Live claims across every workspace.
     Claims,
+    /// Open a pending-response ask — the printed event id is the
+    /// ask handle that `answer`/`cancel`/`wait` take.
+    Ask {
+        /// What is being asked.
+        subject: String,
+        /// Workspace asking.
+        #[arg(long)]
+        ws: String,
+        /// Who may answer — free-form spec: `actor:<name>`,
+        /// `human:<name>`, `node:<host>`, `claim-holder:<glob>`, `any`.
+        #[arg(long, default_value = "any")]
+        target: String,
+        /// Offered verdict — repeatable, advisory only.
+        #[arg(long = "option")]
+        options: Vec<String>,
+        /// Seconds until the ask expires. 0 = never.
+        #[arg(long, default_value_t = 3600)]
+        ttl: u64,
+    },
+    /// Pending asks across every workspace — open by default.
+    Asks {
+        /// Include resolved asks (answered/cancelled/expired).
+        #[arg(long)]
+        all: bool,
+        /// Emit a JSON array instead of text lines.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Answer an open ask — the verdict rides your ws's WAL.
+    Answer {
+        /// Ask event id.
+        ask: String,
+        verdict: String,
+        /// Workspace answering.
+        #[arg(long)]
+        ws: String,
+    },
+    /// Withdraw an open ask.
+    Cancel {
+        /// Ask event id.
+        ask: String,
+        #[arg(long)]
+        ws: String,
+    },
+    /// Block until an ask resolves — prints the result as JSON.
+    /// Exit: 0 answered, 2 cancelled, 3 expired, 4 timeout.
+    Wait {
+        /// Ask event id.
+        ask: String,
+        /// Max seconds to wait. 0 = until resolved.
+        #[arg(long, default_value_t = 0)]
+        timeout: u64,
+        /// Poll interval, ms.
+        #[arg(long, default_value_t = 100)]
+        poll: u64,
+    },
     /// Bridge snapshot events to a bupha webhook — GitHub-shaped,
     /// HMAC-signed. Bupha runs CI on snaps with zero bupha changes.
     Bridge {
@@ -510,6 +566,108 @@ fn run(cli: &Cli) -> Result<(), String> {
             }
             Ok(())
         }
+        Cmd::Ask {
+            subject,
+            ws,
+            target,
+            options,
+            ttl,
+        } => {
+            let id = append(&wal, &repo, ws, &actor, Op::Ask { subject: subject.clone(), target: target.clone(), options: options.clone(), ttl_secs: *ttl, })?;
+            let exp = if *ttl == 0 {
+                "never".to_string()
+            } else {
+                format!("{}s", ttl)
+            };
+            println!("ask {id} open (ws {ws} → {target}, ttl {exp})");
+            Ok(())
+        }
+        Cmd::Asks { all, json } => {
+            let entries = sturn_ask::all(&all_events(&wal, &repo)?, now())
+                .into_iter()
+                .filter(|(_, s)| *all || matches!(s, sturn_ask::Status::Open))
+                .collect::<Vec<_>>();
+            if *json {
+                let arr: Vec<serde_json::Value> =
+                    entries.iter().map(|(o, s)| ask_json(o, s)).collect();
+                println!(
+                    "{}",
+                    serde_json::to_string(&arr).map_err(|e| e.to_string())?
+                );
+            } else {
+                for (o, s) in &entries {
+                    let exp = o
+                        .expires
+                        .map(|e| format!("expires {e}"))
+                        .unwrap_or_else(|| "no expiry".into());
+                    println!(
+                        "{} \"{}\" (ws {}, {} → {}, {exp}, {})",
+                        o.id,
+                        o.subject,
+                        o.ws,
+                        o.actor,
+                        o.target,
+                        status_label(s)
+                    );
+                }
+            }
+            Ok(())
+        }
+        Cmd::Answer { ask, verdict, ws } => {
+            match sturn_ask::status(&all_events(&wal, &repo)?, now(), ask) {
+                None => return Err(format!("no such ask: {ask}")),
+                Some(sturn_ask::Status::Open) => {}
+                Some(s) => {
+                    return Err(format!(
+                        "ask {ask} is {} — can't answer",
+                        status_label(&s)
+                    ))
+                }
+            }
+            append(&wal, &repo, ws, &actor, Op::Answer { ask: ask.clone(), verdict: verdict.clone(), })?;
+            println!("{verdict} → ask {ask}");
+            Ok(())
+        }
+        Cmd::Cancel { ask, ws } => {
+            match sturn_ask::status(&all_events(&wal, &repo)?, now(), ask) {
+                None => return Err(format!("no such ask: {ask}")),
+                Some(sturn_ask::Status::Open) => {}
+                Some(s) => {
+                    return Err(format!(
+                        "ask {ask} is {} — can't cancel",
+                        status_label(&s)
+                    ))
+                }
+            }
+            append(&wal, &repo, ws, &actor, Op::Cancel { ask: ask.clone(), })?;
+            println!("cancelled ask {ask}");
+            Ok(())
+        }
+        Cmd::Wait { ask, timeout, poll } => {
+            match wait_ask(&wal, &repo, ask, *timeout, *poll)? {
+                None => {
+                    println!(
+                        "{}",
+                        serde_json::json!({"ask": ask, "status": "timeout"})
+                    );
+                    std::process::exit(4);
+                }
+                Some(sturn_ask::Status::Answered { verdict, by }) => {
+                    println!(
+                        "{}",
+                        serde_json::json!({"ask": ask, "status": "answered", "verdict": verdict, "by": by})
+                    );
+                    Ok(())
+                }
+                Some(s) => {
+                    println!(
+                        "{}",
+                        serde_json::json!({"ask": ask, "status": status_label(&s)})
+                    );
+                    std::process::exit(wait_exit_code(&s));
+                }
+            }
+        }
         Cmd::Write {
             path,
             ws,
@@ -778,6 +936,7 @@ fn append(
 /// Fold a ws's pending ops (since last Snapshot) into a real commit
 /// on `branch`, move the ws ref, append the Snapshot marker.
 /// Shared by `sturn snap` and the MCP `snap` tool.
+#[allow(clippy::too_many_arguments)]
 fn do_snap(
     repo: &Path,
     wal: &sturn_wal_git::GitWal,
@@ -1041,6 +1200,9 @@ fn daemon_tick(
                         }
                         Op::Review { .. } => Some(topic::REVIEW),
                         Op::Presence { .. } => Some(topic::PRESENCE),
+                        Op::Ask { .. } | Op::Answer { .. } | Op::Cancel { .. } => {
+                            Some(topic::ASKS)
+                        }
                         _ => None,
                     };
                     if let Some(t) = t {
@@ -1098,6 +1260,84 @@ fn hydrate_ws(
         }
     }
     Ok(())
+}
+
+/// Human label for an ask state — used in `asks`/`wait` output.
+fn status_label(s: &sturn_ask::Status) -> String {
+    match s {
+        sturn_ask::Status::Open => "open".into(),
+        sturn_ask::Status::Answered { verdict, by } => {
+            format!("answered {verdict} by {by}")
+        }
+        sturn_ask::Status::Cancelled => "cancelled".into(),
+        sturn_ask::Status::Expired => "expired".into(),
+    }
+}
+
+/// One ask as a JSON object for `asks --json`.
+fn ask_json(o: &sturn_ask::Open, s: &sturn_ask::Status) -> serde_json::Value {
+    let (status, verdict, by) = match s {
+        sturn_ask::Status::Open => ("open", serde_json::Value::Null, serde_json::Value::Null),
+        sturn_ask::Status::Answered { verdict, by } => {
+            ("answered", verdict.clone().into(), by.clone().into())
+        }
+        sturn_ask::Status::Cancelled => {
+            ("cancelled", serde_json::Value::Null, serde_json::Value::Null)
+        }
+        sturn_ask::Status::Expired => {
+            ("expired", serde_json::Value::Null, serde_json::Value::Null)
+        }
+    };
+    serde_json::json!({
+        "id": o.id,
+        "ws": o.ws,
+        "actor": o.actor,
+        "subject": o.subject,
+        "target": o.target,
+        "options": o.options,
+        "asked": o.asked,
+        "expires": o.expires,
+        "status": status,
+        "verdict": verdict,
+        "by": by,
+    })
+}
+
+/// Process exit code for a resolved `wait`: 0 answered, 2 cancelled,
+/// 3 expired; the `Open` arm maps to the timeout code (unreachable
+/// through `wait_ask`, kept so the map is total).
+fn wait_exit_code(s: &sturn_ask::Status) -> i32 {
+    match s {
+        sturn_ask::Status::Answered { .. } => 0,
+        sturn_ask::Status::Cancelled => 2,
+        sturn_ask::Status::Expired => 3,
+        sturn_ask::Status::Open => 4,
+    }
+}
+
+/// Poll `asks` until `ask` reaches a terminal state or `timeout`
+/// seconds pass (0 = wait until resolved). `Ok(Some)` is the
+/// terminal state, `Ok(None)` the deadline hit, `Err` means the
+/// ask id doesn't exist.
+fn wait_ask(
+    wal: &sturn_wal_git::GitWal,
+    repo: &Path,
+    ask: &str,
+    timeout: u64,
+    poll: u64,
+) -> Result<Option<sturn_ask::Status>, String> {
+    let deadline = (timeout > 0).then(|| now() + timeout);
+    loop {
+        let s = sturn_ask::status(&all_events(wal, repo)?, now(), ask)
+            .ok_or_else(|| format!("no such ask: {ask}"))?;
+        if !matches!(s, sturn_ask::Status::Open) {
+            return Ok(Some(s));
+        }
+        if deadline.is_some_and(|d| now() >= d) {
+            return Ok(None);
+        }
+        std::thread::sleep(Duration::from_millis(poll));
+    }
 }
 
 /// Every workspace's events — claims are swarm-wide, so conflict
@@ -1248,6 +1488,7 @@ fn writeback_ops(
 /// Merge several ws's pending ops into ONE commit on `branch`.
 /// Later ops win on same-path collisions — claims should have
 /// prevented that upstream.
+#[allow(clippy::too_many_arguments)]
 fn merge_snap(
     repo: &Path,
     wal: &sturn_wal_git::GitWal,
@@ -1426,6 +1667,33 @@ mod tests {
             &Event::new("a", "t", Op::Intent { text: "i".into() }),
         )
         .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "t",
+                Op::Ask {
+                    subject: "s".into(),
+                    target: "any".into(),
+                    options: vec![],
+                    ttl_secs: 60,
+                },
+            ),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new("a", "t", Op::Answer { ask: "x".into(), verdict: "v".into() }),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new("a", "t", Op::Cancel { ask: "x".into() }),
+        )
+        .unwrap();
 
         daemon_tick(
             &wal,
@@ -1436,27 +1704,29 @@ mod tests {
             &bus,
             &subs,
         );
-        // ops firehose got all 5; kind topics got theirs.
+        // ops firehose got all 8; kind topics got theirs.
         let mut cursor = u64::MAX;
-        let (mut c1, mut c2, mut c3) = (u64::MAX, u64::MAX, u64::MAX);
-        assert_eq!(bus.poll("tick", topic::OPS, &mut cursor).unwrap().len(), 5);
+        let (mut c1, mut c2, mut c3, mut c4) =
+            (u64::MAX, u64::MAX, u64::MAX, u64::MAX);
+        assert_eq!(bus.poll("tick", topic::OPS, &mut cursor).unwrap().len(), 8);
         assert_eq!(bus.poll("tick", topic::CLAIMS, &mut c1).unwrap().len(), 2);
         assert_eq!(bus.poll("tick", topic::REVIEW, &mut c2).unwrap().len(), 1);
         assert_eq!(bus.poll("tick", topic::PRESENCE, &mut c3).unwrap().len(), 1);
+        assert_eq!(bus.poll("tick", topic::ASKS, &mut c4).unwrap().len(), 3);
         // Live socket subscriber saw the ops payloads.
-        assert_eq!(rx.try_iter().count(), 5);
+        assert_eq!(rx.try_iter().count(), 8);
 
         // No new events → next tick publishes nothing.
         daemon_tick(&wal, &dirs, &repo, "tick", &mut heads, &bus, &subs);
         let mut c4 = u64::MAX;
-        assert_eq!(bus.poll("tick", topic::OPS, &mut c4).unwrap().len(), 5);
+        assert_eq!(bus.poll("tick", topic::OPS, &mut c4).unwrap().len(), 8);
 
         // A new event lands → only the delta publishes.
         wal.append(&repo, "a", &Event::new("a", "t", Op::Intent { text: "j".into() }))
             .unwrap();
         daemon_tick(&wal, &dirs, &repo, "tick", &mut heads, &bus, &subs);
         let mut c5 = u64::MAX;
-        assert_eq!(bus.poll("tick", topic::OPS, &mut c5).unwrap().len(), 6);
+        assert_eq!(bus.poll("tick", topic::OPS, &mut c5).unwrap().len(), 9);
     }
 
     #[test]
@@ -1618,6 +1888,20 @@ mod tests {
 
         // Dead endpoint → tick survives (post errors are dropped).
         bridge_tick(&repo, &wal, &wsi, &mut heads, "http://127.0.0.1:1/", "s", "rid", "main");
+    }
+
+    #[test]
+    fn wait_exit_code_map() {
+        assert_eq!(
+            wait_exit_code(&sturn_ask::Status::Answered {
+                verdict: "v".into(),
+                by: "b".into()
+            }),
+            0
+        );
+        assert_eq!(wait_exit_code(&sturn_ask::Status::Cancelled), 2);
+        assert_eq!(wait_exit_code(&sturn_ask::Status::Expired), 3);
+        assert_eq!(wait_exit_code(&sturn_ask::Status::Open), 4);
     }
 
     // Under coverage, infinite drivers are stubbed; running the arms

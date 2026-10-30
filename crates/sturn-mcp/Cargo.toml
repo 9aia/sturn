@@ -13,5 +13,6 @@ sturn-core.workspace = true
 sturn-wal.workspace = true
 sturn-ws.workspace = true
 sturn-claim.workspace = true
+sturn-ask.workspace = true
 serde_json.workspace = true
 

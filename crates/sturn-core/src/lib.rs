@@ -19,8 +19,10 @@ pub mod topic {
     pub const REVIEW: &str = "review";
     /// Actors joining/leaving workspaces.
     pub const PRESENCE: &str = "presence";
+    /// Pending-response ops — asks, answers, cancels.
+    pub const ASKS: &str = "asks";
     /// Everything, for subscribers that want the full stream.
-    pub const ALL: [&str; 4] = [OPS, CLAIMS, REVIEW, PRESENCE];
+    pub const ALL: [&str; 5] = [OPS, CLAIMS, REVIEW, PRESENCE, ASKS];
 }
 
 /// One op appended to a workspace WAL — the unit of coordination.
@@ -82,6 +84,34 @@ pub enum Op {
     Review { event: String, verdict: Verdict },
     /// Actor joined/left the swarm.
     Presence { status: String },
+    /// A question awaiting a verdict — pending *response* in the
+    /// WAL. The ask id is this event's own id (the blob sha), the
+    /// same handle `review` uses.
+    Ask {
+        /// What is being asked.
+        subject: String,
+        /// Who may answer — free-form spec: `actor:<name>`,
+        /// `human:<name>`, `node:<host>`, `claim-holder:<glob>`,
+        /// `any`. Routers and responders filter on it.
+        target: String,
+        /// Offered verdicts — advisory, answers are free-form.
+        #[serde(default)]
+        options: Vec<String>,
+        /// Seconds until the ask expires. 0 = never.
+        #[serde(default = "default_ttl")]
+        ttl_secs: u64,
+    },
+    /// A verdict closing an ask — first terminal op wins.
+    Answer {
+        /// The Ask event id being answered.
+        ask: String,
+        verdict: String,
+    },
+    /// Withdraw an open ask.
+    Cancel {
+        /// The Ask event id being withdrawn.
+        ask: String,
+    },
 }
 
 fn default_ttl() -> u64 {

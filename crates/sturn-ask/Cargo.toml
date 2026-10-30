@@ -1,0 +1,12 @@
+[package]
+name = "sturn-ask"
+description = "pending-response asks: fold ops into open questions and verdicts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["vcs", "sturn", "agents"]
+categories = ["development-tools"]
+
+[dependencies]
+sturn-core.workspace = true

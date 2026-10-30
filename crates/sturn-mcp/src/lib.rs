@@ -9,6 +9,7 @@
 use serde_json::{json, Value};
 use std::io::{BufRead, Write as IoWrite};
 use std::path::Path;
+use sturn_ask as asks_fold;
 use sturn_claim as claims;
 use sturn_core::{overlay, since_last_snapshot, topic, Event, Op, Verdict};
 use sturn_wal::Wal;
@@ -22,7 +23,7 @@ pub struct Tool {
     pub about: &'static str,
 }
 
-/// The whole AX — nine tools instead of git's thirty-something.
+/// The whole AX — the coordination vocabulary as tools.
 pub const TOOLS: &[Tool] = &[
     Tool {
         name: "ws_read",
@@ -67,6 +68,22 @@ pub const TOOLS: &[Tool] = &[
     Tool {
         name: "review",
         about: "Approve/reject an event — continuous review",
+    },
+    Tool {
+        name: "ask",
+        about: "Open a pending-response ask — returns the ask id",
+    },
+    Tool {
+        name: "asks",
+        about: "Asks across the swarm — open by default",
+    },
+    Tool {
+        name: "answer",
+        about: "Verdict on an open ask — closes it",
+    },
+    Tool {
+        name: "cancel_ask",
+        about: "Withdraw an open ask",
     },
 ];
 
@@ -138,6 +155,10 @@ fn call(ctx: &Ctx, name: &str, a: &Value) -> Value {
         "intent" => intent(ctx, a),
         "review" => review(ctx, a),
         "subs" => subs(ctx, a),
+        "ask" => ask(ctx, a),
+        "asks" => asks(ctx, a),
+        "answer" => answer(ctx, a),
+        "cancel_ask" => cancel_ask(ctx, a),
         _ => tool_err(format!("unknown tool `{name}`")),
     }
 }
@@ -162,7 +183,7 @@ fn ws_read(ctx: &Ctx, a: &Value) -> Value {
         }
         Ok(String::from_utf8_lossy(&ctx.wsi.read(ctx.repo, &tip, path)?).into_owned())
     })();
-    r.map_or_else(|e| tool_err(e), tool_text)
+    r.map_or_else(tool_err, tool_text)
 }
 
 fn ws_write(ctx: &Ctx, a: &Value) -> Value {
@@ -186,7 +207,7 @@ fn ws_write(ctx: &Ctx, a: &Value) -> Value {
             ),
         )
     })();
-    r.map_or_else(|e| tool_err(e), |id| tool_text(format!("event {id}")))
+    r.map_or_else(tool_err, |id| tool_text(format!("event {id}")))
 }
 
 fn ws_paths(ctx: &Ctx, ws: &str) -> std::io::Result<Vec<String>> {
@@ -248,7 +269,7 @@ fn ws_grep(ctx: &Ctx, a: &Value) -> Value {
         }
         Ok(hits.join("\n"))
     })();
-    r.map_or_else(|e| tool_err(e), tool_text)
+    r.map_or_else(tool_err, tool_text)
 }
 
 fn ws_rename(ctx: &Ctx, a: &Value) -> Value {
@@ -270,7 +291,7 @@ fn ws_rename(ctx: &Ctx, a: &Value) -> Value {
             ),
         )
         .map(|id| tool_text(format!("rename {from} → {to} (event {id})")))
-        .unwrap_or_else(|e| tool_err(e))
+        .unwrap_or_else(tool_err)
 }
 
 fn ws_delete(ctx: &Ctx, a: &Value) -> Value {
@@ -285,7 +306,7 @@ fn ws_delete(ctx: &Ctx, a: &Value) -> Value {
             &Event::new(ws, ctx.actor, Op::Delete { path: path.into() }),
         )
         .map(|id| tool_text(format!("delete {path} (event {id})")))
-        .unwrap_or_else(|e| tool_err(e))
+        .unwrap_or_else(tool_err)
 }
 
 fn claim(ctx: &Ctx, a: &Value) -> Value {
@@ -328,7 +349,7 @@ fn claim(ctx: &Ctx, a: &Value) -> Value {
             .map_err(|e| e.to_string())?;
         Ok(format!("claimed {glob}"))
     })();
-    r.map_or_else(|e| tool_err(e), tool_text)
+    r.map_or_else(tool_err, tool_text)
 }
 
 fn release(ctx: &Ctx, a: &Value) -> Value {
@@ -343,7 +364,7 @@ fn release(ctx: &Ctx, a: &Value) -> Value {
             &Event::new(ws, ctx.actor, Op::Release { glob: glob.into() }),
         )
         .map(|_| tool_text(format!("released {glob}")))
-        .unwrap_or_else(|e| tool_err(e))
+        .unwrap_or_else(tool_err)
 }
 
 fn snap(ctx: &Ctx, a: &Value) -> Value {
@@ -357,7 +378,7 @@ fn snap(ctx: &Ctx, a: &Value) -> Value {
         .unwrap_or(ctx.branch);
     (ctx.snap)(ws, msg, branch)
         .map(|c| tool_text(format!("snap {c} → {branch}")))
-        .unwrap_or_else(|e| tool_err(e))
+        .unwrap_or_else(tool_err)
 }
 
 fn intent(ctx: &Ctx, a: &Value) -> Value {
@@ -372,7 +393,7 @@ fn intent(ctx: &Ctx, a: &Value) -> Value {
             &Event::new(ws, ctx.actor, Op::Intent { text: text.into() }),
         )
         .map(|id| tool_text(format!("intent {id}")))
-        .unwrap_or_else(|e| tool_err(e))
+        .unwrap_or_else(tool_err)
 }
 
 fn review(ctx: &Ctx, a: &Value) -> Value {
@@ -399,7 +420,152 @@ fn review(ctx: &Ctx, a: &Value) -> Value {
             ),
         )
         .map(|id| tool_text(format!("{verdict} {event} (event {id})")))
-        .unwrap_or_else(|e| tool_err(e))
+        .unwrap_or_else(tool_err)
+}
+
+/// Every workspace's events — asks are swarm-wide: the question
+/// and its answer can live on different WALs, so all folds see all
+/// logs.
+fn all_events(ctx: &Ctx) -> std::io::Result<Vec<Event>> {
+    let mut all = Vec::new();
+    for w in ctx.wal.workspaces(ctx.repo)? {
+        all.extend(ctx.wal.events(ctx.repo, &w)?);
+    }
+    Ok(all)
+}
+
+fn ask(ctx: &Ctx, a: &Value) -> Value {
+    let (ws, subject) = match (arg(a, "ws"), arg(a, "subject")) {
+        (Ok(w), Ok(s)) => (w, s),
+        _ => return tool_err("missing ws/subject"),
+    };
+    let target = a
+        .get("target")
+        .and_then(|v| v.as_str())
+        .unwrap_or("any");
+    let options: Vec<String> = a
+        .get("options")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+    let ttl = a.get("ttl_secs").and_then(|v| v.as_u64()).unwrap_or(3600);
+    ctx.wal
+        .append(
+            ctx.repo,
+            ws,
+            &Event::new(
+                ws,
+                ctx.actor,
+                Op::Ask {
+                    subject: subject.into(),
+                    target: target.into(),
+                    options,
+                    ttl_secs: ttl,
+                },
+            ),
+        )
+        .map(|id| tool_text(format!("ask {id} open (→ {target})")))
+        .unwrap_or_else(tool_err)
+}
+
+fn asks(ctx: &Ctx, a: &Value) -> Value {
+    let include_all = a.get("all").and_then(|v| v.as_bool()).unwrap_or(false);
+    let r = (|| -> std::io::Result<String> {
+        let entries = asks_fold::all(&all_events(ctx)?, now())
+            .into_iter()
+            .filter(|(_, s)| include_all || matches!(s, sturn_ask::Status::Open));
+        let mut out = String::new();
+        for (o, s) in entries {
+            let st = match &s {
+                sturn_ask::Status::Open => "open".to_string(),
+                sturn_ask::Status::Answered { verdict, by } => {
+                    format!("answered {verdict} by {by}")
+                }
+                sturn_ask::Status::Cancelled => "cancelled".into(),
+                sturn_ask::Status::Expired => "expired".into(),
+            };
+            out.push_str(&format!(
+                "{} \"{}\" (ws {}, {} → {}, {})\n",
+                o.id, o.subject, o.ws, o.actor, o.target, st
+            ));
+        }
+        Ok(out)
+    })();
+    r.map_or_else(tool_err, |s| {
+        if s.is_empty() {
+            tool_text("no asks")
+        } else {
+            tool_text(s.trim_end())
+        }
+    })
+}
+
+/// Shared gate for `answer`/`cancel_ask`: the ask must exist and
+/// still be open.
+fn must_be_open(ctx: &Ctx, ask: &str) -> Result<(), String> {
+    match asks_fold::status(
+        &all_events(ctx).map_err(|e| e.to_string())?,
+        now(),
+        ask,
+    ) {
+        None => Err(format!("no such ask: {ask}")),
+        Some(sturn_ask::Status::Open) => Ok(()),
+        Some(s) => Err(format!("ask {ask} is {s:?} — closed")),
+    }
+}
+
+fn answer(ctx: &Ctx, a: &Value) -> Value {
+    let (ws, ask_id, verdict) =
+        match (arg(a, "ws"), arg(a, "ask"), arg(a, "verdict")) {
+            (Ok(w), Ok(k), Ok(v)) => (w, k, v),
+            _ => return tool_err("missing ws/ask/verdict"),
+        };
+    let r = must_be_open(ctx, ask_id).and_then(|()| {
+        ctx.wal
+            .append(
+                ctx.repo,
+                ws,
+                &Event::new(
+                    ws,
+                    ctx.actor,
+                    Op::Answer {
+                        ask: ask_id.into(),
+                        verdict: verdict.into(),
+                    },
+                ),
+            )
+            .map_err(|e| e.to_string())
+            .map(|_| format!("{verdict} → ask {ask_id}"))
+    });
+    r.map_or_else(tool_err, tool_text)
+}
+
+fn cancel_ask(ctx: &Ctx, a: &Value) -> Value {
+    let (ws, ask_id) = match (arg(a, "ws"), arg(a, "ask")) {
+        (Ok(w), Ok(k)) => (w, k),
+        _ => return tool_err("missing ws/ask"),
+    };
+    let r = must_be_open(ctx, ask_id).and_then(|()| {
+        ctx.wal
+            .append(
+                ctx.repo,
+                ws,
+                &Event::new(
+                    ws,
+                    ctx.actor,
+                    Op::Cancel {
+                        ask: ask_id.into(),
+                    },
+                ),
+            )
+            .map_err(|e| e.to_string())
+            .map(|_| format!("cancelled ask {ask_id}"))
+    });
+    r.map_or_else(tool_err, tool_text)
 }
 
 /// Pull-replay feed — or long-poll: `wait_ms` blocks until *new*
@@ -457,6 +623,9 @@ fn subs(ctx: &Ctx, a: &Value) -> Value {
             }
             t if t == topic::REVIEW => matches!(ev.op, Op::Review { .. }),
             t if t == topic::PRESENCE => matches!(ev.op, Op::Presence { .. }),
+            t if t == topic::ASKS => {
+                matches!(ev.op, Op::Ask { .. } | Op::Answer { .. } | Op::Cancel { .. })
+            }
             _ => false,
         };
         let mut lines: Vec<String> = all
@@ -467,7 +636,7 @@ fn subs(ctx: &Ctx, a: &Value) -> Value {
         let start = lines.len().saturating_sub(limit);
         Ok(lines.drain(start..).collect::<Vec<_>>().join("\n"))
     })();
-    r.map_or_else(|e| tool_err(e), tool_text)
+    r.map_or_else(tool_err, tool_text)
 }
 
 fn tool_schema(name: &str, about: &str, props: Value, required: &[&str]) -> Value {
@@ -498,6 +667,10 @@ fn tool_list() -> Value {
         tool_schema("intent", "Record why work exists", json!({"ws": ws.1, "text": s("text").1}), &["ws","text"]),
         tool_schema("review", "Approve/reject an event id", json!({"ws": ws.1, "event": s("event").1, "verdict": s("verdict").1}), &["ws","event","verdict"]),
         tool_schema("subs", "Recent events on a topic; wait_ms long-polls for new ones", json!({"topic": s("topic").1, "limit": {"type":"integer"}, "wait_ms": {"type":"integer"}}), &[]),
+        tool_schema("ask", "Open a pending-response ask — returns the ask id", json!({"ws": ws.1, "subject": s("subject").1, "target": s("target").1, "options": {"type":"array","items":{"type":"string"}}, "ttl_secs": {"type":"integer"}}), &["ws","subject"]),
+        tool_schema("asks", "Asks across the swarm — open by default; all includes resolved", json!({"all": {"type":"boolean"}}), &[]),
+        tool_schema("answer", "Verdict on an open ask", json!({"ws": ws.1, "ask": s("ask").1, "verdict": s("verdict").1}), &["ws","ask","verdict"]),
+        tool_schema("cancel_ask", "Withdraw an open ask", json!({"ws": ws.1, "ask": s("ask").1}), &["ws","ask"]),
     ]})
 }
 
@@ -773,10 +946,10 @@ mod tests {
 
     #[test]
     fn tool_vocabulary_and_schemas() {
-        assert_eq!(TOOLS.len(), 11);
+        assert_eq!(TOOLS.len(), 15);
         let list = tool_list();
         let tools = list["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 12); // list includes `release`
+        assert_eq!(tools.len(), 16); // list includes `release`
         assert!(tools.iter().all(|t| t["inputSchema"]["type"] == "object"));
     }
 
@@ -1301,5 +1474,132 @@ mod tests {
         assert!(ErrWs.entry(r, "t", "p").is_err());
         assert!(ErrWs.blob(r, "s").is_err());
         assert!(ErrWs.workspaces(r).is_err());
+    }
+
+    #[test]
+    fn ask_answer_asks_lifecycle() {
+        let wal = FakeWal::new();
+        let wsi = FakeWs::new();
+        let c = ctx(&wal, &wsi, &ok_snap);
+        let r = Path::new("/repo");
+
+        // Empty swarm → "no asks".
+        let v = call(&c, "asks", &json!({}));
+        assert_eq!(text(&v), "no asks");
+
+        // ask → returns the ask id; asks lists it.
+        let v = call(
+            &c,
+            "ask",
+            &json!({"ws": "w1", "subject": "deploy?", "target": "human:t",
+                    "options": ["yes", "no"], "ttl_secs": 0}),
+        );
+        assert!(!is_err(&v));
+        let ask_id = text(&v).split_whitespace().nth(1).unwrap().to_string();
+        let v = call(&c, "asks", &json!({}));
+        assert!(text(&v).contains(&ask_id) && text(&v).contains("deploy?"));
+
+        // Missing args on every verb → errors.
+        assert!(is_err(&call(&c, "ask", &json!({"ws": "w1"}))));
+        assert!(is_err(&call(&c, "answer", &json!({"ws": "w1"}))));
+        assert!(is_err(&call(&c, "cancel_ask", &json!({"ws": "w1"}))));
+
+        // Unknown ask → errors.
+        assert!(is_err(&call(
+            &c,
+            "answer",
+            &json!({"ws": "w1", "ask": "ghost", "verdict": "v"})
+        )));
+        assert!(is_err(&call(
+            &c,
+            "cancel_ask",
+            &json!({"ws": "w1", "ask": "ghost"})
+        )));
+
+        // answer from another ws closes it — cross-workspace fold.
+        let v = call(
+            &c,
+            "answer",
+            &json!({"ws": "w2", "ask": ask_id, "verdict": "yes"}),
+        );
+        assert!(text(&v).contains("yes"));
+        let v = call(&c, "asks", &json!({}));
+        assert_eq!(text(&v), "no asks");
+        // `all` shows the resolved ask; the answer op lives on w2.
+        let v = call(&c, "asks", &json!({"all": true}));
+        assert!(text(&v).contains("answered yes"));
+        assert!(wal
+            .events(r, "w2")
+            .unwrap()
+            .iter()
+            .any(|e| matches!(e.op, Op::Answer { .. })));
+
+        // Closed ask refuses further terminal ops.
+        assert!(is_err(&call(
+            &c,
+            "answer",
+            &json!({"ws": "w1", "ask": ask_id, "verdict": "no"})
+        )));
+        assert!(is_err(&call(
+            &c,
+            "cancel_ask",
+            &json!({"ws": "w1", "ask": ask_id})
+        )));
+
+        // cancel_ask on a fresh ask.
+        let v = call(
+            &c,
+            "ask",
+            &json!({"ws": "w1", "subject": "second?", "target": "any"}),
+        );
+        let ask2 = text(&v).split_whitespace().nth(1).unwrap().to_string();
+        let v = call(&c, "cancel_ask", &json!({"ws": "w1", "ask": ask2}));
+        assert!(text(&v).contains("cancelled"));
+        let v = call(&c, "asks", &json!({"all": true}));
+        assert!(text(&v).contains("cancelled"), "{}", text(&v));
+
+        // An ask whose ttl already elapsed shows as expired under
+        // `all`, and ask ops land on the `asks` subs feed.
+        let mut old = Event::new(
+            "w1",
+            "agent-a",
+            Op::Ask {
+                subject: "ancient?".into(),
+                target: "any".into(),
+                options: vec![],
+                ttl_secs: 1,
+            },
+        );
+        old.ts = 0;
+        wal.append(r, "w1", &old).unwrap();
+        let v = call(&c, "asks", &json!({"all": true}));
+        assert!(text(&v).contains("expired"), "{}", text(&v));
+        let v = call(&c, "subs", &json!({"topic": "asks"}));
+        assert!(text(&v).contains("\"ask\"") && text(&v).contains(&ask2), "{}", text(&v));
+    }
+
+    #[test]
+    fn asks_errors_propagate() {
+        // ErrWal makes workspaces()/events() fail — every ask verb
+        // must surface the error, not panic.
+        let wsi = FakeWs::new();
+        let c = ctx(&ErrWal, &wsi, &ok_snap);
+        assert!(is_err(&call(&c, "asks", &json!({}))));
+        assert!(is_err(&call(
+            &c,
+            "answer",
+            &json!({"ws": "w1", "ask": "a", "verdict": "v"})
+        )));
+        assert!(is_err(&call(
+            &c,
+            "cancel_ask",
+            &json!({"ws": "w1", "ask": "a"})
+        )));
+        // ask appends straight to wal — also fails on ErrWal.
+        assert!(is_err(&call(
+            &c,
+            "ask",
+            &json!({"ws": "w1", "subject": "s"})
+        )));
     }
 }

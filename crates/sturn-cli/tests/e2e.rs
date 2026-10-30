@@ -277,7 +277,7 @@ fn mcp_agent_surface() {
     let tools = m.rpc("tools/list", serde_json::json!({}));
     assert_eq!(
         tools["result"]["tools"].as_array().unwrap().len(),
-        12,
+        16,
         "expected the tool surface"
     );
 
@@ -1234,4 +1234,105 @@ fn mount_real_and_missing_ws() {
     for needle in ["new.txt", "renamed.txt", "moved.txt", "a.txt", "\"delete\"", "\"rename\"", "\"write\""] {
         assert!(log.contains(needle), "{needle} missing from {log}");
     }
+}
+
+#[test]
+fn asks_lifecycle_and_wait_codes() {
+    let repo = bare_repo("asks");
+    sturn_ok(&repo, &["ws", "new", "a"], &[]);
+    sturn_ok(&repo, &["ws", "new", "b"], &[]);
+
+    // ask → the printed event id is the ask handle.
+    let out = sturn_ok(
+        &repo,
+        &[
+            "ask", "yield src/**?", "--ws", "a", "--target", "human:t",
+            "--option", "release", "--option", "deny",
+        ],
+        &[],
+    );
+    assert!(out.contains("open"), "{out}");
+    let ask_id = out.split_whitespace().nth(1).unwrap().to_string();
+    assert!(ask_id.len() >= 8, "{ask_id}");
+
+    // asks lists it; --json carries the full record.
+    let open = sturn_ok(&repo, &["asks"], &[]);
+    assert!(open.contains(&ask_id) && open.contains("yield src/**?"), "{open}");
+    let j = sturn_ok(&repo, &["asks", "--json"], &[]);
+    let arr: serde_json::Value = serde_json::from_str(&j).unwrap();
+    let e = &arr.as_array().unwrap()[0];
+    assert_eq!(e["status"], "open");
+    assert_eq!(e["target"], "human:t");
+    assert_eq!(e["options"][1], "deny");
+
+    // answer rides the answering ws's WAL — cross-workspace close.
+    sturn_ok(&repo, &["answer", &ask_id, "release", "--ws", "b"], &[]);
+    let open2 = sturn_ok(&repo, &["asks"], &[]);
+    assert!(!open2.contains(&ask_id), "{open2}");
+    let all = sturn_ok(&repo, &["asks", "--all"], &[]);
+    assert!(all.contains("answered release"), "{all}");
+    // --json --all keeps the verdict.
+    let j = sturn_ok(&repo, &["asks", "--all", "--json"], &[]);
+    let arr: serde_json::Value = serde_json::from_str(&j).unwrap();
+    assert_eq!(arr[0]["status"], "answered");
+    assert_eq!(arr[0]["verdict"], "release");
+
+    // Closed asks refuse further terminal ops.
+    sturn_err(&repo, &["answer", &ask_id, "deny", "--ws", "b"]);
+    sturn_err(&repo, &["cancel", &ask_id, "--ws", "b"]);
+
+    // wait on the answered ask exits 0 with verdict + answerer.
+    let o = sturn_full(&repo, &["wait", &ask_id, "--timeout", "5"], &[], &[]);
+    assert!(o.status.success());
+    let out = String::from_utf8_lossy(&o.stdout);
+    assert!(
+        out.contains("\"verdict\":\"release\"") && out.contains("\"by\":"),
+        "{out}"
+    );
+
+    // Unknown ask errors everywhere.
+    sturn_err(&repo, &["answer", "ghost", "v", "--ws", "b"]);
+    sturn_err(&repo, &["cancel", "ghost", "--ws", "b"]);
+    sturn_err(&repo, &["wait", "ghost", "--timeout", "1"]);
+}
+
+#[test]
+fn asks_cancel_expire_and_wait_timeout() {
+    let repo = bare_repo("asks2");
+    sturn_ok(&repo, &["ws", "new", "a"], &[]);
+
+    // cancel: open → cancelled; wait exits 2.
+    let out = sturn_ok(&repo, &["ask", "deploy?", "--ws", "a", "--ttl", "0"], &[]);
+    let ask_id = out.split_whitespace().nth(1).unwrap().to_string();
+    sturn_ok(&repo, &["cancel", &ask_id, "--ws", "a"], &[]);
+    let o = sturn_full(&repo, &["wait", &ask_id, "--timeout", "5"], &[], &[]);
+    assert_eq!(o.status.code(), Some(2));
+    let all = sturn_ok(&repo, &["asks", "--all"], &[]);
+    assert!(all.contains("cancelled"), "{all}");
+
+    // expiry: ttl in the past closes the ask without an op.
+    let out = sturn_ok(&repo, &["ask", "ping?", "--ws", "a", "--ttl", "1"], &[]);
+    let ask_id = out.split_whitespace().nth(1).unwrap().to_string();
+    std::thread::sleep(std::time::Duration::from_secs(2));
+    let o = sturn_full(&repo, &["wait", &ask_id, "--timeout", "5"], &[], &[]);
+    assert_eq!(o.status.code(), Some(3));
+    sturn_err(&repo, &["answer", &ask_id, "late", "--ws", "a"]);
+
+    // --all --json surfaces cancelled + expired labels.
+    let j = sturn_ok(&repo, &["asks", "--all", "--json"], &[]);
+    assert!(j.contains("\"status\":\"cancelled\""), "{j}");
+    assert!(j.contains("\"status\":\"expired\""), "{j}");
+
+    // timeout: an ask that never resolves exits 4.
+    let out = sturn_ok(&repo, &["ask", "nobody?", "--ws", "a", "--ttl", "0"], &[]);
+    let ask_id = out.split_whitespace().nth(1).unwrap().to_string();
+    let o = sturn_full(
+        &repo,
+        &["wait", &ask_id, "--timeout", "1", "--poll", "50"],
+        &[],
+        &[],
+    );
+    assert_eq!(o.status.code(), Some(4));
+    let out = String::from_utf8_lossy(&o.stdout);
+    assert!(out.contains("\"status\":\"timeout\""), "{out}");
 }

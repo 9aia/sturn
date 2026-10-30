@@ -300,7 +300,8 @@ fn topic_vocabulary() {
     assert_eq!(topic::CLAIMS, "claims");
     assert_eq!(topic::REVIEW, "review");
     assert_eq!(topic::PRESENCE, "presence");
-    assert_eq!(topic::ALL.len(), 4);
+    assert_eq!(topic::ASKS, "asks");
+    assert_eq!(topic::ALL.len(), 5);
 }
 
 // ---------- coverage extensions ----------

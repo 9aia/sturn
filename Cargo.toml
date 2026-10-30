@@ -13,6 +13,7 @@ members = [
     "crates/sturn-vcs",
     "crates/sturn-git",
     "crates/sturn-claim",
+    "crates/sturn-ask",
     "crates/sturn-mcp",
     "crates/sturn-config",
     "crates/sturn-config-toml",
@@ -46,6 +47,7 @@ sturn-ws-git = { path = "crates/sturn-ws-git", version = "0.1.0" }
 sturn-vcs = { path = "crates/sturn-vcs", version = "0.1.0" }
 sturn-git = { path = "crates/sturn-git", version = "0.1.0" }
 sturn-claim = { path = "crates/sturn-claim", version = "0.1.0" }
+sturn-ask = { path = "crates/sturn-ask", version = "0.1.0" }
 sturn-mcp = { path = "crates/sturn-mcp", version = "0.1.0" }
 sturn-fuse = { path = "crates/sturn-fuse", version = "0.1.0" }
 sturn-config = { path = "crates/sturn-config", version = "0.1.0" }

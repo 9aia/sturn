@@ -136,7 +136,7 @@ impl<'a> SturnFs<'a> {
                     next += 1;
                     e
                 });
-                if !fs.entries.contains_key(&ino) { fs.entries.insert(ino, Entry { ino, dir: !last, path: cur.clone(), size: 0 }); }
+                fs.entries.entry(ino).or_insert_with(|| Entry { ino, dir: !last, path: cur.clone(), size: 0 });
                 let parent_ino = fs.by_path[&parent];
                 let kids = fs.kids.entry(parent_ino).or_default();
                 if !kids.iter().any(|(_, k)| *k == ino) { kids.push((part.to_string(), ino)); }
