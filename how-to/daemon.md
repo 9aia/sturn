@@ -9,6 +9,12 @@ url: /sturn/how-to/daemon.md
 ```sh
 sturn daemon                      # foreground
 sturn deploy service              # systemd user unit, Restart=always
+sturn service disable             # stop now + skip at login (unit kept)
+sturn service enable              # back on, now and at login
+sturn service status              # enabled=/active= probe
+sturn service restart             # bounce in place
+sturn service logs -f             # journal tail; -f follows
+sturn destroy service             # disable + remove the unit file
 ```
 
 ## If the daemon is down

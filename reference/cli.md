@@ -20,9 +20,14 @@ Global flags: `--repo <dir>` (default cwd) · `--config <path>`.
 | `sturn log [--ws <w>]` | replay the WAL as JSONL |
 | `sturn snap <ws…> -m <msg>` | fold ops → commit; multi-ws merges into one |
 | `sturn review <event-id> <approve\|reject> --ws <w>` | continuous review |
+| `sturn ask <subject> --ws <w> [--target T] [--option O…] [--ttl N]` | open a pending ask — event id is the handle |
+| `sturn asks [--all] [--json]` | pending asks; --all adds resolved |
+| `sturn answer <ask-id> <verdict> --ws <w>` | close an ask with a verdict |
+| `sturn cancel <ask-id> --ws <w>` | withdraw an open ask |
+| `sturn wait <ask-id> [--timeout N] [--poll MS]` | block until resolved; exit 0 answered · 2 cancelled · 3 expired · 4 timeout |
 | `sturn push [--remote R]` | push heads + `refs/sturn/*` |
 | `sturn daemon` | WAL → topic fan-out loop + `bus.sock` push |
-| `sturn sub <topic>` | stream ops|claims|review|presence as JSONL |
+| `sturn sub <topic>` | stream ops|claims|review|presence|asks as JSONL |
 | `sturn mcp [--ws W]` | MCP stdio server; --ws emits joined/left presence |
 | `sturn exec --ws <w> [--keep][--writeback] -- cmd…` | hydrate → run → clean; write-back as ops |
 | `sturn join\|leave <ws>` | presence; leave sweeps actor claims |
@@ -32,3 +37,5 @@ Global flags: `--repo <dir>` (default cwd) · `--config <path>`.
 | `sturn bridge --to <url>` | snapshot ops → HMAC webhook (bupha CI) |
 | `sturn mount <ws> <dir> [--rw]` | FUSE mount; --rw edits flow back as ops |
 | `sturn deploy service\|env` | systemd unit / secrets skeleton |
+| `sturn service enable\|disable\|status\|restart\|logs [-f]` | toggle/bounce the daemon unit (kept); logs tails the journal |
+| `sturn destroy service` | disable + remove the systemd user unit |
