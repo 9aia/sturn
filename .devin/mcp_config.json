@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "sturn": {
+      "command": "sturn",
+      "args": [
+        "mcp",
+        "--ws",
+        "devin"
+      ]
+    }
+  }
+}
