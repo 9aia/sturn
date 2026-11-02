@@ -2,6 +2,8 @@
 
 ## M3 — agent surface
 
+- [ ] T-013 presentation deck — pending: run via ~/.9aia-pres pipeline (pres kick sturn or supervisor); agent writes presentation/ on branch presentation/initial, slidev build verify, push; open PR manually (agent token cannot create PRs); status board: ~/.9aia-pres/STATUS.md · created:2026-11-02
+
 ## M4 — hydration
 
 ## M4.5 — shipped with M4/M5
