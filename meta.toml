@@ -3,6 +3,6 @@ name = "sturn"
 [next]
 t = 15
 i = 6
-p = 1
+p = 2
 adr = 4
 pl = 1
