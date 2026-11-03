@@ -6,8 +6,10 @@ cd your-repo
 sturn init
 ```
 
-`init` writes a `sturn.toml` and confirms the ref namespaces. From
-here, workspaces are the unit of parallel work:
+`init` writes a `sturn.toml` and confirms the ref namespaces. It
+also detects **colocated jj** repos (`jj git init`) — sturn works
+on them unchanged; non-colocated jj isn't supported. From here,
+workspaces are the unit of parallel work:
 
 ```sh
 sturn ws new agent-7      # refs/sturn/ws/agent-7 → HEAD. No checkout.
