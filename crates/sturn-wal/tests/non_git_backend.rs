@@ -156,13 +156,19 @@ impl Wal for FileWal {
 struct FlatVcs;
 
 impl Vcs for FlatVcs {
-    fn sync(&self, repo: &Path) -> bool {
+    fn sync(&self, repo: &Path, _remote: &str) -> bool {
         let remote = repo.join("remote");
         copy_tree(&remote.join("wal"), &repo.join("wal"))
     }
     fn has_commit(&self, repo: &Path, sha: &str) -> bool {
         // "object exists" maps to any store lookup — here, a file.
         repo.join("objects").join(sha).is_file()
+    }
+    fn resolve(&self, repo: &Path, rev: &str) -> Option<String> {
+        // "ref" maps to a file under heads/ holding the id.
+        std::fs::read_to_string(repo.join("heads").join(rev))
+            .ok()
+            .map(|s| s.trim().to_string())
     }
     fn push(&self, repo: &Path, _remote: &str) -> bool {
         let dst = repo.join("remote");
@@ -257,5 +263,5 @@ fn vcs_port_is_git_free() {
 
     assert!(vcs.push(&dir, "origin"));
     assert!(dir.join("remote").join("wal").join("w.jsonl").is_file());
-    assert!(vcs.sync(&dir));
+    assert!(vcs.sync(&dir, "origin"));
 }

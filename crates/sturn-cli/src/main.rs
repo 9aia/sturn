@@ -923,7 +923,7 @@ fn now() -> u64 {
 }
 
 fn append(
-    wal: &sturn_wal_git::GitWal,
+    wal: &dyn Wal,
     repo: &Path,
     ws: &str,
     actor: &str,
@@ -939,8 +939,8 @@ fn append(
 #[allow(clippy::too_many_arguments)]
 fn do_snap(
     repo: &Path,
-    wal: &sturn_wal_git::GitWal,
-    wsi: &sturn_ws_git::GitWs,
+    wal: &dyn Wal,
+    wsi: &dyn Ws,
     ws: &str,
     message: &str,
     branch: &str,
@@ -1031,8 +1031,8 @@ fn post_push(
 #[allow(clippy::too_many_arguments)]
 fn bridge_tick(
     repo: &Path,
-    wal: &sturn_wal_git::GitWal,
-    wsi: &sturn_ws_git::GitWs,
+    wal: &dyn Wal,
+    wsi: &dyn Ws,
     heads: &mut HashMap<String, Option<String>>,
     to: &str,
     secret: &str,
@@ -1064,7 +1064,7 @@ fn bridge_tick(
 fn daemon(
     repo: &Path,
     cfg: &Option<Config>,
-    wal: &sturn_wal_git::GitWal,
+    wal: &dyn Wal,
     bus_path: &Path,
     poll_ms: u64,
     repo_id: &str,
@@ -1110,8 +1110,8 @@ fn daemon(
 #[allow(clippy::too_many_arguments)]
 fn run_bridge(
     repo: &Path,
-    wal: &sturn_wal_git::GitWal,
-    wsi: &sturn_ws_git::GitWs,
+    wal: &dyn Wal,
+    wsi: &dyn Ws,
     to: &str,
     secret: &str,
     repo_id: &str,
@@ -1128,8 +1128,8 @@ fn run_bridge(
 #[allow(clippy::too_many_arguments)]
 fn run_bridge(
     _repo: &Path,
-    _wal: &sturn_wal_git::GitWal,
-    _wsi: &sturn_ws_git::GitWs,
+    _wal: &dyn Wal,
+    _wsi: &dyn Ws,
     _to: &str,
     _secret: &str,
     _repo_id: &str,
@@ -1145,8 +1145,8 @@ fn run_bridge(
 #[allow(clippy::too_many_arguments)]
 fn bridge(
     repo: &Path,
-    wal: &sturn_wal_git::GitWal,
-    wsi: &sturn_ws_git::GitWs,
+    wal: &dyn Wal,
+    wsi: &dyn Ws,
     to: &str,
     secret: &str,
     repo_id: &str,
@@ -1164,7 +1164,7 @@ fn bridge(
 /// head moved, publish the delta to `ops` plus the op-kind topic and
 /// push to live socket subscribers.
 fn daemon_tick(
-    wal: &sturn_wal_git::GitWal,
+    wal: &dyn Wal,
     dirs: &[PathBuf],
     repo: &Path,
     repo_id: &str,
@@ -1233,8 +1233,8 @@ fn subscribe(sock_path: &Path, repo_id: &str, topic: &str) -> Result<(), String>
 /// hydrated dirs see uncommitted ops, matching `ws_read`.
 fn hydrate_ws(
     repo: &Path,
-    wal: &sturn_wal_git::GitWal,
-    wsi: &sturn_ws_git::GitWs,
+    wal: &dyn Wal,
+    wsi: &dyn Ws,
     name: &str,
     dir: &Path,
     paths: &[String],
@@ -1320,7 +1320,7 @@ fn wait_exit_code(s: &sturn_ask::Status) -> i32 {
 /// terminal state, `Ok(None)` the deadline hit, `Err` means the
 /// ask id doesn't exist.
 fn wait_ask(
-    wal: &sturn_wal_git::GitWal,
+    wal: &dyn Wal,
     repo: &Path,
     ask: &str,
     timeout: u64,
@@ -1342,7 +1342,7 @@ fn wait_ask(
 
 /// Every workspace's events — claims are swarm-wide, so conflict
 /// checks fold all WALs, not just the caller's.
-fn all_events(wal: &sturn_wal_git::GitWal, repo: &Path) -> Result<Vec<Event>, String> {
+fn all_events(wal: &dyn Wal, repo: &Path) -> Result<Vec<Event>, String> {
     let mut all = Vec::new();
     for ws in wal.workspaces(repo).map_err(|e| e.to_string())? {
         all.extend(wal.events(repo, &ws).map_err(|e| e.to_string())?);
@@ -1393,8 +1393,8 @@ fn fanout(subs: &Subs, repo: &str, topic: &str, payload: &Arc<Vec<u8>>) {
 /// append Write/Delete ops for the difference. Returns ops written.
 fn writeback_ops(
     repo: &Path,
-    wal: &sturn_wal_git::GitWal,
-    wsi: &sturn_ws_git::GitWs,
+    wal: &dyn Wal,
+    wsi: &dyn Ws,
     ws: &str,
     dir: &Path,
     actor: &str,
@@ -1491,8 +1491,8 @@ fn writeback_ops(
 #[allow(clippy::too_many_arguments)]
 fn merge_snap(
     repo: &Path,
-    wal: &sturn_wal_git::GitWal,
-    wsi: &sturn_ws_git::GitWs,
+    wal: &dyn Wal,
+    wsi: &dyn Ws,
     wss: &[String],
     message: &str,
     branch: &str,
@@ -1532,15 +1532,8 @@ fn merge_snap(
     }
     // Base = current branch head, not any ws tip — merged ops apply
     // to where the branch is now.
-    let base = std::process::Command::new("git")
-        .arg("-C")
-        .arg(repo)
-        .args(["rev-parse", &format!("refs/heads/{branch}")])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .filter(|s| !s.is_empty())
+    let base = sturn_git::GitVcs
+        .resolve(repo, &format!("refs/heads/{branch}"))
         .unwrap_or_else(|| "HEAD".into());
     let commit = sturn_git::snap_commit(repo, &base, &pending, message, branch)
         .map_err(|e| e.to_string())?;

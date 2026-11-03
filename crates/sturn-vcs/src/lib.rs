@@ -11,10 +11,13 @@ use std::path::Path;
 /// All methods return bool success — callers decide whether a
 /// failure is retryable (offline remote) or fatal.
 pub trait Vcs: Send + Sync {
-    /// Fetch + prune so remote refs are current.
-    fn sync(&self, repo: &Path) -> bool;
+    /// Fetch + prune so `remote`'s refs are current.
+    fn sync(&self, repo: &Path, remote: &str) -> bool;
     /// Does the object exist locally?
     fn has_commit(&self, repo: &Path, sha: &str) -> bool;
+    /// Resolve a ref/revision to an object id — `None` when
+    /// unresolvable.
+    fn resolve(&self, repo: &Path, rev: &str) -> Option<String>;
     /// Publish local branches and the coordination namespace —
     /// state replicates for free on the same remote (git impl:
     /// heads + `refs/sturn/*`).

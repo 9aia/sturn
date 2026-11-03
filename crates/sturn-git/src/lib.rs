@@ -31,14 +31,29 @@ fn git(repo: &Path, args: &[&str]) -> io::Result<String> {
 }
 
 impl Vcs for GitVcs {
-    fn sync(&self, repo: &Path) -> bool {
+    fn sync(&self, repo: &Path, remote: &str) -> bool {
         Command::new("git")
             .arg("-C")
             .arg(repo)
-            .args(["fetch", "origin", "--prune"])
+            .args(["fetch", remote, "--prune"])
             .status()
             .map(|s| s.success())
             .unwrap_or(false)
+    }
+
+    fn resolve(&self, repo: &Path, rev: &str) -> Option<String> {
+        if let Ok(Some(sha)) = sturn_odb::resolve(repo, rev) {
+            return Some(sha);
+        }
+        Command::new("git")
+            .arg("-C")
+            .arg(repo)
+            .args(["rev-parse", "-q", "--verify", rev])
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .filter(|s| !s.is_empty())
     }
 
     fn has_commit(&self, repo: &Path, sha: &str) -> bool {

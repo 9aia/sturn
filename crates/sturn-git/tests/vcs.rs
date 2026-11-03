@@ -181,7 +181,7 @@ fn push_and_sync_bare_remote() {
 
     let vcs = GitVcs;
     assert!(vcs.push(&repo, "origin"));
-    assert!(vcs.sync(&repo));
+    assert!(vcs.sync(&repo, "origin"));
 
     // The remote now has both the branch and the WAL ref.
     let refs = git(&remote, &["for-each-ref", "--format=%(refname)"]);
@@ -198,7 +198,7 @@ fn vcs_failures_return_false() {
     git(&dir, &["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init", "--allow-empty"]);
     let vcs = GitVcs;
     // No remote configured → sync and push fail closed (false).
-    assert!(!vcs.sync(&dir));
+    assert!(!vcs.sync(&dir, "origin"));
     assert!(!vcs.push(&dir, "origin"));
     // Missing object → false.
     assert!(!vcs.has_commit(&dir, &"0".repeat(40)));
