@@ -2,85 +2,134 @@ name: sturn-ws-git
 path: crates/sturn-ws-git/Cargo.toml
 purpose: 'Ws impl: read/list/materialize via git plumbing'
 api:
+- name: GitWs
+  kind: type
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 14
+  module: sturn-ws-git
+- name: blob
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 122
+  module: sturn-ws-git
+- name: create
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 102
+  module: sturn-ws-git
+- name: create_tip_and_workspaces
+  kind: function
+  file: crates/sturn-ws-git/tests/ws.rs
+  line: 51
+  module: sturn-ws-git
+- name: entry
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 107
+  module: sturn-ws-git
+- name: git
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 16
+  module: sturn-ws-git
+- name: git
+  kind: function
+  file: crates/sturn-ws-git/tests/ws.rs
+  line: 10
+  module: sturn-ws-git
+- name: list
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 56
+  module: sturn-ws-git
+- name: materialize
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 64
+  module: sturn-ws-git
+- name: materialize_whole_and_subset
+  kind: function
+  file: crates/sturn-ws-git/tests/ws.rs
+  line: 92
+  module: sturn-ws-git
+- name: read
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 40
+  module: sturn-ws-git
+- name: read_and_blob_errors_surface
+  kind: function
+  file: crates/sturn-ws-git/tests/ws.rs
+  line: 120
+  module: sturn-ws-git
+- name: read_list_and_entry
+  kind: function
+  file: crates/sturn-ws-git/tests/ws.rs
+  line: 64
+  module: sturn-ws-git
+- name: repo
+  kind: function
+  file: crates/sturn-ws-git/tests/ws.rs
+  line: 26
+  module: sturn-ws-git
+- name: store
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 140
+  module: sturn-ws-git
+- name: store_and_blob_roundtrip
+  kind: function
+  file: crates/sturn-ws-git/tests/ws.rs
+  line: 81
+  module: sturn-ws-git
 - name: sturn-ws-git
   kind: module
   file: crates/sturn-ws-git/Cargo.toml
   line: 1
   module: sturn-ws-git
-- name: GitWs
-  kind: type
-  file: crates/sturn-ws-git/src/lib.rs
-  line: 13
-  module: sturn-ws-git
-- name: git
-  kind: function
-  file: crates/sturn-ws-git/src/lib.rs
-  line: 15
-  module: sturn-ws-git
-- name: ws_ref
-  kind: function
-  file: crates/sturn-ws-git/src/lib.rs
-  line: 34
-  module: sturn-ws-git
-- name: read
-  kind: function
-  file: crates/sturn-ws-git/src/lib.rs
-  line: 39
-  module: sturn-ws-git
-- name: list
-  kind: function
-  file: crates/sturn-ws-git/src/lib.rs
-  line: 52
-  module: sturn-ws-git
-- name: materialize
-  kind: function
-  file: crates/sturn-ws-git/src/lib.rs
-  line: 57
-  module: sturn-ws-git
-- name: create
-  kind: function
-  file: crates/sturn-ws-git/src/lib.rs
-  line: 95
-  module: sturn-ws-git
-- name: entry
-  kind: function
-  file: crates/sturn-ws-git/src/lib.rs
-  line: 100
-  module: sturn-ws-git
-- name: blob
-  kind: function
-  file: crates/sturn-ws-git/src/lib.rs
-  line: 112
-  module: sturn-ws-git
-- name: store
-  kind: function
-  file: crates/sturn-ws-git/src/lib.rs
-  line: 125
-  module: sturn-ws-git
 - name: tip
   kind: function
   file: crates/sturn-ws-git/src/lib.rs
-  line: 143
+  line: 161
+  module: sturn-ws-git
+- name: tip_missing_ws_errors
+  kind: function
+  file: crates/sturn-ws-git/tests/ws.rs
+  line: 112
   module: sturn-ws-git
 - name: workspaces
   kind: function
   file: crates/sturn-ws-git/src/lib.rs
-  line: 147
+  line: 168
+  module: sturn-ws-git
+- name: workspaces_ignores_other_ref_namespaces
+  kind: function
+  file: crates/sturn-ws-git/tests/ws.rs
+  line: 160
+  module: sturn-ws-git
+- name: ws_ref
+  kind: function
+  file: crates/sturn-ws-git/src/lib.rs
+  line: 35
   module: sturn-ws-git
 deps:
+- sturn-odb
 - sturn-ws
-- sturn_ws
+- sturn-ws
 notes: ''
 verify:
 - crates/sturn-ws-git/Cargo.toml
 - crates/sturn-ws-git/src/lib.rs
+- crates/sturn-ws-git/tests/ws.rs
 provenance:
   files:
   - crates/sturn-ws-git/Cargo.toml
   - crates/sturn-ws-git/src/lib.rs
+  - crates/sturn-ws-git/tests/ws.rs
   hashes:
-  - 622d40444abb820481c0186acf363c78410c72f2
-  - 32f9227f902272cf106f2b917033b3f1a03447a9
-  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
-  generated_at: '1792365733'
-  generator: kuda-template/0.1.1
+  - 74885c8dbd6264f0bc6da2657aeab82fc54a0c70
+  - 54c619fbf0b1a765fa3a15cfefbadd1f8c8a9da9
+  - 5a046fd6510b27f3ed0a0c110ddbd5272a00f7b9
+  commit_sha: 527b9ce180fa85a5572d19f61e13532251875a52
+  generated_at: '1793687886'
+  generator: kuda-template/0.1.2

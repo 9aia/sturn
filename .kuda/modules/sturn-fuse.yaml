@@ -2,142 +2,231 @@ name: sturn-fuse
 path: crates/sturn-fuse/Cargo.toml
 purpose: 'FUSE impl: mount a ws tree read-only for POSIX tools'
 api:
-- name: sturn-fuse
-  kind: module
-  file: crates/sturn-fuse/Cargo.toml
-  line: 1
-  module: sturn-fuse
-- name: TTL
-  kind: const
+- name: Entry
+  kind: type
   file: crates/sturn-fuse/src/lib.rs
-  line: 19
+  line: 46
+  module: sturn-fuse
+- name: FailWs
+  kind: type
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 231
+  module: sturn-fuse
+- name: MOUNT_LOCK
+  kind: const
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 18
+  module: sturn-fuse
+- name: MemWal
+  kind: type
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 125
+  module: sturn-fuse
+- name: MemWs
+  kind: type
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 63
   module: sturn-fuse
 - name: ROOT
   kind: const
   file: crates/sturn-fuse/src/lib.rs
   line: 20
   module: sturn-fuse
-- name: attr
-  kind: function
-  file: crates/sturn-fuse/src/lib.rs
-  line: 22
-  module: sturn-fuse
-- name: Entry
-  kind: type
-  file: crates/sturn-fuse/src/lib.rs
-  line: 46
-  module: sturn-fuse
 - name: SturnFs
   kind: type
   file: crates/sturn-fuse/src/lib.rs
   line: 55
   module: sturn-fuse
-- name: new
-  kind: function
+- name: TTL
+  kind: const
   file: crates/sturn-fuse/src/lib.rs
-  line: 74
+  line: 19
   module: sturn-fuse
-- name: new_rw
+- name: add_entry
   kind: function
   file: crates/sturn-fuse/src/lib.rs
-  line: 79
+  line: 163
+  module: sturn-fuse
+- name: append
+  kind: function
+  file: crates/sturn-fuse/src/lib.rs
+  line: 159
+  module: sturn-fuse
+- name: append
+  kind: function
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 138
+  module: sturn-fuse
+- name: attr
+  kind: function
+  file: crates/sturn-fuse/src/lib.rs
+  line: 22
+  module: sturn-fuse
+- name: blob
+  kind: function
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 101
+  module: sturn-fuse
+- name: blob
+  kind: function
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 248
   module: sturn-fuse
 - name: build
   kind: function
   file: crates/sturn-fuse/src/lib.rs
   line: 90
   module: sturn-fuse
-- name: mount
+- name: build_runs_over_tree_without_mounting
   kind: function
-  file: crates/sturn-fuse/src/lib.rs
-  line: 162
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 217
   module: sturn-fuse
-- name: append
+- name: compact
   kind: function
-  file: crates/sturn-fuse/src/lib.rs
-  line: 171
-  module: sturn-fuse
-- name: add_entry
-  kind: function
-  file: crates/sturn-fuse/src/lib.rs
-  line: 181
-  module: sturn-fuse
-- name: lookup
-  kind: function
-  file: crates/sturn-fuse/src/lib.rs
-  line: 211
-  module: sturn-fuse
-- name: getattr
-  kind: function
-  file: crates/sturn-fuse/src/lib.rs
-  line: 233
-  module: sturn-fuse
-- name: readdir
-  kind: function
-  file: crates/sturn-fuse/src/lib.rs
-  line: 240
-  module: sturn-fuse
-- name: open
-  kind: function
-  file: crates/sturn-fuse/src/lib.rs
-  line: 278
-  module: sturn-fuse
-- name: read
-  kind: function
-  file: crates/sturn-fuse/src/lib.rs
-  line: 298
-  module: sturn-fuse
-- name: write
-  kind: function
-  file: crates/sturn-fuse/src/lib.rs
-  line: 329
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 161
   module: sturn-fuse
 - name: create
   kind: function
   file: crates/sturn-fuse/src/lib.rs
-  line: 366
+  line: 335
   module: sturn-fuse
-- name: setattr
+- name: create
+  kind: function
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 95
+  module: sturn-fuse
+- name: create
+  kind: function
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 242
+  module: sturn-fuse
+- name: entry
+  kind: function
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 98
+  module: sturn-fuse
+- name: entry
+  kind: function
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 245
+  module: sturn-fuse
+- name: events_since
+  kind: function
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 145
+  module: sturn-fuse
+- name: file_size
   kind: function
   file: crates/sturn-fuse/src/lib.rs
-  line: 394
+  line: 195
   module: sturn-fuse
-- name: release
+- name: flush
   kind: function
   file: crates/sturn-fuse/src/lib.rs
-  line: 434
+  line: 431
   module: sturn-fuse
-- name: unlink
+- name: fsync
   kind: function
   file: crates/sturn-fuse/src/lib.rs
-  line: 458
+  line: 417
   module: sturn-fuse
-- name: rename
+- name: getattr
   kind: function
   file: crates/sturn-fuse/src/lib.rs
-  line: 482
+  line: 225
   module: sturn-fuse
+- name: head
+  kind: function
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 155
+  module: sturn-fuse
+- name: list
+  kind: function
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 89
+  module: sturn-fuse
+- name: list
+  kind: function
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 236
+  module: sturn-fuse
+- name: lookup
+  kind: function
+  file: crates/sturn-fuse/src/lib.rs
+  line: 213
+  module: sturn-fuse
+- name: materialize
+  kind: function
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 92
+  module: sturn-fuse
+- name: materialize
+  kind: function
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 239
+  module: sturn-fuse
+- name: mkdir
+  kind: function
+  file: crates/sturn-fuse/src/lib.rs
+  line: 436
+  module: sturn-fuse
+- name: mount
+  kind: function
+  file: crates/sturn-fuse/src/lib.rs
+  line: 150
+  module: sturn-fuse
+- name: mount_lock
+  kind: function
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 20
+  module: sturn-fuse
+- name: new
+  kind: function
+  file: crates/sturn-fuse/src/lib.rs
+  line: 74
+  module: sturn-fuse
+- name: new
+  kind: function
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 70
+  module: sturn-fuse
+- name: new
+  kind: function
+  file: crates/sturn-fuse/tests/fuse.rs
+  line: 130
+  module: sturn-fuse
+- name: new_rw
+  kind: function
+  file: crates/sturn-fuse/src/lib.rs
+  line: 79
+  module: sturn-fuse
+api_omitted: 24
 deps:
 - fuser
 - libc
 - sturn-core
 - sturn-wal
 - sturn-ws
+- sturn-core
+- sturn-wal
+- sturn-ws
 - fuser
-- sturn_core
-- sturn_wal
-- sturn_ws
 notes: ''
 verify:
 - crates/sturn-fuse/Cargo.toml
 - crates/sturn-fuse/src/lib.rs
+- crates/sturn-fuse/tests/fuse.rs
 provenance:
   files:
   - crates/sturn-fuse/Cargo.toml
   - crates/sturn-fuse/src/lib.rs
+  - crates/sturn-fuse/tests/fuse.rs
   hashes:
   - 6c132812f2fc147db0df216bc92eb260e01b2491
-  - 75ef3f7a24cc490074daf7d8c4eeb51938b2a864
-  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
-  generated_at: '1792365733'
-  generator: kuda-template/0.1.1
+  - f9e3ed9aa08b84ae2a0ba1e2f18a54eedc1b92b7
+  - 4869a24e8d2ce13ec47a07b0125cf081af634d23
+  commit_sha: 527b9ce180fa85a5572d19f61e13532251875a52
+  generated_at: '1793687886'
+  generator: kuda-template/0.1.2

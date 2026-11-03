@@ -2,15 +2,15 @@ name: sturn-vcs
 path: crates/sturn-vcs/Cargo.toml
 purpose: 'Vcs port: sync/push/commit to ordinary git remotes'
 api:
+- name: Vcs
+  kind: trait
+  file: crates/sturn-vcs/src/lib.rs
+  line: 13
+  module: sturn-vcs
 - name: sturn-vcs
   kind: module
   file: crates/sturn-vcs/Cargo.toml
   line: 1
-  module: sturn-vcs
-- name: Vcs
-  kind: trait
-  file: crates/sturn-vcs/src/lib.rs
-  line: 9
   module: sturn-vcs
 deps: []
 notes: ''
@@ -23,7 +23,7 @@ provenance:
   - crates/sturn-vcs/src/lib.rs
   hashes:
   - 8f6f6413720e4aae40291674c780cec299171613
-  - 227793e45dfc2bc2ccd880b8dc92728fe004176e
-  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
-  generated_at: '1792365733'
-  generator: kuda-template/0.1.1
+  - 763ea569fc81f532c1ac5bbb147728c60c3f2679
+  commit_sha: 527b9ce180fa85a5572d19f61e13532251875a52
+  generated_at: '1793687886'
+  generator: kuda-template/0.1.2

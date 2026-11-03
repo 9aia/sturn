@@ -2,74 +2,128 @@ name: sturn-systemd
 path: crates/sturn-systemd/Cargo.toml
 purpose: 'Service impl + deploy helpers: systemd user units'
 api:
-- name: sturn-systemd
-  kind: module
-  file: crates/sturn-systemd/Cargo.toml
-  line: 1
+- name: SystemdService
+  kind: type
+  file: crates/sturn-systemd/src/lib.rs
+  line: 147
   module: sturn-systemd
-- name: home
+- name: disable
   kind: function
   file: crates/sturn-systemd/src/lib.rs
-  line: 9
+  line: 165
   module: sturn-systemd
-- name: write_service_unit
+- name: disable_service
   kind: function
   file: crates/sturn-systemd/src/lib.rs
-  line: 16
+  line: 127
+  module: sturn-systemd
+- name: enable
+  kind: function
+  file: crates/sturn-systemd/src/lib.rs
+  line: 162
   module: sturn-systemd
 - name: enable_service
   kind: function
   file: crates/sturn-systemd/src/lib.rs
   line: 53
   module: sturn-systemd
+- name: env_skeleton_is_owner_only
+  kind: function
+  file: crates/sturn-systemd/tests/systemd.rs
+  line: 29
+  module: sturn-systemd
+- name: env_skeleton_writes_template_once
+  kind: function
+  file: crates/sturn-systemd/tests/systemd.rs
+  line: 16
+  module: sturn-systemd
+- name: home
+  kind: function
+  file: crates/sturn-systemd/src/lib.rs
+  line: 9
+  module: sturn-systemd
+- name: restart_service
+  kind: function
+  file: crates/sturn-systemd/src/lib.rs
+  line: 105
+  module: sturn-systemd
+- name: run
+  kind: function
+  file: crates/sturn-systemd/src/lib.rs
+  line: 137
+  module: sturn-systemd
+- name: scratch
+  kind: function
+  file: crates/sturn-systemd/tests/systemd.rs
+  line: 8
+  module: sturn-systemd
+- name: service_logs
+  kind: function
+  file: crates/sturn-systemd/src/lib.rs
+  line: 111
+  module: sturn-systemd
+- name: service_unit_renders
+  kind: function
+  file: crates/sturn-systemd/tests/systemd.rs
+  line: 41
+  module: sturn-systemd
+- name: stop_service
+  kind: function
+  file: crates/sturn-systemd/src/lib.rs
+  line: 82
+  module: sturn-systemd
+- name: sturn-systemd
+  kind: module
+  file: crates/sturn-systemd/Cargo.toml
+  line: 1
+  module: sturn-systemd
+- name: systemctl_and_journalctl_stubs
+  kind: function
+  file: crates/sturn-systemd/tests/systemd.rs
+  line: 83
+  module: sturn-systemd
+- name: unit_status
+  kind: function
+  file: crates/sturn-systemd/src/lib.rs
+  line: 89
+  module: sturn-systemd
+- name: unit_status_never_throws
+  kind: function
+  file: crates/sturn-systemd/tests/systemd.rs
+  line: 70
+  module: sturn-systemd
+- name: write
+  kind: function
+  file: crates/sturn-systemd/src/lib.rs
+  line: 159
+  module: sturn-systemd
 - name: write_env_skeleton
   kind: function
   file: crates/sturn-systemd/src/lib.rs
   line: 60
   module: sturn-systemd
-- name: disable_service
+- name: write_service_unit
   kind: function
   file: crates/sturn-systemd/src/lib.rs
-  line: 81
-  module: sturn-systemd
-- name: run
-  kind: function
-  file: crates/sturn-systemd/src/lib.rs
-  line: 91
-  module: sturn-systemd
-- name: SystemdService
-  kind: type
-  file: crates/sturn-systemd/src/lib.rs
-  line: 101
-  module: sturn-systemd
-- name: write
-  kind: function
-  file: crates/sturn-systemd/src/lib.rs
-  line: 113
-  module: sturn-systemd
-- name: enable
-  kind: function
-  file: crates/sturn-systemd/src/lib.rs
-  line: 116
-  module: sturn-systemd
-- name: disable
-  kind: function
-  file: crates/sturn-systemd/src/lib.rs
-  line: 119
+  line: 16
   module: sturn-systemd
 deps:
+- sturn-service
 - sturn-service
 notes: ''
 verify:
 - crates/sturn-systemd/Cargo.toml
 - crates/sturn-systemd/src/lib.rs
+- crates/sturn-systemd/tests/systemd.rs
 provenance:
   files:
   - crates/sturn-systemd/Cargo.toml
   - crates/sturn-systemd/src/lib.rs
+  - crates/sturn-systemd/tests/systemd.rs
   hashes:
   - fc98064852bf86a66f76cb4a8fd4da68c5dd17ec
-  - 121e0b73ef31eca32f97e8716f8db8729bed501b
-  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
-  generated_at: '1792365733'
-  generator: kuda-template/0.1.1
+  - 6dd3fd3b6cd37ccbc6bc516e4b259c129489b1ac
+  - 981cd5705de84e8013edf50f9d496e19a1fcc4c9
+  commit_sha: 527b9ce180fa85a5572d19f61e13532251875a52
+  generated_at: '1793687886'
+  generator: kuda-template/0.1.2

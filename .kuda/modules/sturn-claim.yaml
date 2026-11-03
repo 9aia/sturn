@@ -2,60 +2,183 @@ name: sturn-claim
 path: crates/sturn-claim/Cargo.toml
 purpose: 'advisory claims: fold ops into live locks, detect overlap'
 api:
-- name: sturn-claim
-  kind: module
-  file: crates/sturn-claim/Cargo.toml
-  line: 1
-  module: sturn-claim
 - name: Active
   kind: type
   file: crates/sturn-claim/src/lib.rs
-  line: 10
+  line: 15
   module: sturn-claim
 - name: active
   kind: function
   file: crates/sturn-claim/src/lib.rs
+  line: 27
+  module: sturn-claim
+- name: claim_and_release_match_on_canonical_uri
+  kind: function
+  file: crates/sturn-claim/tests/claims.rs
+  line: 318
+  module: sturn-claim
+- name: claim_upserts_per_ws_and_glob
+  kind: function
+  file: crates/sturn-claim/tests/claims.rs
+  line: 65
+  module: sturn-claim
+- name: conflicts
+  kind: function
+  file: crates/sturn-claim/src/lib.rs
+  line: 156
+  module: sturn-claim
+- name: conflicts_reports_opaque_holders
+  kind: function
+  file: crates/sturn-claim/tests/claims.rs
+  line: 354
+  module: sturn-claim
+- name: conflicts_reports_overlapping_holders
+  kind: function
+  file: crates/sturn-claim/tests/claims.rs
+  line: 236
+  module: sturn-claim
+- name: covers
+  kind: function
+  file: crates/sturn-claim/src/lib.rs
+  line: 113
+  module: sturn-claim
+- name: covers_is_symmetric_overlap
+  kind: function
+  file: crates/sturn-claim/tests/claims.rs
+  line: 53
+  module: sturn-claim
+- name: ev
+  kind: function
+  file: crates/sturn-claim/tests/claims.rs
+  line: 7
+  module: sturn-claim
+- name: expired_claims_drop
+  kind: function
+  file: crates/sturn-claim/tests/claims.rs
+  line: 209
+  module: sturn-claim
+- name: glob_double_star_crosses_segments
+  kind: function
+  file: crates/sturn-claim/tests/claims.rs
+  line: 35
+  module: sturn-claim
+- name: glob_edges
+  kind: function
+  file: crates/sturn-claim/tests/claims.rs
+  line: 43
+  module: sturn-claim
+- name: glob_literal
+  kind: function
+  file: crates/sturn-claim/tests/claims.rs
   line: 21
   module: sturn-claim
 - name: glob_match
   kind: function
   file: crates/sturn-claim/src/lib.rs
-  line: 51
+  line: 83
+  module: sturn-claim
+- name: glob_star_within_segment
+  kind: function
+  file: crates/sturn-claim/tests/claims.rs
+  line: 28
   module: sturn-claim
 - name: m
   kind: function
   file: crates/sturn-claim/src/lib.rs
-  line: 52
+  line: 84
+  module: sturn-claim
+- name: normalize
+  kind: function
+  file: crates/sturn-claim/src/lib.rs
+  line: 76
+  module: sturn-claim
+- name: normalize_canonicalizes_scheme
+  kind: function
+  file: crates/sturn-claim/tests/claims.rs
+  line: 282
+  module: sturn-claim
+- name: opaque_covers
+  kind: function
+  file: crates/sturn-claim/src/lib.rs
+  line: 125
+  module: sturn-claim
+- name: overlaps
+  kind: function
+  file: crates/sturn-claim/src/lib.rs
+  line: 140
+  module: sturn-claim
+- name: overlaps_fs_uses_glob_intersection
+  kind: function
+  file: crates/sturn-claim/tests/claims.rs
+  line: 291
+  module: sturn-claim
+- name: overlaps_opaque_exact_and_boundary_prefix
+  kind: function
+  file: crates/sturn-claim/tests/claims.rs
+  line: 302
+  module: sturn-claim
+- name: presence_joined_keeps_claims
+  kind: function
+  file: crates/sturn-claim/tests/claims.rs
+  line: 185
+  module: sturn-claim
+- name: presence_left_drops_actors_claims
+  kind: function
+  file: crates/sturn-claim/tests/claims.rs
+  line: 141
+  module: sturn-claim
+- name: release_drops_claim
+  kind: function
+  file: crates/sturn-claim/tests/claims.rs
+  line: 93
+  module: sturn-claim
+- name: release_in_other_ws_keeps_claim
+  kind: function
+  file: crates/sturn-claim/tests/claims.rs
+  line: 117
+  module: sturn-claim
+- name: scheme_ok
+  kind: function
+  file: crates/sturn-claim/src/lib.rs
+  line: 59
+  module: sturn-claim
+- name: split
+  kind: function
+  file: crates/sturn-claim/src/lib.rs
+  line: 67
+  module: sturn-claim
+- name: split_reads_scheme_prefix
+  kind: function
+  file: crates/sturn-claim/tests/claims.rs
+  line: 267
   module: sturn-claim
 - name: stem
   kind: function
   file: crates/sturn-claim/src/lib.rs
-  line: 69
+  line: 101
   module: sturn-claim
-- name: covers
-  kind: function
-  file: crates/sturn-claim/src/lib.rs
-  line: 80
-  module: sturn-claim
-- name: conflicts
-  kind: function
-  file: crates/sturn-claim/src/lib.rs
-  line: 91
+- name: sturn-claim
+  kind: module
+  file: crates/sturn-claim/Cargo.toml
+  line: 1
   module: sturn-claim
 deps:
 - sturn-core
-- sturn_core
+- sturn-core
 notes: ''
 verify:
 - crates/sturn-claim/Cargo.toml
 - crates/sturn-claim/src/lib.rs
+- crates/sturn-claim/tests/claims.rs
 provenance:
   files:
   - crates/sturn-claim/Cargo.toml
   - crates/sturn-claim/src/lib.rs
+  - crates/sturn-claim/tests/claims.rs
   hashes:
   - 93abd736bec8e72671fe408e4acbc61526f03d7e
-  - 956bfddb9499886ce80fa36e68eb56bac600cc24
-  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
-  generated_at: '1792365733'
-  generator: kuda-template/0.1.1
+  - fa6094783f06ed91f08615d152b1e678148da8bc
+  - 68fdbb0b539cc6d1f8ded4b4165f73ca4891c5e2
+  commit_sha: 527b9ce180fa85a5572d19f61e13532251875a52
+  generated_at: '1793687886'
+  generator: kuda-template/0.1.2

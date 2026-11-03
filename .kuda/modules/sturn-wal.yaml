@@ -2,35 +2,136 @@ name: sturn-wal
 path: crates/sturn-wal/Cargo.toml
 purpose: 'Wal port: append-only op log inside git refs'
 api:
+- name: FileWal
+  kind: type
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 44
+  module: sturn-wal
+- name: FlatVcs
+  kind: type
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 156
+  module: sturn-wal
+- name: Wal
+  kind: trait
+  file: crates/sturn-wal/src/lib.rs
+  line: 16
+  module: sturn-wal
+- name: append
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 65
+  module: sturn-wal
+- name: compact
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 132
+  module: sturn-wal
+- name: content_id
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 32
+  module: sturn-wal
+- name: copy_tree
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 180
+  module: sturn-wal
+- name: events
+  kind: function
+  file: crates/sturn-wal/src/lib.rs
+  line: 22
+  module: sturn-wal
+- name: events_since
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 99
+  module: sturn-wal
+- name: has_commit
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 163
+  module: sturn-wal
+- name: head
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 113
+  module: sturn-wal
+- name: lines
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 51
+  module: sturn-wal
+- name: log
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 47
+  module: sturn-wal
+- name: push
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 173
+  module: sturn-wal
+- name: resolve
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 167
+  module: sturn-wal
+- name: scratch
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 23
+  module: sturn-wal
 - name: sturn-wal
   kind: module
   file: crates/sturn-wal/Cargo.toml
   line: 1
   module: sturn-wal
-- name: Wal
-  kind: trait
-  file: crates/sturn-wal/src/lib.rs
-  line: 11
-  module: sturn-wal
-- name: events
+- name: sync
   kind: function
-  file: crates/sturn-wal/src/lib.rs
-  line: 16
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 159
+  module: sturn-wal
+- name: vcs_port_is_git_free
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 252
+  module: sturn-wal
+- name: wal_append_is_atomic_under_contention
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 229
+  module: sturn-wal
+- name: wal_port_is_git_free
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 196
+  module: sturn-wal
+- name: workspaces
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 118
   module: sturn-wal
 deps:
 - sturn-core
-- sturn_core
+- serde_json
+- sturn-vcs
+- sturn-core
+- sturn-vcs
 notes: ''
 verify:
 - crates/sturn-wal/Cargo.toml
 - crates/sturn-wal/src/lib.rs
+- crates/sturn-wal/tests/non_git_backend.rs
 provenance:
   files:
   - crates/sturn-wal/Cargo.toml
   - crates/sturn-wal/src/lib.rs
+  - crates/sturn-wal/tests/non_git_backend.rs
   hashes:
-  - b3fc982d83ba2ad53c4c7d754066f1286dfdd5a6
-  - 8f3084a6d481cf8f11628ccb6ff998fd090e89c5
-  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
-  generated_at: '1792365733'
-  generator: kuda-template/0.1.1
+  - 584780a4590a94619103a507fdb64e4a60a1c28f
+  - 55f3b32306343ddef1db86e4356ce08e824795db
+  - b41d7c7809fa2a648e045db0c644f420703923e1
+  commit_sha: 527b9ce180fa85a5572d19f61e13532251875a52
+  generated_at: '1793687886'
+  generator: kuda-template/0.1.2

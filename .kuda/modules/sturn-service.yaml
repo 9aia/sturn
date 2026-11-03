@@ -2,15 +2,15 @@ name: sturn-service
 path: crates/sturn-service/Cargo.toml
 purpose: 'Service port: OS service lifecycle'
 api:
-- name: sturn-service
-  kind: module
-  file: crates/sturn-service/Cargo.toml
-  line: 1
-  module: sturn-service
 - name: Service
   kind: trait
   file: crates/sturn-service/src/lib.rs
   line: 8
+  module: sturn-service
+- name: sturn-service
+  kind: module
+  file: crates/sturn-service/Cargo.toml
+  line: 1
   module: sturn-service
 deps: []
 notes: ''
@@ -24,6 +24,6 @@ provenance:
   hashes:
   - 3413fa357f481c897fdae1e74b20a16055646341
   - 1838a31aaec86acdd409d57bf9a38cf9758701a7
-  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
-  generated_at: '1792365733'
-  generator: kuda-template/0.1.1
+  commit_sha: 527b9ce180fa85a5572d19f61e13532251875a52
+  generated_at: '1793687886'
+  generator: kuda-template/0.1.2

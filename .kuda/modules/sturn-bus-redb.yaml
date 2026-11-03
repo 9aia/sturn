@@ -2,35 +2,55 @@ name: sturn-bus-redb
 path: crates/sturn-bus-redb/Cargo.toml
 purpose: 'Bus impl: redb-backed topic store with cursors'
 api:
-- name: sturn-bus-redb
-  kind: module
-  file: crates/sturn-bus-redb/Cargo.toml
-  line: 1
-  module: sturn-bus-redb
-- name: TABLE
-  kind: const
+- name: RedbBus
+  kind: type
   file: crates/sturn-bus-redb/src/lib.rs
-  line: 11
+  line: 17
   module: sturn-bus-redb
 - name: SEQ
   kind: const
   file: crates/sturn-bus-redb/src/lib.rs
   line: 13
   module: sturn-bus-redb
-- name: RedbBus
-  kind: type
+- name: TABLE
+  kind: const
   file: crates/sturn-bus-redb/src/lib.rs
-  line: 17
+  line: 11
+  module: sturn-bus-redb
+- name: key
+  kind: function
+  file: crates/sturn-bus-redb/src/lib.rs
+  line: 32
   module: sturn-bus-redb
 - name: open
   kind: function
   file: crates/sturn-bus-redb/src/lib.rs
   line: 23
   module: sturn-bus-redb
-- name: key
+- name: open_edge_cases_and_tableless_reads
+  kind: function
+  file: crates/sturn-bus-redb/tests/bus.rs
+  line: 78
+  module: sturn-bus-redb
+- name: poll
   kind: function
   file: crates/sturn-bus-redb/src/lib.rs
-  line: 32
+  line: 74
+  module: sturn-bus-redb
+- name: poll_empty_topic_is_empty
+  kind: function
+  file: crates/sturn-bus-redb/tests/bus.rs
+  line: 57
+  module: sturn-bus-redb
+- name: poll_resume_and_topic_isolation
+  kind: function
+  file: crates/sturn-bus-redb/tests/bus.rs
+  line: 90
+  module: sturn-bus-redb
+- name: poll_returns_after_cursor
+  kind: function
+  file: crates/sturn-bus-redb/tests/bus.rs
+  line: 25
   module: sturn-bus-redb
 - name: prefix
   kind: function
@@ -42,32 +62,50 @@ api:
   file: crates/sturn-bus-redb/src/lib.rs
   line: 42
   module: sturn-bus-redb
-- name: poll
+- name: publish_assigns_monotonic_seq
   kind: function
-  file: crates/sturn-bus-redb/src/lib.rs
-  line: 74
+  file: crates/sturn-bus-redb/tests/bus.rs
+  line: 15
+  module: sturn-bus-redb
+- name: scratch
+  kind: function
+  file: crates/sturn-bus-redb/tests/bus.rs
+  line: 7
+  module: sturn-bus-redb
+- name: sturn-bus-redb
+  kind: module
+  file: crates/sturn-bus-redb/Cargo.toml
+  line: 1
   module: sturn-bus-redb
 - name: topics
   kind: function
   file: crates/sturn-bus-redb/src/lib.rs
-  line: 100
+  line: 107
+  module: sturn-bus-redb
+- name: topics_lists_seen_topics_sorted
+  kind: function
+  file: crates/sturn-bus-redb/tests/bus.rs
+  line: 64
   module: sturn-bus-redb
 deps:
 - redb
 - sturn-bus
+- sturn-bus
 - redb
-- sturn_bus
 notes: ''
 verify:
 - crates/sturn-bus-redb/Cargo.toml
 - crates/sturn-bus-redb/src/lib.rs
+- crates/sturn-bus-redb/tests/bus.rs
 provenance:
   files:
   - crates/sturn-bus-redb/Cargo.toml
   - crates/sturn-bus-redb/src/lib.rs
+  - crates/sturn-bus-redb/tests/bus.rs
   hashes:
   - 400e9db9ac5978965f038a926e04e4ef1dbb2f4e
-  - 2beb076a8acf6f9d1581f26d81ec171c685dfa06
-  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
-  generated_at: '1792365733'
-  generator: kuda-template/0.1.1
+  - eb2fecfdafadb29f31884ae902ed8850f5ef77d2
+  - 1f7c88a90047c4092513e69d08b6ab1904a168b6
+  commit_sha: 527b9ce180fa85a5572d19f61e13532251875a52
+  generated_at: '1793687886'
+  generator: kuda-template/0.1.2

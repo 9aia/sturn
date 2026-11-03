@@ -1,0 +1,139 @@
+name: sturn-ask
+path: crates/sturn-ask/Cargo.toml
+purpose: 'pending-response asks: fold ops into open questions and verdicts'
+api:
+- name: Fold
+  kind: type
+  file: crates/sturn-ask/src/lib.rs
+  line: 42
+  module: sturn-ask
+- name: Open
+  kind: type
+  file: crates/sturn-ask/src/lib.rs
+  line: 14
+  module: sturn-ask
+- name: Status
+  kind: type
+  file: crates/sturn-ask/src/lib.rs
+  line: 31
+  module: sturn-ask
+- name: all
+  kind: function
+  file: crates/sturn-ask/src/lib.rs
+  line: 120
+  module: sturn-ask
+- name: all_reports_every_state_in_order
+  kind: function
+  file: crates/sturn-ask/tests/asks.rs
+  line: 235
+  module: sturn-ask
+- name: answer_closes_and_first_wins
+  kind: function
+  file: crates/sturn-ask/tests/asks.rs
+  line: 57
+  module: sturn-ask
+- name: answered_ask_does_not_expire
+  kind: function
+  file: crates/sturn-ask/tests/asks.rs
+  line: 114
+  module: sturn-ask
+- name: answers_from_other_workspaces_close_the_ask
+  kind: function
+  file: crates/sturn-ask/tests/asks.rs
+  line: 157
+  module: sturn-ask
+- name: ask
+  kind: function
+  file: crates/sturn-ask/tests/asks.rs
+  line: 18
+  module: sturn-ask
+- name: cancel_closes
+  kind: function
+  file: crates/sturn-ask/tests/asks.rs
+  line: 92
+  module: sturn-ask
+- name: ev
+  kind: function
+  file: crates/sturn-ask/tests/asks.rs
+  line: 7
+  module: sturn-ask
+- name: expiry_is_derived
+  kind: function
+  file: crates/sturn-ask/tests/asks.rs
+  line: 101
+  module: sturn-ask
+- name: fold
+  kind: function
+  file: crates/sturn-ask/src/lib.rs
+  line: 51
+  module: sturn-ask
+- name: fresh_ask_is_open
+  kind: function
+  file: crates/sturn-ask/tests/asks.rs
+  line: 51
+  module: sturn-ask
+- name: open
+  kind: function
+  file: crates/sturn-ask/src/lib.rs
+  line: 125
+  module: sturn-ask
+- name: open_carries_metadata
+  kind: function
+  file: crates/sturn-ask/tests/asks.rs
+  line: 211
+  module: sturn-ask
+- name: open_lists_only_live_asks
+  kind: function
+  file: crates/sturn-ask/tests/asks.rs
+  line: 185
+  module: sturn-ask
+- name: reask_same_log_order_stable
+  kind: function
+  file: crates/sturn-ask/tests/asks.rs
+  line: 269
+  module: sturn-ask
+- name: status
+  kind: function
+  file: crates/sturn-ask/src/lib.rs
+  line: 134
+  module: sturn-ask
+- name: sturn-ask
+  kind: module
+  file: crates/sturn-ask/Cargo.toml
+  line: 1
+  module: sturn-ask
+- name: terminal_ops_for_unknown_asks_are_ignored
+  kind: function
+  file: crates/sturn-ask/tests/asks.rs
+  line: 138
+  module: sturn-ask
+- name: unknown_ask_is_none
+  kind: function
+  file: crates/sturn-ask/tests/asks.rs
+  line: 36
+  module: sturn-ask
+- name: zero_ttl_never_expires
+  kind: function
+  file: crates/sturn-ask/tests/asks.rs
+  line: 108
+  module: sturn-ask
+deps:
+- sturn-core
+- sturn-core
+notes: ''
+verify:
+- crates/sturn-ask/Cargo.toml
+- crates/sturn-ask/src/lib.rs
+- crates/sturn-ask/tests/asks.rs
+provenance:
+  files:
+  - crates/sturn-ask/Cargo.toml
+  - crates/sturn-ask/src/lib.rs
+  - crates/sturn-ask/tests/asks.rs
+  hashes:
+  - 4dafecd121808bfabe6de0b6fd362c82eae4c268
+  - 5066b8c22b870470a782924a33e0bfe77d1d6e5f
+  - 840388cd0207bd9c8029dc4c2adf6a0e20456808
+  commit_sha: 527b9ce180fa85a5572d19f61e13532251875a52
+  generated_at: '1793687886'
+  generator: kuda-template/0.1.2

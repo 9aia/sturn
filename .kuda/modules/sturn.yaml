@@ -1,6 +1,6 @@
 name: sturn
 path: Cargo.toml
-purpose: '*The murmuration layer for your repo.*'
+purpose: '*Ephemeral coordination engine — claims/ops/topics over VCS state.*'
 api:
 - name: sturn
   kind: module
@@ -15,7 +15,7 @@ provenance:
   files:
   - Cargo.toml
   hashes:
-  - eab49496a5e9150156f06a90311d9475d817d6b2
-  commit_sha: 66ac478d18d42c19c17aed0a12d8563d17fe8a92
-  generated_at: '1792365733'
-  generator: kuda-template/0.1.1
+  - d7db93f18e87e4ad6fcf617785ec88fcac5d1711
+  commit_sha: 527b9ce180fa85a5572d19f61e13532251875a52
+  generated_at: '1793687886'
+  generator: kuda-template/0.1.2
