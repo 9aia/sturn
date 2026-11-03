@@ -26,11 +26,12 @@ pub mod topic {
 }
 
 /// One op appended to a workspace WAL — the unit of coordination.
-/// Stored as a blob in the git ODB, chained by commits on
-/// `refs/sturn/wal/<ws>`; replicated by ordinary push/fetch.
+/// Storage is Wal-impl defined (git impl: blob in the ODB, chained
+/// by commits on `refs/sturn/wal/<ws>`); replicated by ordinary
+/// push/fetch.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Event {
-    /// Content address — assigned by the Wal impl (event blob sha).
+    /// Content address — assigned by the Wal impl (git: event blob sha).
     #[serde(default)]
     pub id: String,
     /// Workspace that produced it.
@@ -53,7 +54,8 @@ pub struct Event {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Op {
-    /// Replace `path` with `blob` (a sha already in the ODB).
+    /// Replace `path` with `blob` (an object id already resolvable
+    /// via `Ws::blob`).
     Write {
         path: String,
         blob: String,
