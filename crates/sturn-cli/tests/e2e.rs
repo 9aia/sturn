@@ -1336,3 +1336,34 @@ fn asks_cancel_expire_and_wait_timeout() {
     let out = String::from_utf8_lossy(&o.stdout);
     assert!(out.contains("\"status\":\"timeout\""), "{out}");
 }
+
+#[test]
+fn init_detects_colocated_jj() {
+    let repo = scratch("jj");
+    git(&repo, &["init", "-q", "-b", "main"]);
+    ident(&repo);
+    git(
+        &repo,
+        &[
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-qm",
+            "init",
+            "--allow-empty",
+        ],
+    );
+    std::fs::create_dir(repo.join(".jj")).unwrap();
+
+    let out = sturn(&repo, &["init"]);
+    assert!(out.contains("colocated jj"), "{out}");
+
+    // A colocated repo is an ordinary git repo to sturn — the
+    // round-trip is unaffected.
+    sturn(&repo, &["ws", "new", "a"]);
+    sturn_in(&repo, &["write", "x.txt", "--ws", "a"], b"v\n");
+    let log = sturn(&repo, &["log", "--ws", "a"]);
+    assert!(log.contains("\"write\""), "{log}");
+}

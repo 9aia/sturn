@@ -398,6 +398,9 @@ fn run(cli: &Cli) -> Result<(), String> {
             if !Path::new(".git").exists() && !repo.join(".git").exists() {
                 return Err("not a git repo — run inside one".into());
             }
+            if Path::new(".jj").exists() || repo.join(".jj").exists() {
+                println!("colocated jj detected — refs/sturn/* stays git-side");
+            }
             if !Path::new("sturn.toml").exists() {
                 std::fs::write(
                     "sturn.toml",

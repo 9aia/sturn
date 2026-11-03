@@ -85,6 +85,11 @@ jj's op log is per-clone; sturn's is replicated and published.
 AVCS shares the *op-graph as truth* idea; sturn keeps merges on
 git trees and adds the live coordination layer.
 
+Works unchanged on **colocated jj** (`jj git init`) — sturn only
+ever touches `.git`, and `refs/sturn/*` never maps to a bookmark.
+Non-colocated repos hide the git dir under `.jj/` and aren't
+supported.
+
 ## Status
 
 Scaffold. Tasks, milestones, and decisions live in the `project/`
