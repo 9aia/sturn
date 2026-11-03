@@ -111,6 +111,19 @@ enum Cmd {
         #[arg(long)]
         ws: Option<String>,
     },
+    /// In-flight ops per workspace — logged since the last snap,
+    /// not yet landed. `--live` keeps streaming as new ops arrive.
+    Diff {
+        /// One workspace, or all when omitted.
+        #[arg(long)]
+        ws: Option<String>,
+        /// Emit the raw events as JSONL (same shape `log` produces).
+        #[arg(long)]
+        json: bool,
+        /// Keep streaming new ops — WAL poll, works daemon-free.
+        #[arg(long)]
+        live: bool,
+    },
     /// Fold ws ops into a real commit on the branch. Multiple ws =
     /// merged into ONE commit (ops concat; later ops win same-path).
     Snap {
@@ -742,6 +755,23 @@ fn run(cli: &Cli) -> Result<(), String> {
             }
             Ok(())
         }
+        Cmd::Diff { ws, json, live } => {
+            // The initial batch is one tick with an empty cursor
+            // map — it also seeds cursors for `--live`.
+            let mut heads: HashMap<String, Option<String>> = HashMap::new();
+            diff_tick(
+                &repo,
+                &wal,
+                &ws_impl,
+                ws.as_deref(),
+                &mut heads,
+                &mut |ev| println!("{}", diff_line(&repo, &ws_impl, ev, *json)),
+            );
+            if *live {
+                return diff_live(&repo, &wal, &ws_impl, ws.as_deref(), heads, *json, poll_ms);
+            }
+            Ok(())
+        }
         Cmd::Snap {
             ws,
             message,
@@ -1230,6 +1260,148 @@ fn daemon_tick(
             }
         }
     }
+}
+
+/// One `diff` pass over `scope` (`None` = ws namespaces ∪ WAL
+/// refs): for each workspace whose WAL head moved since `heads`,
+/// emit the new events. An empty cursor means the ws log replays
+/// whole — sliced to post-snapshot so both a fresh `diff` and a ws
+/// born mid-stream show only in-flight ops. Errors degrade to
+/// silence, matching `daemon_tick` — the WAL stays the authority.
+fn diff_tick(
+    repo: &Path,
+    wal: &dyn Wal,
+    wsi: &dyn Ws,
+    scope: Option<&str>,
+    heads: &mut HashMap<String, Option<String>>,
+    emit: &mut dyn FnMut(&Event),
+) {
+    let mut names: Vec<String> = match scope {
+        Some(w) => vec![w.to_string()],
+        None => {
+            let mut n = wsi.workspaces(repo).unwrap_or_default();
+            n.extend(wal.workspaces(repo).unwrap_or_default());
+            n
+        }
+    };
+    names.sort();
+    names.dedup();
+    for ws in names {
+        let head = wal.head(repo, &ws).unwrap_or(None);
+        let prev = heads.get(&ws).cloned().unwrap_or(None);
+        if head == prev {
+            continue;
+        }
+        let delta = wal
+            .events_since(repo, &ws, prev.as_deref())
+            .unwrap_or_default();
+        for ev in &delta[sturn_core::since_last_snapshot(&delta)..] {
+            emit(ev);
+        }
+        heads.insert(ws, head);
+    }
+}
+
+/// `--live` driver — `diff_tick` on the bus poll cadence, forever.
+/// WAL polling is the authority: the stream works daemon-free and
+/// survives daemon restarts. Infinite by design, so the driver is
+/// excluded under coverage (killed by signal like `daemon`);
+/// `diff_tick` carries the logic and is unit-tested.
+#[cfg(not(coverage))]
+fn diff_live(
+    repo: &Path,
+    wal: &dyn Wal,
+    wsi: &dyn Ws,
+    scope: Option<&str>,
+    mut heads: HashMap<String, Option<String>>,
+    json: bool,
+    poll_ms: u64,
+) -> Result<(), String> {
+    loop {
+        diff_tick(repo, wal, wsi, scope, &mut heads, &mut |ev| {
+            println!("{}", diff_line(repo, wsi, ev, json));
+        });
+        std::thread::sleep(Duration::from_millis(poll_ms));
+    }
+}
+
+/// Coverage build stub — returns immediately so the `live` arm
+/// dispatches without an infinite loop, same trick as `daemon`.
+#[cfg(coverage)]
+fn diff_live(
+    _repo: &Path,
+    _wal: &dyn Wal,
+    _wsi: &dyn Ws,
+    _scope: Option<&str>,
+    _heads: HashMap<String, Option<String>>,
+    _json: bool,
+    _poll_ms: u64,
+) -> Result<(), String> {
+    Ok(())
+}
+
+/// One in-flight op as a display line: `ws ts actor <summary>`.
+/// `json` emits the raw event — the same shape `log` produces.
+fn diff_line(repo: &Path, wsi: &dyn Ws, ev: &Event, json: bool) -> String {
+    if json {
+        return serde_json::to_string(ev).unwrap_or_default();
+    }
+    format!(
+        "{} {} {} {}",
+        ev.ws,
+        ev.ts,
+        ev.actor,
+        op_summary(repo, wsi, &ev.op)
+    )
+}
+
+/// Compact one-line rendering for every op kind — path(s) first;
+/// Write carries its content hint (byte size via the blob, else the
+/// blob id itself) and its intent when one was logged.
+fn op_summary(repo: &Path, wsi: &dyn Ws, op: &Op) -> String {
+    match op {
+        Op::Write { path, blob, intent } => {
+            let hint = wsi
+                .blob(repo, blob)
+                .map(|b| format!("({} B)", b.len()))
+                .unwrap_or_else(|_| format!("(blob {blob})"));
+            let why = intent
+                .as_deref()
+                .map(|i| format!(" \"{i}\""))
+                .unwrap_or_default();
+            format!("write {path} {hint}{why}")
+        }
+        Op::Rename { from, to } => format!("rename {from} → {to}"),
+        Op::Delete { path } => format!("delete {path}"),
+        Op::Claim { glob, ttl_secs } => format!("claim {glob} ttl={ttl_secs}s"),
+        Op::Release { glob } => format!("release {glob}"),
+        Op::Intent { text } => format!("intent \"{text}\""),
+        Op::Snapshot { message } => format!("snapshot \"{message}\""),
+        Op::Review { event, verdict } => format!(
+            "review {} {}",
+            match verdict {
+                Verdict::Approve => "approve",
+                Verdict::Reject => "reject",
+            },
+            short_id(event)
+        ),
+        Op::Presence { status } => format!("presence {status}"),
+        Op::Ask {
+            subject,
+            target,
+            ttl_secs,
+            ..
+        } => format!("ask \"{subject}\" → {target} ttl={ttl_secs}s"),
+        Op::Answer { ask, verdict } => {
+            format!("answer {verdict} → ask {}", short_id(ask))
+        }
+        Op::Cancel { ask } => format!("cancel ask {}", short_id(ask)),
+    }
+}
+
+/// First chars of an event id — enough to recognize it in a listing.
+fn short_id(id: &str) -> String {
+    id.chars().take(8).collect()
 }
 
 /// `sturn sub` — connect to the daemon socket, name the topic, then
@@ -1899,6 +2071,228 @@ mod tests {
         bridge_tick(&repo, &wal, &wsi, &mut heads, "http://127.0.0.1:1/", "s", "rid", "main");
     }
 
+    /// Collect what `diff_tick` emits.
+    fn collect(
+        repo: &Path,
+        wal: &dyn Wal,
+        wsi: &dyn Ws,
+        scope: Option<&str>,
+        heads: &mut HashMap<String, Option<String>>,
+    ) -> Vec<Event> {
+        let mut seen = Vec::new();
+        diff_tick(repo, wal, wsi, scope, heads, &mut |ev| seen.push(ev.clone()));
+        seen
+    }
+
+    #[test]
+    fn diff_tick_emits_only_inflight_deltas() {
+        let repo = repo("diff");
+        ws(&repo, "a");
+        ws(&repo, "b");
+        ws(&repo, "c"); // ws namespace with no WAL — silently skipped.
+        let wal = sturn_wal_git::GitWal::default();
+        let wsi = sturn_ws_git::GitWs;
+        let mut heads = HashMap::new();
+
+        // Pre-snapshot history must not replay: a fresh diff sees
+        // only ops after the marker.
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "t",
+                Op::Write {
+                    path: "old.txt".into(),
+                    blob: wsi.store(&repo, b"old\n").unwrap(),
+                    intent: None,
+                },
+            ),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new("a", "t", Op::Snapshot { message: "landed".into() }),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new("a", "t", Op::Intent { text: "post".into() }),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "b",
+            &Event::new("b", "u", Op::Delete { path: "gone.txt".into() }),
+        )
+        .unwrap();
+
+        let seen = collect(&repo, &wal, &wsi, None, &mut heads);
+        assert_eq!(seen.len(), 2, "{seen:?}");
+        // Sorted ws order: a's in-flight intent, then b's delete.
+        assert_eq!(seen[0].ws, "a");
+        assert!(matches!(seen[0].op, Op::Intent { .. }));
+        assert_eq!(seen[1].ws, "b");
+        assert!(matches!(seen[1].op, Op::Delete { .. }));
+
+        // Heads unchanged → second pass is silent.
+        assert!(collect(&repo, &wal, &wsi, None, &mut heads).is_empty());
+
+        // A new op → only the delta streams.
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "t",
+                Op::Rename { from: "x".into(), to: "y".into() },
+            ),
+        )
+        .unwrap();
+        let seen = collect(&repo, &wal, &wsi, None, &mut heads);
+        assert_eq!(seen.len(), 1);
+        assert!(matches!(seen[0].op, Op::Rename { .. }));
+
+        // A snap lands mid-stream: events between the cursor and
+        // the marker are folded away — only post-marker ops show.
+        wal.append(
+            &repo,
+            "a",
+            &Event::new("a", "t", Op::Intent { text: "folded".into() }),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new("a", "t", Op::Snapshot { message: "again".into() }),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new("a", "t", Op::Intent { text: "fresh".into() }),
+        )
+        .unwrap();
+        let seen = collect(&repo, &wal, &wsi, None, &mut heads);
+        assert_eq!(seen.len(), 1);
+        assert!(matches!(&seen[0].op, Op::Intent { text } if text == "fresh"));
+
+        // Scoped to one ws — other workspaces aren't walked.
+        wal.append(
+            &repo,
+            "b",
+            &Event::new("b", "u", Op::Intent { text: "hidden".into() }),
+        )
+        .unwrap();
+        assert!(collect(&repo, &wal, &wsi, Some("a"), &mut heads).is_empty());
+        // Scoped ghost ws — no WAL, no output, no error.
+        assert!(collect(&repo, &wal, &wsi, Some("ghost"), &mut heads).is_empty());
+    }
+
+    #[test]
+    fn diff_line_renders_every_op_kind() {
+        let repo = repo("difffmt");
+        let wsi = sturn_ws_git::GitWs;
+        let blob = wsi.store(&repo, b"hi\n").unwrap();
+        let cases: Vec<(Op, String)> = vec![
+            (
+                Op::Write {
+                    path: "f".into(),
+                    blob: blob.clone(),
+                    intent: Some("why".into()),
+                },
+                "write f (3 B) \"why\"".into(),
+            ),
+            (
+                Op::Write {
+                    path: "f".into(),
+                    blob,
+                    intent: None,
+                },
+                "write f (3 B)".into(),
+            ),
+            (
+                Op::Write {
+                    path: "f".into(),
+                    blob: "missing".into(),
+                    intent: None,
+                },
+                "write f (blob missing)".into(),
+            ),
+            (
+                Op::Rename { from: "a".into(), to: "b".into() },
+                "rename a → b".into(),
+            ),
+            (
+                Op::Delete { path: "d".into() },
+                "delete d".into(),
+            ),
+            (
+                Op::Claim { glob: "g/**".into(), ttl_secs: 60 },
+                "claim g/** ttl=60s".into(),
+            ),
+            (
+                Op::Release { glob: "g/**".into() },
+                "release g/**".into(),
+            ),
+            (
+                Op::Intent { text: "i".into() },
+                "intent \"i\"".into(),
+            ),
+            (
+                Op::Snapshot { message: "m".into() },
+                "snapshot \"m\"".into(),
+            ),
+            (
+                Op::Review { event: "ev".into(), verdict: Verdict::Approve },
+                "review approve ev".into(),
+            ),
+            (
+                Op::Review {
+                    event: "0123456789abcdef".into(),
+                    verdict: Verdict::Reject,
+                },
+                "review reject 01234567".into(),
+            ),
+            (
+                Op::Presence { status: "joined".into() },
+                "presence joined".into(),
+            ),
+            (
+                Op::Ask {
+                    subject: "ok?".into(),
+                    target: "any".into(),
+                    options: vec![],
+                    ttl_secs: 5,
+                },
+                "ask \"ok?\" → any ttl=5s".into(),
+            ),
+            (
+                Op::Answer { ask: "0123456789".into(), verdict: "v".into() },
+                "answer v → ask 01234567".into(),
+            ),
+            (
+                Op::Cancel { ask: "0123456789".into() },
+                "cancel ask 01234567".into(),
+            ),
+        ];
+        for (op, want) in cases {
+            let ev = Event::new("w", "actor", op);
+            assert_eq!(
+                diff_line(&repo, &wsi, &ev, false),
+                format!("w {} actor {want}", ev.ts)
+            );
+        }
+        // json → the raw event, same shape `log` emits.
+        let ev = Event::new("w", "actor", Op::Intent { text: "i".into() });
+        assert_eq!(
+            diff_line(&repo, &wsi, &ev, true),
+            serde_json::to_string(&ev).unwrap()
+        );
+    }
+
     #[test]
     fn wait_exit_code_map() {
         assert_eq!(
@@ -1931,6 +2325,18 @@ mod tests {
             cmd: Cmd::Bridge {
                 to: "http://127.0.0.1:1/".into(),
                 secret_env: "BUPHA_WEBHOOK_SECRET".into(),
+            },
+        };
+        assert!(run(&cli).is_ok());
+        // --live dispatches to the stubbed driver; a ghost --ws
+        // keeps the initial batch quiet on the host repo.
+        let cli = Cli {
+            repo: None,
+            config: None,
+            cmd: Cmd::Diff {
+                ws: Some("ghost".into()),
+                json: false,
+                live: true,
             },
         };
         assert!(run(&cli).is_ok());

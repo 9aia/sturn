@@ -1405,3 +1405,133 @@ fn init_agents_md_appends_then_converges_drift() {
     assert!(out.contains("updated AGENTS.md"), "{out}");
     assert_eq!(std::fs::read_to_string(repo.join("AGENTS.md")).unwrap(), ag);
 }
+
+#[test]
+fn diff_lists_inflight_and_clears_on_snap() {
+    let repo = bare_repo("diff");
+    sturn_ok(&repo, &["ws", "new", "a"], &[]);
+    sturn_ok(&repo, &["ws", "new", "b"], &[]);
+    // Nothing logged yet → clean diff is silent.
+    assert_eq!(sturn_ok(&repo, &["diff"], &[]), "");
+
+    sturn_ok_in(
+        &repo,
+        &["write", "f.txt", "--ws", "a", "--intent", "fix it"],
+        b"hi\n",
+    );
+    sturn_ok(&repo, &["claim", "f.*", "--ws", "a"], &[]);
+    sturn_ok_in(&repo, &["write", "g.txt", "--ws", "b"], b"g\n");
+
+    // Every ws's in-flight ops: actor, ts, kind, path, content hint.
+    let out = sturn_ok(&repo, &["diff"], &[]);
+    assert!(out.lines().any(|l| l.starts_with("a ")), "{out}");
+    assert!(out.lines().any(|l| l.starts_with("b ")), "{out}");
+    for needle in [
+        "write f.txt (3 B) \"fix it\"",
+        "claim f.* ttl=3600s",
+        "write g.txt (2 B)",
+    ] {
+        assert!(out.contains(needle), "{needle} missing from {out}");
+    }
+
+    // --ws scopes to one workspace.
+    let out = sturn_ok(&repo, &["diff", "--ws", "a"], &[]);
+    assert!(out.contains("f.txt") && !out.contains("g.txt"), "{out}");
+    // Ghost ws → empty, not an error.
+    assert_eq!(sturn_ok(&repo, &["diff", "--ws", "ghost"], &[]), "");
+
+    // --json → JSONL of the raw events (same shape `log` emits).
+    let j = sturn_ok(&repo, &["diff", "--ws", "a", "--json"], &[]);
+    for l in j.lines() {
+        serde_json::from_str::<serde_json::Value>(l)
+            .unwrap_or_else(|e| panic!("bad jsonl {l}: {e}"));
+    }
+    assert!(j.contains("\"write\"") && j.contains("\"claim\""), "{j}");
+
+    // Snap lands a's ops — they leave the in-flight list; b's stay.
+    sturn_ok(&repo, &["snap", "a", "-m", "land"], &[]);
+    let out = sturn_ok(&repo, &["diff"], &[]);
+    assert!(!out.contains("f.txt") && !out.contains("claim"), "{out}");
+    assert!(out.contains("write g.txt"), "{out}");
+    sturn_ok(&repo, &["snap", "b", "-m", "land-b"], &[]);
+    assert_eq!(sturn_ok(&repo, &["diff"], &[]), "");
+}
+
+#[test]
+fn diff_live_streams_new_ops() {
+    let repo = bare_repo("difflive");
+    sturn_ok(&repo, &["ws", "new", "a"], &[]);
+    sturn_ok_in(&repo, &["write", "seed.txt", "--ws", "a"], b"s\n");
+    let home = std::env::temp_dir().join(format!("sturn-home-{}", std::process::id()));
+    std::fs::create_dir_all(&home).unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_sturn"))
+        .current_dir(&repo)
+        .args(["diff", "--live"])
+        .env("HOME", &home)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    // Reader thread → channel: recv_timeout bounds each wait.
+    let stdout = child.stdout.take().unwrap();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        use std::io::BufRead;
+        let mut r = std::io::BufReader::new(stdout);
+        let mut line = String::new();
+        while r.read_line(&mut line).unwrap_or(0) > 0 {
+            if tx.send(line.clone()).is_err() {
+                return;
+            }
+            line.clear();
+        }
+    });
+    let first = rx
+        .recv_timeout(std::time::Duration::from_secs(30))
+        .expect("diff --live emitted no in-flight batch");
+    assert!(first.contains("write seed.txt"), "{first}");
+
+    // Under coverage the infinite driver is stubbed — the child
+    // prints the batch then exits. Streaming asserts only run when
+    // it stays alive past the grace window (normal builds).
+    let mut exited = false;
+    for _ in 0..60 {
+        if child.try_wait().unwrap().is_some() {
+            exited = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    if !exited {
+        // Read streamed lines until `needle` shows or the deadline
+        // passes — every recv is bounded, no hang on a dead stream.
+        let until = |needle: &str| {
+            let mut got = String::new();
+            for _ in 0..10 {
+                if got.contains(needle) {
+                    break;
+                }
+                match rx.recv_timeout(std::time::Duration::from_secs(30)) {
+                    Ok(line) => got.push_str(&line),
+                    Err(e) => panic!("diff --live: no {needle:?} within 30s ({e}); got {got:?}"),
+                }
+            }
+            got
+        };
+        sturn_ok_in(&repo, &["write", "later.txt", "--ws", "a"], b"l\n");
+        let got = until("later.txt");
+        assert!(got.contains("write later.txt"), "{got}");
+
+        // A ws born mid-stream is discovered on the next poll.
+        sturn_ok(&repo, &["ws", "new", "b"], &[]);
+        sturn_ok_in(&repo, &["write", "b.txt", "--ws", "b"], b"b\n");
+        let got = until("b.txt");
+        assert!(
+            got.lines().any(|l| l.starts_with("b ") && l.contains("write b.txt")),
+            "{got}"
+        );
+        let _ = child.kill();
+    }
+    let _ = child.wait();
+}
