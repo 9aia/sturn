@@ -10,3 +10,7 @@ categories = ["development-tools"]
 
 [dependencies]
 sturn-core.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+sturn-vcs.workspace = true
