@@ -2,7 +2,7 @@ name = "sturn"
 
 [next]
 t = 5
-i = 2
+i = 3
 p = 1
 adr = 2
 pl = 1
