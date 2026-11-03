@@ -1,5 +1,5 @@
 +++
-id = "ADR-0002"
+id = "ADR-0001"
 title = "ADR-0001 — evented coordination over the git object store"
 status = "open"
 priority = "medium"
