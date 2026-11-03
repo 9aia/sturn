@@ -12,6 +12,15 @@ use sturn_fuse::SturnFs;
 use sturn_wal::Wal;
 use sturn_ws::Ws;
 
+/// Serializes real mounts — concurrent /dev/fuse sessions race and
+/// intermittently never come up. Poison-tolerant: a panicking test
+/// must not wedge the other mount test.
+static MOUNT_LOCK: Mutex<()> = Mutex::new(());
+
+fn mount_lock() -> std::sync::MutexGuard<'static, ()> {
+    MOUNT_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 fn scratch(name: &str) -> PathBuf {
     let d = std::env::temp_dir().join(format!("sturn-fuse-{}-{name}", std::process::id()));
     let _ = std::fs::remove_dir_all(&d);
@@ -22,7 +31,7 @@ fn scratch(name: &str) -> PathBuf {
 /// Wait until the mountpoint answers a readdir (the FUSE session is
 /// live once `mount2` returns, but the VFS handshake lags a tick).
 fn wait_mounted(mp: &Path) {
-    for _ in 0..500 {
+    for _ in 0..1000 {
         if std::fs::read_dir(mp)
             .map(|mut d| d.next().is_some())
             .unwrap_or(false)
@@ -156,6 +165,7 @@ impl Wal for MemWal {
 
 #[test]
 fn read_only_mount_serves_tree() {
+    let _g = mount_lock();
     let wsi = MemWs::new();
     let mp = scratch("ro-mp");
 
@@ -251,6 +261,7 @@ impl Ws for FailWs {
 
 #[test]
 fn read_error_surfaces_eio() {
+    let _g = mount_lock();
     let mp = scratch("eio-mp");
     std::thread::scope(|s| {
         let fs = SturnFs::new(Path::new("/repo"), "rev", &FailWs).unwrap();
