@@ -7,7 +7,7 @@ Global flags: `--repo <dir>` (default cwd) · `--config <path>`.
 
 | Command | What it does |
 |---|---|
-| `sturn init` | write `sturn.toml`; confirm ref namespaces |
+| `sturn init` | write `sturn.toml`; confirm ref namespaces; note colocated jj |
 | `sturn ws new <name> [--base]` | create workspace ref — no checkout |
 | `sturn ws ls` | list workspaces |
 | `sturn ws read <ws> <path>` | blob contents, straight from the ODB |

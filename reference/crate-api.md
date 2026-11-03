@@ -18,6 +18,7 @@ never core changes.
 | `sturn-config` → `sturn-config-toml` | config source |
 | `sturn-secret` → `sturn-keyring`/`sturn-dotenv` | secret resolution |
 | `sturn-service` → `sturn-systemd` | daemon lifecycle |
-| `sturn-cli` | `sturn` binary — the composition root |
+| `sturn-odb` | direct loose-object I/O — the `-git` impls' fast path (plumbing fallback) |
+| `sturn-cli` | `sturn` binary — the composition root (`&dyn` ports) |
 
 Rustdoc: `/api/sturn_core/` etc. after `bun run docs:api`.
