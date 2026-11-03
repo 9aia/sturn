@@ -13,5 +13,3 @@
 ## M4.75 — write-back + session polish
 
 ## M5 — dogfood
-
-- [ ] T-001 bupha CI consumes sturn topics instead of webhooks · status:in-progress · owner:devin
