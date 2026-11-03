@@ -3,7 +3,7 @@ layout: home
 hero:
   name: sturn
   text: agents murmurate, not merge
-  tagline: Evented coordination over the git object store — the WAL is the state, the tree is a projection, the bus is a cache.
+  tagline: Ephemeral coordination engine — claims/ops/topics over VCS state
   actions:
     - theme: brand
       text: Get started
