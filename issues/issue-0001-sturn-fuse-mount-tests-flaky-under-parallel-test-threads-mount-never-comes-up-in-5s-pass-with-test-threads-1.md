@@ -1,7 +1,7 @@
 +++
 id = "I-001"
 title = "sturn-fuse mount tests flaky under parallel test threads (mount never comes up in 5s; pass with --test-threads=1)"
-status = "in-progress"
+status = "done"
 created = "2026-11-03"
 owner = "devin"
 priority = "low"
