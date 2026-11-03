@@ -1,1 +1,1 @@
-{"id":"","ws":"devin","actor":"luis","ts":1793670894,"op":{"op":"claim","glob":"crates/sturn-wal/tests/**","ttl_secs":3600}}
+{"id":"","ws":"devin","actor":"luis","ts":1793671019,"op":{"op":"presence","status":"left"}}
