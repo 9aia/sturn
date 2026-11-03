@@ -59,6 +59,33 @@ fn objects_dir(repo: &Path) -> io::Result<PathBuf> {
     Ok(common_dir(&git_dir(repo)?).join("objects"))
 }
 
+/// Fast paths assume SHA-1 ids. On a sha256 repo
+/// (`extensions.objectformat`) every entry point must defer to
+/// plumbing — a sha1-written object is unresolvable there.
+fn sha1_repo(repo: &Path) -> io::Result<bool> {
+    let cfg = match fs::read_to_string(common_dir(&git_dir(repo)?).join("config")) {
+        Ok(c) => c,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(true),
+        Err(e) => return Err(e),
+    };
+    let mut ext = false;
+    for line in cfg.lines() {
+        let l = line.trim();
+        if l.starts_with('[') {
+            ext = l.trim_matches(|c| c == '[' || c == ']').eq_ignore_ascii_case("extensions");
+            continue;
+        }
+        if ext {
+            if let Some((k, v)) = l.split_once('=') {
+                if k.trim().eq_ignore_ascii_case("objectformat") {
+                    return Ok(v.trim().eq_ignore_ascii_case("sha1"));
+                }
+            }
+        }
+    }
+    Ok(true)
+}
+
 fn hex(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len() * 2);
     for b in bytes {
@@ -106,6 +133,9 @@ fn inflate(z: &[u8]) -> io::Result<Vec<u8>> {
 /// identical to `git hash-object -w`. Errors mean the ODB couldn't be
 /// found or written — callers may retry via plumbing.
 pub fn write_object(repo: &Path, kind: &str, payload: &[u8]) -> io::Result<String> {
+    if !sha1_repo(repo)? {
+        return Err(io::Error::other("sha256 odb — use plumbing"));
+    }
     let objects = objects_dir(repo)?;
     let sha = object_id(kind, payload);
     let dir = objects.join(&sha[..2]);
@@ -148,6 +178,9 @@ pub fn write_object(repo: &Path, kind: &str, payload: &[u8]) -> io::Result<Strin
 /// Loose-object existence check only — packs and alternates are the
 /// caller's fallback (`git cat-file -e`).
 pub fn object_exists(repo: &Path, sha: &str) -> bool {
+    if !sha1_repo(repo).unwrap_or(false) {
+        return false;
+    }
     let Ok(objects) = objects_dir(repo) else {
         return false;
     };
@@ -160,7 +193,7 @@ pub fn object_exists(repo: &Path, sha: &str) -> bool {
 /// isn't a loose file (packed, alternate, or absent) — fall back to
 /// `git cat-file`.
 pub fn read_object(repo: &Path, sha: &str) -> io::Result<Option<(String, Vec<u8>)>> {
-    if sha.len() != 40 || !sha.bytes().all(|b| b.is_ascii_hexdigit()) {
+    if !sha1_repo(repo)? || sha.len() != 40 || !sha.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Ok(None);
     }
     let objects = objects_dir(repo)?;
@@ -238,6 +271,9 @@ pub fn read_ref(repo: &Path, refname: &str) -> io::Result<Option<String>> {
 /// (as given, `refs/*`, heads, tags). `None` → caller falls back to
 /// `git rev-parse` for the long tail of rev syntax.
 pub fn resolve(repo: &Path, rev: &str) -> io::Result<Option<String>> {
+    if !sha1_repo(repo)? {
+        return Ok(None);
+    }
     if rev.len() == 40 && rev.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Ok(Some(rev.to_string()));
     }
@@ -517,6 +553,27 @@ mod tests {
             object_id("blob", b""),
             "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
         );
+    }
+
+    #[test]
+    fn sha256_repo_defers_to_plumbing() {
+        let dir = std::env::temp_dir().join(format!("sturn-odb-sha256-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let ok = std::process::Command::new("git")
+            .args(["init", "-q", "--object-format=sha256"])
+            .arg(&dir)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if !ok {
+            return; // git < 2.29 — no sha256 support to test against
+        }
+        assert!(write_object(&dir, "blob", b"x").is_err());
+        assert_eq!(resolve(&dir, "HEAD").unwrap(), None);
+        assert_eq!(read_object(&dir, &"0".repeat(64)).unwrap(), None);
+        assert!(!object_exists(&dir, &"0".repeat(64)));
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
