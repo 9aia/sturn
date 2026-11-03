@@ -87,9 +87,8 @@ git trees and adds the live coordination layer.
 
 ## Status
 
-Scaffold — M1 (WAL round-trip: `init`/`ws`/`write`/`snap`/`log`)
-is the gate. See `project/TODO.md` for milestones and
-`project/adrs/` for the shape.
+Scaffold. Tasks, milestones, and decisions live in the `project/`
+worktree — `myco status --prompt` for the board.
 
 ## License
 

@@ -40,3 +40,10 @@
 
 <!-- /kuda:agent-awareness -->
 
+## Project management
+
+- All PM state lives in the `project/` worktree via `myco` —
+  tasks, backlog, issues, proposals, ADRs, handoffs. Never track
+  tasks, milestones, or status in README, docs, or code comments;
+  point at myco instead. `project/TODO.md` is the source of truth.
+
