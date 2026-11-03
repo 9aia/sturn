@@ -9,4 +9,4 @@
 - T-008 GitButler-style virtual branches on top of ws namespaces
 - T-009 Web dashboard (ops firehose viz) — low value, high fun
 - T-010 sturn diff --live — stream of in-flight ops vs main
-- T-011 crates.io release loop (copy bupha's scripts/release.sh shape)
+- T-011 crates.io release loop (copy bupha's scripts/release.sh shape) · pri:low
