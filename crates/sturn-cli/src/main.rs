@@ -4,6 +4,8 @@
 //! cache. Composition root: wires ports (wal/bus/ws/vcs/config/
 //! service) to impls (git plumbing, redb, toml, systemd).
 
+mod agentmd;
+
 use clap::{Parser, Subcommand};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -408,6 +410,17 @@ fn run(cli: &Cli) -> Result<(), String> {
                 )
                 .map_err(|e| e.to_string())?;
                 println!("wrote sturn.toml");
+            }
+            // Converge AGENTS.md to the managed agent-awareness
+            // block — markers scoped, prose untouched, idempotent.
+            match agentmd::sync(Path::new("."))? {
+                agentmd::Change::Created => {
+                    println!("wrote AGENTS.md (sturn agent-awareness block)")
+                }
+                agentmd::Change::Updated => {
+                    println!("updated AGENTS.md agent-awareness block")
+                }
+                agentmd::Change::Unchanged => {}
             }
             println!(
                 "sturn ready — WAL: refs/sturn/wal/*, ws: refs/sturn/ws/*"

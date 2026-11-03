@@ -1367,3 +1367,41 @@ fn init_detects_colocated_jj() {
     let log = sturn(&repo, &["log", "--ws", "a"]);
     assert!(log.contains("\"write\""), "{log}");
 }
+
+#[test]
+fn init_writes_agents_md_block_and_is_idempotent() {
+    let repo = bare_repo("agentsmd");
+    // Missing → created holding exactly the managed block.
+    let out = sturn(&repo, &["init"]);
+    assert!(out.contains("wrote AGENTS.md"), "{out}");
+    let ag = std::fs::read_to_string(repo.join("AGENTS.md")).unwrap();
+    assert!(ag.contains("<!-- sturn:agent-awareness -->"), "{ag}");
+    assert!(ag.contains("<!-- /sturn:agent-awareness -->"), "{ag}");
+    assert!(ag.contains("## Sturn awareness"), "{ag}");
+    assert!(ag.contains("**No PRs.**"), "{ag}");
+    assert!(ag.contains("`sturn leave` on exit"), "{ag}");
+
+    // Repeated init is a no-op — same bytes, no "updated" line.
+    let out = sturn(&repo, &["init"]);
+    assert!(!out.contains("AGENTS.md"), "{out}");
+    assert_eq!(std::fs::read_to_string(repo.join("AGENTS.md")).unwrap(), ag);
+}
+
+#[test]
+fn init_agents_md_appends_then_converges_drift() {
+    let repo = bare_repo("agentsmd-drift");
+    // Existing prose, no markers → block appended, prose kept.
+    std::fs::write(repo.join("AGENTS.md"), "# Repo\n\nCustom rules.\n").unwrap();
+    let out = sturn(&repo, &["init"]);
+    assert!(out.contains("updated AGENTS.md"), "{out}");
+    let ag = std::fs::read_to_string(repo.join("AGENTS.md")).unwrap();
+    assert!(ag.starts_with("# Repo\n\nCustom rules.\n"), "{ag}");
+    assert!(ag.contains("<!-- sturn:agent-awareness -->"), "{ag}");
+
+    // A drifted block converges back to the canonical text.
+    let drifted = ag.replace("sturn leave", "sturn yeet");
+    std::fs::write(repo.join("AGENTS.md"), drifted).unwrap();
+    let out = sturn(&repo, &["init"]);
+    assert!(out.contains("updated AGENTS.md"), "{out}");
+    assert_eq!(std::fs::read_to_string(repo.join("AGENTS.md")).unwrap(), ag);
+}
