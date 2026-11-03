@@ -1,6 +1,6 @@
 # sturn
 
-*The murmuration layer for your repo.*
+*Ephemeral coordination engine — claims/ops/topics over VCS state.*
 
 Evented coordination over the git object store. The WAL is the
 state, the working tree is a projection, the bus is a cache —

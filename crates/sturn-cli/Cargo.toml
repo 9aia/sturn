@@ -1,6 +1,6 @@
 [package]
 name = "sturn-cli"
-description = "sturn — evented coordination over git (composition root)"
+description = "sturn — ephemeral coordination engine: claims/ops/topics over VCS state (composition root)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
