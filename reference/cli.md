@@ -9,9 +9,10 @@ Global flags: `--repo <dir>` (default cwd) · `--config <path>`.
 | `sturn ws ls` | list workspaces |
 | `sturn ws read <ws> <path>` | blob contents, straight from the ODB |
 | `sturn ws hydrate <ws> <dir> [--path P] [--writeback]` | materialize view; --writeback diffs dir → ops |
-| `sturn claim <glob> --ws <w> [--ttl N] [--force]` | advisory lock; exits 1 on live conflict |
-| `sturn release <glob> --ws <w>` | drop a claim |
+| `sturn claim <uri> --ws <w> [--ttl N] [--force]` | advisory lock on a resource URI — `fs:` glob (`src/**`; bare glob means `fs:`) or opaque (`dev:display0`, `net:13000`, `sess:T-012`, `cap:role`); exits 1 on live conflict |
+| `sturn release <uri> --ws <w>` | drop a claim |
 | `sturn claims` | live claims across every workspace |
+| `sturn check <uri>` | list live claims conflicting with a URI; exits 1 when contested |
 | `sturn write <path> --ws <w> [--file F] [--intent T]` | append a write op (stdin → blob) |
 | `sturn intent <text> --ws <w>` | record provenance |
 | `sturn log [--ws <w>]` | replay the WAL as JSONL |
