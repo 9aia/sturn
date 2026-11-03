@@ -42,6 +42,11 @@ impl Vcs for GitVcs {
     }
 
     fn has_commit(&self, repo: &Path, sha: &str) -> bool {
+        // Loose-object hit needs no spawn; packs/alternates fall
+        // through to `cat-file -e`.
+        if sturn_odb::object_exists(repo, sha) {
+            return true;
+        }
         Command::new("git")
             .arg("-C")
             .arg(repo)
@@ -72,6 +77,10 @@ impl Vcs for GitVcs {
 
 /// Store `content` as a blob in the ODB; returns its sha.
 pub fn store_blob(repo: &Path, content: &[u8]) -> io::Result<String> {
+    if let Ok(sha) = sturn_odb::write_object(repo, "blob", content) {
+        return Ok(sha);
+    }
+    // Plumbing fallback — layouts the direct writer can't resolve.
     let mut c = Command::new("git")
         .arg("-C")
         .arg(repo)

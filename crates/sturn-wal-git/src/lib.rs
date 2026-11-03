@@ -1,6 +1,8 @@
-//! Wal impl via git plumbing — each event is a blob; each append is
-//! a commit on `refs/sturn/wal/<ws>` whose tree holds `event.json`.
-//! Zero deps beyond the `git` binary; replicates with push/fetch.
+//! Wal impl — each event is a blob; each append is a commit on
+//! `refs/sturn/wal/<ws>` whose tree holds `event.json`. Objects,
+//! commits, and ref reads go straight to the ODB via `sturn-odb`;
+//! only the CAS publish (`git update-ref`) still spawns. Replicates
+//! with push/fetch.
 
 use std::io;
 use std::io::Write;
@@ -72,7 +74,14 @@ fn git_in(repo: &Path, args: &[&str], input: &[u8]) -> io::Result<String> {
 /// `ssh-keygen -Y sign` on the canonical payload — SSH signing is
 /// stdlib tooling, Ed25519 under the hood, no new crypto deps.
 fn sign_event(payload: &[u8], key: &Path) -> io::Result<String> {
-    let base = std::env::temp_dir().join(format!("sturn-sign-{}", std::process::id()));
+    // Unique per call — concurrent signing threads in one process
+    // (tests, the MCP server) must not share the scratch file.
+    static SIGN_IDX: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let base = std::env::temp_dir().join(format!(
+        "sturn-sign-{}-{}",
+        std::process::id(),
+        SIGN_IDX.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
     let data = base.with_extension("data");
     std::fs::write(&data, payload)?;
     let st = Command::new("ssh-keygen")
@@ -96,6 +105,46 @@ impl GitWal {
     }
 }
 
+/// Write a blob/tree straight to the ODB; plumbing fallback covers
+/// the layouts `sturn-odb` can't resolve (GIT_DIR env, subdirs, …).
+fn put_object(repo: &Path, kind: &str, payload: &[u8]) -> io::Result<String> {
+    sturn_odb::write_object(repo, kind, payload)
+        .or_else(|_| git_in(repo, &["hash-object", "-w", "--stdin"], payload))
+}
+
+fn put_tree(repo: &Path, blob: &str, name: &str) -> io::Result<String> {
+    let built = sturn_odb::tree_object(&[(0o100644, name, blob)])
+        .and_then(|t| sturn_odb::write_object(repo, "tree", &t).ok());
+    match built {
+        Some(t) => Ok(t),
+        None => git_in(
+            repo,
+            &["mktree"],
+            format!("100644 blob {blob}\t{name}\n").as_bytes(),
+        ),
+    }
+}
+
+/// `commit-tree` without the spawn — same object bytes, ident via
+/// `git var` (cached per repo). Plumbing fallback covers date envs
+/// and ident failures.
+fn put_commit(
+    repo: &Path,
+    tree: &str,
+    parent: Option<&str>,
+    msg: &str,
+) -> io::Result<String> {
+    let parents: Vec<&str> = parent.into_iter().collect();
+    sturn_odb::commit(repo, tree, &parents, msg).or_else(|_| {
+        let mut args = vec!["commit-tree", tree];
+        for p in &parents {
+            args.extend(["-p", p]);
+        }
+        args.extend(["-m", msg]);
+        git(repo, &args)
+    })
+}
+
 impl Wal for GitWal {
     fn append(&self, repo: &Path, ws: &str, ev: &Event) -> io::Result<String> {
         let mut ev = ev.clone();
@@ -103,7 +152,7 @@ impl Wal for GitWal {
             ev.sig = Some(sign_event(&ev.signing_bytes(), key)?);
         }
         let payload = serde_json::to_vec(&ev).map_err(io::Error::other)?;
-        let blob = git_in(repo, &["hash-object", "-w", "--stdin"], &payload)?;
+        let blob = put_object(repo, "blob", &payload)?;
         let msg = format!("sturn:{ws}:{}", serde_json::to_value(&ev.op)
             .ok()
             .and_then(|v| v.get("op").and_then(|k| k.as_str()).map(String::from))
@@ -114,15 +163,8 @@ impl Wal for GitWal {
         let mut attempt = 0u8;
         loop {
             let parent = self.head(repo, ws)?;
-            let tree = git_in(repo, &["mktree"], format!("100644 blob {blob}\tevent.json\n").as_bytes())?;
-            let mut args = vec!["commit-tree", tree.as_str()];
-            let p;
-            if let Some(parent) = &parent {
-                p = parent.clone();
-                args.extend(["-p", p.as_str()]);
-            }
-            args.extend(["-m", msg.as_str()]);
-            let commit = git(repo, &args)?;
+            let tree = put_tree(repo, &blob, "event.json")?;
+            let commit = put_commit(repo, &tree, parent.as_deref(), &msg)?;
             let ok = Command::new("git")
                 .arg("-C")
                 .arg(repo)
@@ -159,12 +201,20 @@ impl Wal for GitWal {
         let commits = git(repo, &["rev-list", "--reverse", &range])?;
         let mut out = Vec::new();
         for c in commits.lines().filter(|l| !l.is_empty()) {
-            let json = git(repo, &["cat-file", "-p", &format!("{c}:event.json")])?;
+            // Loose-object fast path; packed/fancy revs → cat-file.
+            let json = match sturn_odb::read_at(repo, c, "event.json") {
+                Ok(Some(b)) => match String::from_utf8(b) {
+                    Ok(s) => s,
+                    Err(_) => git(repo, &["cat-file", "-p", &format!("{c}:event.json")])?,
+                },
+                _ => git(repo, &["cat-file", "-p", &format!("{c}:event.json")])?,
+            };
             let mut ev: Event = serde_json::from_str(&json)
                 .map_err(|e| io::Error::other(format!("bad event in {c}: {e}")))?;
-            // Backfill id for events written before id assignment.
+            // Backfill id for events written before id assignment —
+            // the id *is* the event blob's content address.
             if ev.id.is_empty() {
-                ev.id = git(repo, &["rev-parse", &format!("{c}:event.json")])?;
+                ev.id = sturn_odb::object_id("blob", json.as_bytes());
             }
             out.push(ev);
         }
@@ -172,6 +222,11 @@ impl Wal for GitWal {
     }
 
     fn head(&self, repo: &Path, ws: &str) -> io::Result<Option<String>> {
+        // Loose/packed ref read; plumbing fallback for layouts
+        // sturn-odb can't resolve.
+        if let Ok(v) = sturn_odb::read_ref(repo, &self.wal_ref(ws)) {
+            return Ok(v);
+        }
         let o = Command::new("git")
             .arg("-C")
             .arg(repo)
@@ -203,13 +258,14 @@ impl Wal for GitWal {
         let mut parent: Option<String> = None;
         for ev in &events[drop..] {
             let payload = serde_json::to_vec(ev).map_err(io::Error::other)?;
-            let blob = git_in(repo, &["hash-object", "-w", "--stdin"], &payload)?;
-            let tree = git_in(repo, &["mktree"], format!("100644 blob {blob}\tevent.json\n").as_bytes())?;
-            let mut args = vec!["commit-tree", tree.as_str(), "-m", "sturn:compacted"];
-            if let Some(p) = &parent {
-                args.extend(["-p", p.as_str()]);
-            }
-            parent = Some(git(repo, &args)?);
+            let blob = put_object(repo, "blob", &payload)?;
+            let tree = put_tree(repo, &blob, "event.json")?;
+            parent = Some(put_commit(
+                repo,
+                &tree,
+                parent.as_deref(),
+                "sturn:compacted",
+            )?);
         }
         // events[drop..] always includes the snapshot marker itself
         // when drop > 0, so the rebuilt chain always has a tip —

@@ -333,3 +333,33 @@ fn compact_keeps_only_snapshot_and_after() {
     assert_eq!(events.len(), 1);
     assert!(matches!(events[0].op, Op::Snapshot { .. }));
 }
+
+/// Hot-path cost probe — `cargo test -p sturn-wal-git append_rate
+/// -- --ignored --nocapture`. N sequential appends, prints ops/sec.
+/// Not a regression gate; run manually to sanity-check op cost.
+#[test]
+#[ignore]
+fn append_rate_probe() {
+    let repo = repo("rate");
+    let wal = GitWal::default();
+    // Warm-up — first append also does git's lazy ODB setup.
+    wal.append(&repo, "ws", &ev(Op::Intent { text: "w".into() }))
+        .unwrap();
+    let n = 100;
+    let t = std::time::Instant::now();
+    for i in 0..n {
+        wal.append(
+            &repo,
+            "ws",
+            &ev(Op::Intent {
+                text: format!("{i}"),
+            }),
+        )
+        .unwrap();
+    }
+    let d = t.elapsed();
+    eprintln!(
+        "{n} appends in {d:?} — {:.0} ops/s",
+        n as f64 / d.as_secs_f64()
+    );
+}

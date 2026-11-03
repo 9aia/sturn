@@ -11,3 +11,4 @@ categories = ["development-tools"]
 [dependencies]
 sturn-vcs.workspace = true
 sturn-core.workspace = true
+sturn-odb.workspace = true

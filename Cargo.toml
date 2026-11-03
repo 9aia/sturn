@@ -6,6 +6,7 @@ members = [
     "crates/sturn-core",
     "crates/sturn-wal",
     "crates/sturn-wal-git",
+    "crates/sturn-odb",
     "crates/sturn-bus",
     "crates/sturn-bus-redb",
     "crates/sturn-ws",
@@ -40,6 +41,7 @@ lto = "thin"
 sturn-core = { path = "crates/sturn-core", version = "0.1.0" }
 sturn-wal = { path = "crates/sturn-wal", version = "0.1.0" }
 sturn-wal-git = { path = "crates/sturn-wal-git", version = "0.1.0" }
+sturn-odb = { path = "crates/sturn-odb", version = "0.1.0" }
 sturn-bus = { path = "crates/sturn-bus", version = "0.1.0" }
 sturn-bus-redb = { path = "crates/sturn-bus-redb", version = "0.1.0" }
 sturn-ws = { path = "crates/sturn-ws", version = "0.1.0" }

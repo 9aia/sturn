@@ -1,6 +1,7 @@
-//! Ws impl via git plumbing — `cat-file` reads, `ls-tree` lists,
-//! `archive | tar` materializes. The ODB does the work; no index,
-//! no checkout, no lock contention.
+//! Ws impl — reads/lists go straight to the ODB via `sturn-odb`
+//! (loose objects only, plumbing fallback for packs/fancy revs),
+//! `archive | tar` materializes. No index, no checkout, no lock
+//! contention.
 
 use std::io;
 use std::io::Write;
@@ -37,6 +38,9 @@ fn ws_ref(name: &str) -> String {
 
 impl Ws for GitWs {
     fn read(&self, repo: &Path, rev: &str, path: &str) -> io::Result<Vec<u8>> {
+        if let Ok(Some(bytes)) = sturn_odb::read_at(repo, rev, path) {
+            return Ok(bytes);
+        }
         let o = Command::new("git")
             .arg("-C")
             .arg(repo)
@@ -50,6 +54,9 @@ impl Ws for GitWs {
     }
 
     fn list(&self, repo: &Path, rev: &str) -> io::Result<Vec<String>> {
+        if let Ok(Some(paths)) = sturn_odb::list_tree(repo, rev) {
+            return Ok(paths);
+        }
         let out = git(repo, &["ls-tree", "-r", "--name-only", rev])?;
         Ok(out.lines().map(String::from).collect())
     }
@@ -98,6 +105,9 @@ impl Ws for GitWs {
     }
 
     fn entry(&self, repo: &Path, rev: &str, path: &str) -> io::Result<Option<String>> {
+        if let Ok(Some(sha)) = sturn_odb::entry_oid(repo, rev, path) {
+            return Ok(Some(sha));
+        }
         let o = Command::new("git")
             .arg("-C")
             .arg(repo)
@@ -110,6 +120,11 @@ impl Ws for GitWs {
     }
 
     fn blob(&self, repo: &Path, sha: &str) -> io::Result<Vec<u8>> {
+        if let Ok(Some((kind, bytes))) = sturn_odb::read_object(repo, sha) {
+            if kind == "blob" {
+                return Ok(bytes);
+            }
+        }
         let o = Command::new("git")
             .arg("-C")
             .arg(repo)
@@ -123,6 +138,9 @@ impl Ws for GitWs {
     }
 
     fn store(&self, repo: &Path, content: &[u8]) -> io::Result<String> {
+        if let Ok(sha) = sturn_odb::write_object(repo, "blob", content) {
+            return Ok(sha);
+        }
         let mut c = Command::new("git")
             .arg("-C")
             .arg(repo)
@@ -141,6 +159,9 @@ impl Ws for GitWs {
     }
 
     fn tip(&self, repo: &Path, name: &str) -> io::Result<String> {
+        if let Ok(Some(sha)) = sturn_odb::resolve(repo, &ws_ref(name)) {
+            return Ok(sha);
+        }
         git(repo, &["rev-parse", &ws_ref(name)])
     }
 
