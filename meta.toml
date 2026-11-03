@@ -1,7 +1,7 @@
 name = "sturn"
 
 [next]
-t = 7
+t = 8
 i = 3
 p = 1
 adr = 2
