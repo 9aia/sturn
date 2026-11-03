@@ -1,7 +1,7 @@
 +++
 id = "ADR-0001"
 title = "WAL sharded per-workspace ref; causal (per-ref) consistency"
-status = "open"
+status = "in-progress"
 created = "2026-11-03"
 priority = "medium"
 +++
