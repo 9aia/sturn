@@ -48,10 +48,11 @@ enum Cmd {
         #[command(subcommand)]
         cmd: WsCmd,
     },
-    /// Advisory lock on a path glob — published *before* edits.
+    /// Advisory lock on a resource URI — published *before* edits.
     Claim {
-        /// Path glob, e.g. "src/parser.rs" or "src/**".
-        glob: String,
+        /// Resource URI or path glob — "fs:src/**", "dev:display0",
+        /// "net:13000", "sess:T-012"; a bare glob means "fs:".
+        uri: String,
         /// Workspace claiming it.
         #[arg(long)]
         ws: String,
@@ -62,9 +63,9 @@ enum Cmd {
         #[arg(long)]
         force: bool,
     },
-    /// Drop a claim.
+    /// Drop a claim — same URI form `claim` takes.
     Release {
-        glob: String,
+        uri: String,
         #[arg(long)]
         ws: String,
     },
@@ -168,6 +169,12 @@ enum Cmd {
     },
     /// Live claims across every workspace.
     Claims,
+    /// List live claims conflicting with a URI — consult before
+    /// acting on a resource. Exits 1 when the URI is contested.
+    Check {
+        /// Resource URI or path glob — same form `claim` takes.
+        uri: String,
+    },
     /// Open a pending-response ask — the printed event id is the
     /// ask handle that `answer`/`cancel`/`wait` take.
     Ask {
@@ -482,7 +489,7 @@ fn run(cli: &Cli) -> Result<(), String> {
             }
         },
         Cmd::Claim {
-            glob,
+            uri,
             ws,
             ttl,
             force,
@@ -492,7 +499,7 @@ fn run(cli: &Cli) -> Result<(), String> {
             let live = claims::active(&all, now);
             // Overlap within the same ws is fine — one workspace,
             // one writer.
-            let hits: Vec<_> = claims::conflicts(&live, glob)
+            let hits: Vec<_> = claims::conflicts(&live, uri)
                 .into_iter()
                 .filter(|c| c.ws != *ws)
                 .collect();
@@ -500,18 +507,18 @@ fn run(cli: &Cli) -> Result<(), String> {
                 for c in &hits {
                     eprintln!(
                         "conflict: {} claimed {} (ws {}, expires {})",
-                        c.actor, c.glob, c.ws, c.expires
+                        c.actor, c.uri, c.ws, c.expires
                     );
                 }
                 return Err("claim denied — --force to override".into());
             }
-            append(&wal, &repo, ws, &actor, Op::Claim { glob: glob.clone(), ttl_secs: *ttl, })?;
-            println!("claimed {glob} (ws {ws}, ttl {ttl}s)");
+            append(&wal, &repo, ws, &actor, Op::Claim { glob: uri.clone(), ttl_secs: *ttl, })?;
+            println!("claimed {uri} (ws {ws}, ttl {ttl}s)");
             Ok(())
         }
-        Cmd::Release { glob, ws } => {
-            append(&wal, &repo, ws, &actor, Op::Release { glob: glob.clone(), })?;
-            println!("released {glob}");
+        Cmd::Release { uri, ws } => {
+            append(&wal, &repo, ws, &actor, Op::Release { glob: uri.clone(), })?;
+            println!("released {uri}");
             Ok(())
         }
         Cmd::Join { ws } => {
@@ -590,10 +597,27 @@ fn run(cli: &Cli) -> Result<(), String> {
             for c in claims::active(&all, now()) {
                 println!(
                     "{} (ws {}, actor {}, expires {})",
-                    c.glob, c.ws, c.actor, c.expires
+                    c.uri, c.ws, c.actor, c.expires
                 );
             }
             Ok(())
+        }
+        Cmd::Check { uri } => {
+            let all = all_events(&wal, &repo)?;
+            let live = claims::active(&all, now());
+            let hits = claims::conflicts(&live, uri);
+            for c in &hits {
+                println!(
+                    "{} (ws {}, actor {}, expires {})",
+                    c.uri, c.ws, c.actor, c.expires
+                );
+            }
+            if hits.is_empty() {
+                println!("no conflicts: {uri}");
+                Ok(())
+            } else {
+                Err(format!("{} conflicting claim(s)", hits.len()))
+            }
         }
         Cmd::Ask {
             subject,

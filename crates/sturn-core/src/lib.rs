@@ -69,7 +69,10 @@ pub enum Op {
     Delete {
         path: String,
     },
-    /// Advisory lock on a path glob — publish *before* editing.
+    /// Advisory lock on a resource URI — publish *before* acting.
+    /// `glob` carries `scheme:path`: `fs:` globs (`src/**`, and a
+    /// bare glob means `fs:`) or opaque resources (`dev:display0`,
+    /// `net:13000`, `sess:T-012`, `cap:role`).
     Claim {
         glob: String,
         #[serde(default = "default_ttl")]

@@ -19,7 +19,7 @@ const SECTION: &str = "\
 
 - **No PRs.** The pushed branch/commit is the deliverable; review
   streams continuously (sturn WAL), merge is a human/sturn call.
-- sturn-wired repo (`sturn.toml` present): `sturn claim \"<glob>\"
+- sturn-wired repo (`sturn.toml` present): `sturn claim \"<uri>\"
   --ws <ws>` *before* edits — claims surface conflicts in ms.
 - Ops via `sturn write|rename|delete`; `sturn snap` folds the ws
   into a real commit; `sturn push` publishes heads + refs/sturn/*.

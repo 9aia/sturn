@@ -51,7 +51,7 @@ pub const TOOLS: &[Tool] = &[
     },
     Tool {
         name: "claim",
-        about: "Advisory lock on a path glob — conflict answer now, not at merge",
+        about: "Advisory lock on a resource URI — conflict answer now, not at merge",
     },
     Tool {
         name: "subs",
@@ -327,7 +327,7 @@ fn claim(ctx: &Ctx, a: &Value) -> Value {
         if !hits.is_empty() {
             let detail = hits
                 .iter()
-                .map(|c| format!("{} holds {} (ws {})", c.actor, c.glob, c.ws))
+                .map(|c| format!("{} holds {} (ws {})", c.actor, c.uri, c.ws))
                 .collect::<Vec<_>>()
                 .join("; ");
             return Err(format!("conflict: {detail}"));
@@ -661,8 +661,8 @@ fn tool_list() -> Value {
         tool_schema("ws_grep", "Substring search across a ws", json!({"ws": ws.1, "pattern": s("pattern").1}), &["ws","pattern"]),
         tool_schema("ws_rename", "Move a path (intent survives)", json!({"ws": ws.1, "from": s("from").1, "to": s("to").1}), &["ws","from","to"]),
         tool_schema("ws_delete", "Delete a path", json!({"ws": ws.1, "path": s("path").1}), &["ws","path"]),
-        tool_schema("claim", "Advisory lock on a path glob — conflicts before work", json!({"ws": ws.1, "glob": s("glob").1, "ttl_secs": {"type":"integer"}}), &["ws","glob"]),
-        tool_schema("release", "Drop a claim", json!({"ws": ws.1, "glob": s("glob").1}), &["ws","glob"]),
+        tool_schema("claim", "Advisory lock on a resource URI (fs:path glob, dev:/net:/sess:/cap:) — conflicts before work", json!({"ws": ws.1, "glob": s("uri").1, "ttl_secs": {"type":"integer"}}), &["ws","glob"]),
+        tool_schema("release", "Drop a claim", json!({"ws": ws.1, "glob": s("uri").1}), &["ws","glob"]),
         tool_schema("snap", "Fold ws ops into a real commit", json!({"ws": ws.1, "message": s("message").1, "branch": s("branch").1}), &["ws","message"]),
         tool_schema("intent", "Record why work exists", json!({"ws": ws.1, "text": s("text").1}), &["ws","text"]),
         tool_schema("review", "Approve/reject an event id", json!({"ws": ws.1, "event": s("event").1, "verdict": s("verdict").1}), &["ws","event","verdict"]),

@@ -1,7 +1,7 @@
 //! Unit tests for sturn-claim: glob matching, overlap
 //! approximation, and folding the WAL into live claims.
 
-use sturn_claim::{active, conflicts, covers, glob_match};
+use sturn_claim::{active, conflicts, covers, glob_match, normalize, overlaps, split};
 use sturn_core::{Event, Op};
 
 fn ev(ws: &str, actor: &str, op: Op, ts: u64) -> Event {
@@ -229,7 +229,7 @@ fn expired_claims_drop() {
     ];
     let live = active(&events, 50);
     assert_eq!(live.len(), 1);
-    assert_eq!(live[0].glob, "y");
+    assert_eq!(live[0].uri, "fs:y");
 }
 
 #[test]
@@ -257,6 +257,125 @@ fn conflicts_reports_overlapping_holders() {
     let live = active(&events, 50);
     let hits = conflicts(&live, "src/main.rs");
     assert_eq!(hits.len(), 1);
-    assert_eq!(hits[0].glob, "src/**");
+    assert_eq!(hits[0].uri, "fs:src/**");
     assert!(conflicts(&live, "readme.md").is_empty());
+}
+
+// --- resource URIs -------------------------------------------------------
+
+#[test]
+fn split_reads_scheme_prefix() {
+    assert_eq!(split("src/**"), ("fs", "src/**"));
+    assert_eq!(split("fs:src/**"), ("fs", "src/**"));
+    assert_eq!(split("dev:display0"), ("dev", "display0"));
+    assert_eq!(split("net:13000"), ("net", "13000"));
+    assert_eq!(split("sess:T-012"), ("sess", "T-012"));
+    assert_eq!(split("dev:"), ("dev", ""));
+    // No valid scheme → the whole string is an fs path.
+    assert_eq!(split(":x"), ("fs", ":x"));
+    assert_eq!(split("1a:x"), ("fs", "1a:x"));
+    // A colon past the first keeps working inside a path.
+    assert_eq!(split("fs:a:b"), ("fs", "a:b"));
+}
+
+#[test]
+fn normalize_canonicalizes_scheme() {
+    assert_eq!(normalize("src/**"), "fs:src/**");
+    assert_eq!(normalize("fs:src/**"), "fs:src/**");
+    assert_eq!(normalize("FS:src/**"), "fs:src/**");
+    assert_eq!(normalize("net:13000"), "net:13000");
+    assert_eq!(normalize("Net:13000"), "net:13000");
+}
+
+#[test]
+fn overlaps_fs_uses_glob_intersection() {
+    // Regression — bare and `fs:`-prefixed are the same claim.
+    assert!(overlaps("src/**", "src/foo.rs"));
+    assert!(overlaps("fs:src/**", "src/foo.rs"));
+    assert!(overlaps("src/**", "fs:src/foo.rs"));
+    assert!(!overlaps("src/**", "docs/**"));
+    // Different schemes never conflict.
+    assert!(!overlaps("src/**", "net:13000"));
+}
+
+#[test]
+fn overlaps_opaque_exact_and_boundary_prefix() {
+    assert!(overlaps("dev:display0", "dev:display0"));
+    // A bare `dev:` claims the whole scheme.
+    assert!(overlaps("dev:", "dev:display0"));
+    assert!(overlaps("dev:display0", "dev:"));
+    // Hierarchy inside the path part splits on `/`.
+    assert!(overlaps("dev:display0", "dev:display0/gpu0"));
+    // No mid-token prefix — port 130 is not port 13000.
+    assert!(!overlaps("net:130", "net:13000"));
+    assert!(!overlaps("net:13000", "net:130"));
+    assert!(!overlaps("sess:T-01", "sess:T-012"));
+    assert!(!overlaps("cap:release", "cap:release-cutter"));
+    assert!(!overlaps("dev:display0", "sess:display0"));
+}
+
+#[test]
+fn claim_and_release_match_on_canonical_uri() {
+    let events = vec![
+        ev(
+            "w1",
+            "a",
+            Op::Claim {
+                glob: "src/**".into(),
+                ttl_secs: 100,
+            },
+            0,
+        ),
+        // `fs:`-spelled release drops the bare-glob claim.
+        ev(
+            "w1",
+            "a",
+            Op::Release {
+                glob: "fs:src/**".into(),
+            },
+            1,
+        ),
+        ev(
+            "w1",
+            "a",
+            Op::Claim {
+                glob: "net:13000".into(),
+                ttl_secs: 100,
+            },
+            2,
+        ),
+    ];
+    let live = active(&events, 50);
+    assert_eq!(live.len(), 1);
+    assert_eq!(live[0].uri, "net:13000");
+}
+
+#[test]
+fn conflicts_reports_opaque_holders() {
+    let events = vec![
+        ev(
+            "w1",
+            "a",
+            Op::Claim {
+                glob: "net:13000".into(),
+                ttl_secs: 100,
+            },
+            0,
+        ),
+        ev(
+            "w2",
+            "b",
+            Op::Claim {
+                glob: "sess:T-012".into(),
+                ttl_secs: 100,
+            },
+            0,
+        ),
+    ];
+    let live = active(&events, 50);
+    assert_eq!(conflicts(&live, "net:13000").len(), 1);
+    assert_eq!(conflicts(&live, "net:").len(), 1);
+    assert!(conflicts(&live, "net:130").is_empty());
+    assert!(conflicts(&live, "sess:").len() == 1);
+    assert!(conflicts(&live, "dev:display0").is_empty());
 }

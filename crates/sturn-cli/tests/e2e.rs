@@ -670,6 +670,41 @@ fn claim_conflict_force_and_claims_listing() {
 }
 
 #[test]
+fn typed_uri_claims_and_check() {
+    let repo = bare_repo("uris");
+    sturn_ok(&repo, &["ws", "new", "a"], &[]);
+    sturn_ok(&repo, &["ws", "new", "b"], &[]);
+
+    // Opaque scheme: exact match conflicts, mid-token prefix doesn't.
+    sturn_ok(&repo, &["claim", "net:13000", "--ws", "a"], &[]);
+    let err = sturn_err(&repo, &["claim", "net:13000", "--ws", "b"]);
+    assert!(err.contains("conflict") || err.contains("denied"), "{err}");
+    // `net:` claims the whole scheme; `net:130` is a different port.
+    let err = sturn_err(&repo, &["claim", "net:", "--ws", "b"]);
+    assert!(err.contains("conflict") || err.contains("denied"), "{err}");
+    sturn_ok(&repo, &["claim", "net:130", "--ws", "b"], &[]);
+
+    // `check` surfaces contenders — exit 1 — without claiming.
+    let err = sturn_err(&repo, &["check", "net:13000"]);
+    assert!(err.contains("conflicting"), "{err}");
+    // …and stays quiet (exit 0) when the resource is free.
+    let out = sturn_ok(&repo, &["check", "dev:display0"], &[]);
+    assert!(out.contains("no conflicts"), "{out}");
+
+    // Bare glob and `fs:` spell the same resource.
+    sturn_ok(&repo, &["claim", "fs:src/**", "--ws", "a"], &[]);
+    let err = sturn_err(&repo, &["check", "src/x.rs"]);
+    assert!(err.contains("conflicting"), "{err}");
+    let claims = sturn_ok(&repo, &["claims"], &[]);
+    assert!(claims.contains("net:13000") && claims.contains("fs:src/**"), "{claims}");
+
+    // Release accepts the same URI form.
+    sturn_ok(&repo, &["release", "net:13000", "--ws", "a"], &[]);
+    let out = sturn_ok(&repo, &["check", "net:13000"], &[]);
+    assert!(out.contains("no conflicts"), "{out}");
+}
+
+#[test]
 fn review_verdict_paths() {
     let repo = bare_repo("revv");
     sturn_ok(&repo, &["ws", "new", "a"], &[]);
