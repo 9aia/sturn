@@ -1,5 +1,5 @@
 +++
-id = "ADR-0001"
+id = "ADR-0003"
 title = "WAL sharded per-workspace ref; causal (per-ref) consistency"
 status = "done"
 created = "2026-11-03"

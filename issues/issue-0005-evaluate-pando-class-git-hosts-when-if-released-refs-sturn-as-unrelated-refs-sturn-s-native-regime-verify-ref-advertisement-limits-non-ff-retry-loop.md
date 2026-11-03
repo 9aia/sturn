@@ -1,5 +1,5 @@
 +++
-id = "I-003"
+id = "I-005"
 title = "Evaluate Pando-class git hosts when/if released (refs/sturn/* as unrelated refs — sturn's native regime; verify ref advertisement limits + non-ff retry loop)"
 status = "open"
 created = "2026-11-03"
