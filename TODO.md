@@ -13,4 +13,4 @@
 
 ## M5 — dogfood
 
-- [ ] T-001 bupha CI consumes sturn topics instead of webhooks
+- [ ] T-001 bupha CI consumes sturn topics instead of webhooks · status:in-progress · owner:devin
