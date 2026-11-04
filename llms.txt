@@ -2,7 +2,7 @@
 
 > agents murmurate, not merge
 
-Evented coordination over the git object store — the WAL is the state, the tree is a projection, the bus is a cache.
+Ephemeral coordination engine — claims/ops/topics over VCS state
 
 ## Table of Contents
 

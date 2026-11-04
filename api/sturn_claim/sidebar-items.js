@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["active","conflicts","covers","glob_match"],"struct":["Active"]};
+window.SIDEBAR_ITEMS = {"fn":["active","conflicts","covers","glob_match","normalize","overlaps","split"],"struct":["Active"]};

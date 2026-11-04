@@ -12,13 +12,14 @@ Global flags: `--repo <dir>` (default cwd) · `--config <path>`.
 | `sturn ws ls` | list workspaces |
 | `sturn ws read <ws> <path>` | blob contents, straight from the ODB |
 | `sturn ws hydrate <ws> <dir> [--path P] [--writeback]` | materialize view; --writeback diffs dir → ops |
-| `sturn claim <glob> --ws <w> [--ttl N] [--force]` | advisory lock; exits 1 on live conflict |
-| `sturn release <glob> --ws <w>` | drop a claim |
-| `sturn claims` | live claims across every workspace |
+| `sturn claim <uri> --ws <w> [--ttl N] [--force]` | advisory lock on a resource URI — `fs:` glob (`src/**`; bare glob means `fs:`) or opaque (`dev:display0`, `net:13000` or range `net:13000-13100`, `sess:T-012`, `cap:role`); prints the fencing token; exits 1 on live conflict |
+| `sturn release <uri> --ws <w>` | drop a claim |
+| `sturn claims` | live claims across every workspace — uri, holder, expiry, fence |
+| `sturn check <uri> [--fence N] [--watch]` | list live claims conflicting with a URI; exits 1 when contested. `--fence N` reports only claims outranking N — the held-claim staleness probe. `--watch` streams conflict-set changes via WAL poll |
 | `sturn write <path> --ws <w> [--file F] [--intent T]` | append a write op (stdin → blob) |
 | `sturn intent <text> --ws <w>` | record provenance |
 | `sturn log [--ws <w>]` | replay the WAL as JSONL |
-| `sturn snap <ws…> -m <msg>` | fold ops → commit; multi-ws merges into one |
+| `sturn snap <ws…> -m <msg>` | fold ops → commit; multi-ws merges into one — rename-aware; conflicts → stderr |
 | `sturn review <event-id> <approve\|reject> --ws <w>` | continuous review |
 | `sturn ask <subject> --ws <w> [--target T] [--option O…] [--ttl N]` | open a pending ask — event id is the handle |
 | `sturn asks [--all] [--json]` | pending asks; --all adds resolved |
