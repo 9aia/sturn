@@ -25,6 +25,25 @@ content-addressed (blob sha = event id), one commit per append.
 | `answer` | `ask`, `verdict` | close an ask with a verdict |
 | `cancel` | `ask` | withdraw an open ask |
 
+## Claims
+
+`claim.glob` carries a resource URI — `scheme:path`. `fs:` globs
+(`src/**`, and a bare glob means `fs:`) or opaque resources
+(`dev:display0`, `sess:T-012`, `cap:role`). `net:` paths may be
+port ranges — `net:13000-13100` conflicts with `net:13050`;
+non-numeric paths fall back to prefix matching.
+
+Each live claim derives a **fencing token** at fold time — a
+Lamport-style epoch: `1 + max` over earlier claims on overlapping
+URIs, ordered by `ts` then WAL position. Never stored, and never
+repeats for a resource — expired and released claims still count
+as predecessors. `sturn claim` prints it; a holder passes it to
+`sturn check <uri> --fence <n>` to ask "has anything outranked
+me?" — the stale-usurper probe. It's advisory like the claim:
+second-granularity `ts` plus concatenation order means
+same-second cross-ws races resolve deterministically, not
+temporally.
+
 ## Asks
 
 Claims are pending *ownership*; asks are pending *answers*. An
