@@ -1,1 +1,1 @@
-{"id":"","ws":"devin-t007","actor":"luis","ts":1793760709,"op":{"op":"claim","glob":"crates/sturn-cli/**","ttl_secs":3600}}
+{"id":"","ws":"devin-t007","actor":"luis","ts":1793760710,"op":{"op":"claim","glob":"docs/reference/**","ttl_secs":3600}}
