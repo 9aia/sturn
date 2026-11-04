@@ -1,1 +1,1 @@
-{"id":"","ws":"devin-p001","actor":"luis","ts":1793751639,"op":{"op":"claim","glob":"docs/reference/**","ttl_secs":3600}}
+{"id":"","ws":"devin-p001","actor":"luis","ts":1793751639,"op":{"op":"claim","glob":"project/proposals/**","ttl_secs":3600}}
