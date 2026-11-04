@@ -126,7 +126,8 @@ enum Cmd {
         live: bool,
     },
     /// Fold ws ops into a real commit on the branch. Multiple ws =
-    /// merged into ONE commit (ops concat; later ops win same-path).
+    /// merged into ONE commit — rename-aware (writes follow renames);
+    /// semantic conflicts warn on stderr, later ops win same-path.
     Snap {
         #[arg(required = true)]
         ws: Vec<String>,
@@ -1795,8 +1796,11 @@ fn writeback_ops(
 }
 
 /// Merge several ws's pending ops into ONE commit on `branch`.
-/// Later ops win on same-path collisions — claims should have
-/// prevented that upstream.
+/// `sturn_core::merge` folds them rename-aware — a write onto a
+/// path another ws renamed away follows the rename; ambiguous
+/// shapes warn on stderr instead of picking a silent winner.
+/// Later ops still win on true same-path collisions — claims
+/// should have prevented that upstream.
 #[allow(clippy::too_many_arguments)]
 fn merge_snap(
     repo: &Path,
@@ -1844,7 +1848,11 @@ fn merge_snap(
     let base = sturn_git::GitVcs
         .resolve(repo, &format!("refs/heads/{branch}"))
         .unwrap_or_else(|| "HEAD".into());
-    let commit = sturn_git::snap_commit(repo, &base, &pending, message, branch)
+    let merged = sturn_core::merge(&pending);
+    for w in &merged.warnings {
+        eprintln!("{w}");
+    }
+    let commit = sturn_git::snap_commit(repo, &base, &merged.events, message, branch)
         .map_err(|e| e.to_string())?;
     for ws in wss {
         wsi.create(repo, ws, &commit).map_err(|e| e.to_string())?;

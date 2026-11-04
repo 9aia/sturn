@@ -458,6 +458,50 @@ fn merge_snap_folds_two_workspaces() {
     assert_eq!(git(&repo, &["show", "HEAD:y.txt"]), "by");
 }
 
+#[test]
+fn merge_snap_retargets_write_onto_rename() {
+    let repo = bare_repo("renmerge");
+    std::fs::write(repo.join("f.txt"), b"orig\n").unwrap();
+    git(&repo, &["add", "f.txt"]);
+    commit(&repo, "add f");
+    sturn_ok(&repo, &["init"], &[]);
+    sturn_ok(&repo, &["ws", "new", "a"], &[]);
+    sturn_ok(&repo, &["ws", "new", "b"], &[]);
+    // b edits f.txt while a renames it to g.txt. The write hits a
+    // rename's old path — it follows the rename onto g.txt.
+    sturn_ok_in(&repo, &["write", "f.txt", "--ws", "b"], b"edited\n");
+    sturn_ok(&repo, &["rename", "f.txt", "g.txt", "--ws", "a"], &[]);
+    // b first in the arg list — the retarget lands last anyway.
+    let o = sturn_full(&repo, &["snap", "b", "a", "-m", "merged"], &[], &[]);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert!(err.contains("follows rename"), "{err}");
+    assert_eq!(git(&repo, &["show", "HEAD:g.txt"]), "edited");
+    let tree = git(&repo, &["ls-tree", "--name-only", "HEAD"]);
+    assert!(!tree.lines().any(|l| l == "f.txt"), "{tree}");
+}
+
+#[test]
+fn merge_snap_surfaces_semantic_conflicts() {
+    let repo = bare_repo("renconflict");
+    std::fs::write(repo.join("f.txt"), b"orig\n").unwrap();
+    git(&repo, &["add", "f.txt"]);
+    commit(&repo, "add f");
+    sturn_ok(&repo, &["init"], &[]);
+    sturn_ok(&repo, &["ws", "new", "a"], &[]);
+    sturn_ok(&repo, &["ws", "new", "b"], &[]);
+    // a moves f, b wants it gone — genuinely ambiguous, so the
+    // merge warns instead of picking a silent winner.
+    sturn_ok(&repo, &["rename", "f.txt", "g.txt", "--ws", "a"], &[]);
+    sturn_ok(&repo, &["delete", "f.txt", "--ws", "b"], &[]);
+    let o = sturn_full(&repo, &["snap", "a", "b", "-m", "merged"], &[], &[]);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert!(err.contains("conflict: delete f.txt (ws b) vs rename f.txt → g.txt (ws a)"), "{err}");
+    // Conservative fold: the renamed file survives.
+    assert_eq!(git(&repo, &["show", "HEAD:g.txt"]), "orig");
+}
+
 // ---------- coverage extensions: every subcommand + error path ----------
 
 fn git_in(dir: &Path, args: &[&str], input: &[u8]) -> String {

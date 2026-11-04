@@ -3,10 +3,49 @@
 //! (Config TOML parsing is exercised in sturn-config-toml's tests —
 //! that impl owns the `toml` dependency.)
 
-use sturn_core::{overlay, since_last_snapshot, ActorCfg, Event, Op, Verdict};
+use sturn_core::{merge, overlay, since_last_snapshot, ActorCfg, Event, Merge, Op, Verdict};
 
 fn ev(op: Op) -> Event {
     Event::new("ws1", "agent", op)
+}
+
+fn w(ws: &str, op: Op) -> Event {
+    Event::new(ws, "agent", op)
+}
+
+fn write(path: &str, blob: &str) -> Op {
+    Op::Write {
+        path: path.into(),
+        blob: blob.into(),
+        intent: None,
+    }
+}
+
+fn write_intent(path: &str, blob: &str, intent: &str) -> Op {
+    Op::Write {
+        path: path.into(),
+        blob: blob.into(),
+        intent: Some(intent.into()),
+    }
+}
+
+fn rename(from: &str, to: &str) -> Op {
+    Op::Rename {
+        from: from.into(),
+        to: to.into(),
+    }
+}
+
+fn delete(path: &str) -> Op {
+    Op::Delete { path: path.into() }
+}
+
+/// The Write at `idx`'s path — panics if it isn't one.
+fn write_path(m: &Merge, idx: usize) -> &str {
+    match &m.events[idx].op {
+        Op::Write { path, .. } => path,
+        _ => panic!("event {idx} not a write"),
+    }
 }
 
 // --- since_last_snapshot ------------------------------------------------
@@ -383,4 +422,199 @@ fn overlay_rename_resolution() {
     let ov = sturn_core::overlay(&evs3, |_| None);
     assert_eq!(ov.get("t"), None);
     evs.clear();
+}
+
+// --- merge (rename-aware cross-ws fold) -----------------------------------
+
+#[test]
+fn merge_clean_streams_passthrough() {
+    let m = merge(&[
+        w("a", write("x", "b1")),
+        w("b", delete("y")),
+        w("a", Op::Intent { text: "i".into() }),
+        w("a", rename("p", "q")),
+    ]);
+    assert!(m.warnings.is_empty(), "{:?}", m.warnings);
+    // Same ops, same order — nothing deferred.
+    assert_eq!(m.events.len(), 4);
+    assert!(matches!(m.events[3].op, Op::Rename { .. }));
+}
+
+#[test]
+fn merge_retargets_write_onto_rename() {
+    // ws b edited f while ws a renamed it to g — the write follows,
+    // landing after the rename no matter the ws order (b came first).
+    let m = merge(&[
+        w("b", write_intent("f", "b2", "fix")),
+        w("a", rename("f", "g")),
+    ]);
+    assert_eq!(m.events.len(), 2);
+    assert!(matches!(m.events[0].op, Op::Rename { .. }));
+    assert_eq!(write_path(&m, 1), "g");
+    assert_eq!(
+        m.warnings,
+        vec!["note: write f (ws b \"fix\") → g — follows rename"]
+    );
+}
+
+#[test]
+fn merge_retarget_follows_rename_chain() {
+    // a moved f→g→h; b's write to f lands on the final name.
+    let m = merge(&[
+        w("a", rename("f", "g")),
+        w("a", rename("g", "h")),
+        w("b", write("f", "b2")),
+    ]);
+    assert_eq!(write_path(&m, 2), "h");
+    assert_eq!(
+        m.warnings,
+        vec!["note: write f (ws b) → h — follows rename"]
+    );
+}
+
+#[test]
+fn merge_rename_cycle_has_no_final_dest() {
+    // a's chain loops f→g→f — no final name to follow, the write
+    // stays put.
+    let m = merge(&[
+        w("a", rename("f", "g")),
+        w("a", rename("g", "f")),
+        w("b", write("f", "b2")),
+    ]);
+    assert_eq!(write_path(&m, 2), "f");
+}
+
+#[test]
+fn merge_diverged_renames_warn_and_stay() {
+    let m = merge(&[
+        w("a", rename("f", "g")),
+        w("c", rename("f", "h")),
+        w("b", write("f", "b2")),
+    ]);
+    assert!(m
+        .warnings
+        .iter()
+        .any(|w| w.contains("conflict: rename f diverged — g (ws a), h (ws c)")));
+    // No safe destination — the write keeps its own path.
+    assert_eq!(write_path(&m, 2), "f");
+}
+
+#[test]
+fn merge_converged_renames_are_quiet() {
+    // Both ws sent f to the same place — agreement, not a conflict.
+    let m = merge(&[w("a", rename("f", "g")), w("b", rename("f", "g"))]);
+    assert!(m.warnings.is_empty(), "{:?}", m.warnings);
+    // …and a third ws's write follows the shared destination.
+    let m = merge(&[
+        w("a", rename("f", "g")),
+        w("b", rename("f", "g")),
+        w("c", write("f", "c1")),
+    ]);
+    assert_eq!(write_path(&m, 2), "g");
+}
+
+#[test]
+fn merge_own_rename_blocks_retarget() {
+    // b renamed f itself — its later write to f is a deliberate
+    // new file, not a stray edit on a moved path.
+    let m = merge(&[
+        w("a", rename("f", "g")),
+        w("b", rename("f", "h")),
+        w("b", write("f", "b2")),
+    ]);
+    assert_eq!(write_path(&m, 2), "f");
+}
+
+#[test]
+fn merge_delete_vs_rename_source_warns() {
+    let m = merge(&[w("a", rename("f", "g")), w("b", delete("f"))]);
+    assert_eq!(
+        m.warnings,
+        vec!["conflict: delete f (ws b) vs rename f → g (ws a)"]
+    );
+    // Both ops still land — the delete is a no-op on the
+    // renamed-away path.
+    assert_eq!(m.events.len(), 2);
+}
+
+#[test]
+fn merge_rename_dest_collisions_warn() {
+    let m = merge(&[
+        w("a", rename("f", "g")),
+        w("d", rename("x", "g")),
+        w("b", write("g", "b2")),
+        w("c", delete("g")),
+    ]);
+    assert!(m
+        .warnings
+        .iter()
+        .any(|w| w.contains("conflict: g claimed by renames f (ws a), x (ws d)")));
+    assert!(m
+        .warnings
+        .iter()
+        .any(|w| w.contains("conflict: g written (ws b) vs rename f → g, x → g (ws a/d)")));
+    assert!(m
+        .warnings
+        .iter()
+        .any(|w| w.contains("conflict: delete g (ws c) vs rename f → g, x → g (ws a/d)")));
+    // The write/delete pair on g is a same-path conflict too.
+    assert!(m
+        .warnings
+        .iter()
+        .any(|w| w.contains("conflict: g written (ws b) vs deleted (ws c) — order decides")));
+}
+
+#[test]
+fn merge_same_path_writes_warn_with_intent() {
+    let m = merge(&[
+        w("a", write_intent("p", "1", "why-a")),
+        w("b", write("p", "3")),
+    ]);
+    assert_eq!(
+        m.warnings,
+        vec!["conflict: p written by a \"why-a\", b — last op wins"]
+    );
+}
+
+#[test]
+fn merge_write_vs_delete_same_path_warns() {
+    let m = merge(&[w("a", write("p", "1")), w("b", delete("p"))]);
+    assert_eq!(
+        m.warnings,
+        vec!["conflict: p written (ws a) vs deleted (ws b) — order decides"]
+    );
+    // One ws writing+deleting its own path is its own business.
+    let m = merge(&[w("a", write("p", "1")), w("a", delete("p"))]);
+    assert!(m.warnings.is_empty(), "{:?}", m.warnings);
+}
+
+#[test]
+fn merge_retarget_reports_what_it_lands_on() {
+    // a rewrote f then renamed it to g; c wrote g; d deleted g.
+    // b's write to f follows the rename onto all of it.
+    let m = merge(&[
+        w("a", write("f", "a1")),
+        w("a", rename("f", "g")),
+        w("c", write("g", "c1")),
+        w("d", delete("g")),
+        w("b", write("f", "b2")),
+    ]);
+    assert!(m
+        .warnings
+        .iter()
+        .any(|w| w.contains("note: write f (ws b) → g — follows rename")));
+    assert!(m
+        .warnings
+        .iter()
+        .any(|w| w.contains("conflict: ws a rewrote f before renaming — ws b write wins g")));
+    assert!(m
+        .warnings
+        .iter()
+        .any(|w| w.contains("conflict: g written (ws c) — retargeted write (ws b) lands last")));
+    assert!(m
+        .warnings
+        .iter()
+        .any(|w| w.contains("conflict: retargeted write g (ws b) vs delete (ws d)")));
+    // The retargeted write closes the stream.
+    assert_eq!(write_path(&m, 4), "g");
 }

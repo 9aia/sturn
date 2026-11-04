@@ -171,6 +171,277 @@ pub fn overlay(
     m
 }
 
+/// What `merge` returns — the applied stream plus everything the
+/// fold noticed that a path-blind concat would hide.
+#[derive(Debug, Default)]
+pub struct Merge {
+    /// Ops in apply order — writes retargeted by a rename re-emit
+    /// last, so they land on the destination however the
+    /// workspaces were ordered.
+    pub events: Vec<Event>,
+    /// `conflict:`/`note:` lines — advisory; the ops themselves
+    /// stay git's merge.
+    pub warnings: Vec<String>,
+}
+
+/// Fold several workspaces' pending ops into ONE rename-aware
+/// stream for a commit. Concatenation order still decides true
+/// same-path collisions — but a Write that hits a path another ws
+/// renamed away follows the rename (the modify-vs-rename case a
+/// 3-way merge resolves the same way). Genuinely ambiguous
+/// shapes — a source renamed two ways, deletes meeting renames,
+/// colliding destinations — stay put and report in `warnings`
+/// instead of picking a silent winner.
+pub fn merge(events: &[Event]) -> Merge {
+    use std::collections::{BTreeMap, BTreeSet};
+
+    // Per-path op census — the signal a path-overlay concat loses.
+    let mut renames: BTreeMap<&str, Vec<(&str, &str)>> = BTreeMap::new();
+    let mut dests: BTreeMap<&str, Vec<(&str, &str)>> = BTreeMap::new();
+    let mut ws_renames: BTreeMap<&str, Vec<(&str, &str)>> = BTreeMap::new();
+    let mut writes: BTreeMap<&str, Vec<&Event>> = BTreeMap::new();
+    let mut deletes: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    for ev in events {
+        match &ev.op {
+            Op::Write { path, .. } => writes.entry(path).or_default().push(ev),
+            Op::Delete { path } => deletes.entry(path).or_default().push(&ev.ws),
+            Op::Rename { from, to } => {
+                renames.entry(from).or_default().push((&ev.ws, to));
+                dests.entry(to).or_default().push((&ev.ws, from));
+                ws_renames
+                    .entry(&ev.ws)
+                    .or_default()
+                    .push((from, to));
+            }
+            _ => {}
+        }
+    }
+
+    /// Final resting place of `path` under `ws`'s own ops — replay
+    /// its renames in order tracking the file's current name, so
+    /// f→g→h lands h and a cycle landing back on f means f.
+    fn final_to(
+        ws_renames: &BTreeMap<&str, Vec<(&str, &str)>>,
+        ws: &str,
+        path: &str,
+    ) -> String {
+        let mut cur = path.to_string();
+        for (f, t) in ws_renames.get(ws).into_iter().flatten() {
+            if *f == cur {
+                cur = t.to_string();
+            }
+        }
+        cur
+    }
+
+    let mut m = Merge::default();
+
+    // A source renamed to different final destinations by
+    // different ws — no write can safely follow that.
+    for (from, rs) in &renames {
+        let by_ws: BTreeMap<&str, String> = rs
+            .iter()
+            .map(|(w, _)| (*w, final_to(&ws_renames, w, from)))
+            .collect();
+        if by_ws.values().collect::<BTreeSet<_>>().len() > 1 {
+            m.warnings.push(format!(
+                "conflict: rename {from} diverged — {}",
+                by_ws
+                    .iter()
+                    .map(|(w, t)| format!("{t} (ws {w})"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        // A foreign delete of the source: the deleter wants the
+        // file gone, the renamer moved it. The delete still lands
+        // (on the old path, now a no-op) — the content survives.
+        let rws: BTreeSet<&str> = rs.iter().map(|(w, _)| *w).collect();
+        for w in deletes
+            .get(from)
+            .into_iter()
+            .flatten()
+            .filter(|w| !rws.contains(**w))
+        {
+            m.warnings.push(format!(
+                "conflict: delete {from} (ws {w}) vs rename {}",
+                rs.iter()
+                    .map(|(rw, t)| format!("{from} → {t} (ws {rw})"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+    }
+
+    // Something else landing where a rename lands.
+    for (to, rs) in &dests {
+        let rws: BTreeSet<&str> = rs.iter().map(|(w, _)| *w).collect();
+        // Two ws renaming different sources onto one path.
+        if rws.len() > 1 && rs.iter().map(|(_, f)| f).collect::<BTreeSet<_>>().len() > 1 {
+            m.warnings.push(format!(
+                "conflict: {to} claimed by renames {}",
+                rs.iter()
+                    .map(|(w, f)| format!("{f} (ws {w})"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        // A foreign write at the destination — order decides it.
+        for ev in writes
+            .get(to)
+            .into_iter()
+            .flatten()
+            .filter(|e| !rws.contains(e.ws.as_str()))
+        {
+            m.warnings.push(format!(
+                "conflict: {to} written (ws {}) vs rename {} (ws {})",
+                ev.ws,
+                rs.iter()
+                    .map(|(_, f)| format!("{f} → {to}"))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                rws.iter().copied().collect::<Vec<_>>().join("/")
+            ));
+        }
+        // A foreign delete at the destination kills the moved file.
+        for w in deletes
+            .get(to)
+            .into_iter()
+            .flatten()
+            .filter(|w| !rws.contains(**w))
+        {
+            m.warnings.push(format!(
+                "conflict: delete {to} (ws {w}) vs rename {} (ws {})",
+                rs.iter()
+                    .map(|(_, f)| format!("{f} → {to}"))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                rws.iter().copied().collect::<Vec<_>>().join("/")
+            ));
+        }
+    }
+
+    // Same-path collisions a concat would silently order past.
+    for (path, evs) in &writes {
+        let mut by_ws: BTreeMap<&str, &Event> = BTreeMap::new();
+        for e in evs {
+            by_ws.insert(&e.ws, e);
+        }
+        if by_ws.len() > 1 {
+            m.warnings.push(format!(
+                "conflict: {path} written by {} — last op wins",
+                by_ws
+                    .iter()
+                    .map(|(w, e)| {
+                        let i = match &e.op {
+                            Op::Write {
+                                intent: Some(i), ..
+                            } => format!(" \"{i}\""),
+                            _ => String::new(),
+                        };
+                        format!("{w}{i}")
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+    }
+    for (path, ds) in &deletes {
+        let writers: BTreeSet<&str> = writes
+            .get(path)
+            .into_iter()
+            .flatten()
+            .map(|e| e.ws.as_str())
+            .collect();
+        let deleters: BTreeSet<&str> = ds.iter().copied().collect();
+        if !writers.is_empty()
+            && (writers.iter().any(|w| !deleters.contains(w))
+                || deleters.iter().any(|w| !writers.contains(w)))
+        {
+            m.warnings.push(format!(
+                "conflict: {path} written (ws {}) vs deleted (ws {}) — order decides",
+                writers.iter().copied().collect::<Vec<_>>().join("/"),
+                deleters.iter().copied().collect::<Vec<_>>().join("/")
+            ));
+        }
+    }
+
+    // The retarget pass — writes onto rename sources follow the
+    // rename when the destination is unambiguous.
+    let mut deferred: Vec<Event> = vec![];
+    for ev in events {
+        let Op::Write { path, .. } = &ev.op else {
+            m.events.push(ev.clone());
+            continue;
+        };
+        let rs = renames.get(path.as_str());
+        // A ws that renamed the path itself manages its own intent.
+        let own = rs.is_some_and(|rs| rs.iter().any(|(w, _)| *w == ev.ws));
+        let dsts: BTreeSet<String> = rs
+            .into_iter()
+            .flatten()
+            .filter(|(w, _)| *w != ev.ws.as_str())
+            .map(|(w, _)| final_to(&ws_renames, w, path))
+            .collect();
+        if own || dsts.len() != 1 || dsts.contains(path.as_str()) {
+            m.events.push(ev.clone());
+            continue;
+        }
+        let to = dsts.into_iter().next().unwrap();
+        let i = match &ev.op {
+            Op::Write {
+                intent: Some(i), ..
+            } => format!(" \"{i}\""),
+            _ => String::new(),
+        };
+        m.warnings
+            .push(format!("note: write {path} (ws {}{i}) → {to} — follows rename", ev.ws));
+        // What the retargeted write lands on:
+        for (w, _) in rs.into_iter().flatten().filter(|(w, _)| *w != ev.ws.as_str()) {
+            // The renaming ws rewrote the source first — its
+            // version at `to` loses to the retarget.
+            if writes
+                .get(path.as_str())
+                .is_some_and(|evs| evs.iter().any(|e| e.ws == *w))
+            {
+                m.warnings.push(format!(
+                    "conflict: ws {w} rewrote {path} before renaming — ws {} write wins {to}",
+                    ev.ws
+                ));
+            }
+        }
+        for e in writes
+            .get(to.as_str())
+            .into_iter()
+            .flatten()
+            .filter(|e| e.ws != ev.ws)
+        {
+            m.warnings.push(format!(
+                "conflict: {to} written (ws {}) — retargeted write (ws {}) lands last",
+                e.ws, ev.ws
+            ));
+        }
+        for w in deletes
+            .get(to.as_str())
+            .into_iter()
+            .flatten()
+            .filter(|w| **w != ev.ws)
+        {
+            m.warnings.push(format!(
+                "conflict: retargeted write {to} (ws {}) vs delete (ws {w})",
+                ev.ws
+            ));
+        }
+        let mut ev2 = ev.clone();
+        if let Op::Write { path: p, .. } = &mut ev2.op {
+            *p = to;
+        }
+        deferred.push(ev2);
+    }
+    m.events.extend(deferred);
+    m
+}
+
 impl Event {
     /// Convenience constructor — `id` is assigned on append.
     pub fn new(ws: impl Into<String>, actor: impl Into<String>, op: Op) -> Self {
