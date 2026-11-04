@@ -174,6 +174,15 @@ enum Cmd {
     Check {
         /// Resource URI or path glob — same form `claim` takes.
         uri: String,
+        /// Staleness probe: report only conflicting claims with a
+        /// fencing token above N — pass the fence `claim` printed
+        /// to ask "has my claim been superseded?".
+        #[arg(long)]
+        fence: Option<u64>,
+        /// Keep watching — stream conflict-set changes via WAL
+        /// poll. Works daemon-free; combines with --fence.
+        #[arg(long)]
+        watch: bool,
     },
     /// Open a pending-response ask — the printed event id is the
     /// ask handle that `answer`/`cancel`/`wait` take.
@@ -505,15 +514,17 @@ fn run(cli: &Cli) -> Result<(), String> {
                 .collect();
             if !hits.is_empty() && !force {
                 for c in &hits {
-                    eprintln!(
-                        "conflict: {} claimed {} (ws {}, expires {})",
-                        c.actor, c.uri, c.ws, c.expires
-                    );
+                    eprintln!("conflict: {} claimed {}", c.actor, claim_line(c));
                 }
                 return Err("claim denied — --force to override".into());
             }
             append(&wal, &repo, ws, &actor, Op::Claim { glob: uri.clone(), ttl_secs: *ttl, })?;
-            println!("claimed {uri} (ws {ws}, ttl {ttl}s)");
+            let fence = claims::active(&all_events(&wal, &repo)?, now)
+                .into_iter()
+                .find(|c| c.ws == *ws && c.uri == claims::normalize(uri))
+                .map(|c| c.fence)
+                .unwrap_or(0);
+            println!("claimed {uri} (ws {ws}, ttl {ttl}s, fence {fence})");
             Ok(())
         }
         Cmd::Release { uri, ws } => {
@@ -595,25 +606,24 @@ fn run(cli: &Cli) -> Result<(), String> {
         Cmd::Claims => {
             let all = all_events(&wal, &repo)?;
             for c in claims::active(&all, now()) {
-                println!(
-                    "{} (ws {}, actor {}, expires {})",
-                    c.uri, c.ws, c.actor, c.expires
-                );
+                println!("{}", claim_line(&c));
             }
             Ok(())
         }
-        Cmd::Check { uri } => {
-            let all = all_events(&wal, &repo)?;
-            let live = claims::active(&all, now());
-            let hits = claims::conflicts(&live, uri);
+        Cmd::Check { uri, fence, watch } => {
+            let hits = check_hits(&wal, &repo, uri, *fence)?;
+            // Watch streams set changes — initial state is the
+            // first batch of `+` lines, same shape as `diff --live`.
             for c in &hits {
-                println!(
-                    "{} (ws {}, actor {}, expires {})",
-                    c.uri, c.ws, c.actor, c.expires
-                );
+                println!("{}{}", if *watch { "+ " } else { "" }, claim_line(c));
             }
             if hits.is_empty() {
                 println!("no conflicts: {uri}");
+            }
+            if *watch {
+                return check_watch(&wal, &repo, uri, *fence, hits, poll_ms);
+            }
+            if hits.is_empty() {
                 Ok(())
             } else {
                 Err(format!("{} conflicting claim(s)", hits.len()))
@@ -1562,6 +1572,93 @@ fn all_events(wal: &dyn Wal, repo: &Path) -> Result<Vec<Event>, String> {
     Ok(all)
 }
 
+/// One live claim as a display line — shared by `claims`, `check`,
+/// and claim-conflict warnings so the fence is always visible.
+fn claim_line(c: &claims::Active) -> String {
+    format!(
+        "{} (ws {}, actor {}, expires {}, fence {})",
+        c.uri, c.ws, c.actor, c.expires, c.fence
+    )
+}
+
+/// Live claims conflicting with `uri`. `fence` narrows to
+/// usurpers — only claims whose fencing token beats it — which
+/// turns `check` into the staleness probe for a held claim.
+fn check_hits(
+    wal: &dyn Wal,
+    repo: &Path,
+    uri: &str,
+    fence: Option<u64>,
+) -> Result<Vec<claims::Active>, String> {
+    let live = claims::active(&all_events(wal, repo)?, now());
+    Ok(claims::conflicts(&live, uri)
+        .into_iter()
+        .filter(|c| fence.is_none_or(|f| c.fence > f))
+        .cloned()
+        .collect())
+}
+
+/// Diff two conflict snapshots into stream lines: `+` for claims
+/// that appeared, `-` for ones that left, `no conflicts` when the
+/// set drains. The rendered line is the identity — a re-claim at
+/// a new fence reads as `-`/`+`, which is the truthful story.
+fn watch_tick(prev: &[claims::Active], hits: &[claims::Active], uri: &str) -> Vec<String> {
+    let had: Vec<String> = prev.iter().map(claim_line).collect();
+    let have: Vec<String> = hits.iter().map(claim_line).collect();
+    let mut out = Vec::new();
+    for l in &have {
+        if !had.contains(l) {
+            out.push(format!("+ {l}"));
+        }
+    }
+    for l in &had {
+        if !have.contains(l) {
+            out.push(format!("- {l}"));
+        }
+    }
+    if have.is_empty() && !had.is_empty() {
+        out.push(format!("no conflicts: {uri}"));
+    }
+    out
+}
+
+/// `check --watch` driver — re-fold the WAL each bus-poll tick
+/// and emit only conflict-set changes. Infinite by design, so the
+/// driver is excluded under coverage like `diff_live`;
+/// `watch_tick` carries the diffing logic and is unit-tested.
+#[cfg(not(coverage))]
+fn check_watch(
+    wal: &dyn Wal,
+    repo: &Path,
+    uri: &str,
+    fence: Option<u64>,
+    mut prev: Vec<claims::Active>,
+    poll_ms: u64,
+) -> Result<(), String> {
+    loop {
+        std::thread::sleep(Duration::from_millis(poll_ms));
+        let hits = check_hits(wal, repo, uri, fence)?;
+        for line in watch_tick(&prev, &hits, uri) {
+            println!("{line}");
+        }
+        prev = hits;
+    }
+}
+
+/// Coverage build stub — returns immediately, same trick as
+/// `diff_live`'s `#[cfg(coverage)]` twin.
+#[cfg(coverage)]
+fn check_watch(
+    _wal: &dyn Wal,
+    _repo: &Path,
+    _uri: &str,
+    _fence: Option<u64>,
+    _prev: Vec<claims::Active>,
+    _poll_ms: u64,
+) -> Result<(), String> {
+    Ok(())
+}
+
 /// Live subscribers, keyed `"<repo>|<topic>"` — the daemon's push
 /// side. Dead senders get pruned on the next failed delivery.
 type Subs = Arc<Mutex<HashMap<String, Vec<mpsc::Sender<Arc<Vec<u8>>>>>>>;
@@ -1812,6 +1909,89 @@ mod tests {
         sturn_ws_git::GitWs
             .create(repo, name, "HEAD")
             .unwrap();
+    }
+
+    #[test]
+    fn watch_tick_diffs_conflict_snapshots() {
+        let c = |ws: &str, uri: &str, fence: u64| claims::Active {
+            ws: ws.into(),
+            actor: "a".into(),
+            uri: uri.into(),
+            expires: 100,
+            fence,
+        };
+        // A claim appearing is a `+` line.
+        assert_eq!(
+            watch_tick(&[], &[c("w1", "dev:x", 1)], "dev:x"),
+            vec!["+ dev:x (ws w1, actor a, expires 100, fence 1)"]
+        );
+        // Only the delta emits — an unchanged claim stays silent.
+        assert_eq!(
+            watch_tick(
+                &[c("w1", "dev:x", 1)],
+                &[c("w1", "dev:x", 1), c("w2", "dev:x", 2)],
+                "dev:x"
+            ),
+            vec!["+ dev:x (ws w2, actor a, expires 100, fence 2)"]
+        );
+        // A drained set reports the departure then `no conflicts`.
+        assert_eq!(
+            watch_tick(&[c("w1", "dev:x", 1)], &[], "dev:x"),
+            vec![
+                "- dev:x (ws w1, actor a, expires 100, fence 1)",
+                "no conflicts: dev:x"
+            ]
+        );
+        // No change → silence; the empty-initial line is the
+        // caller's job, so both-empty is silent too.
+        assert!(
+            watch_tick(&[c("w1", "dev:x", 1)], &[c("w1", "dev:x", 1)], "dev:x").is_empty()
+        );
+        assert!(watch_tick(&[], &[], "dev:x").is_empty());
+    }
+
+    #[test]
+    fn check_hits_filters_by_fence() {
+        let repo = repo("hits");
+        ws(&repo, "a");
+        ws(&repo, "b");
+        let wal = sturn_wal_git::GitWal::default();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "t",
+                Op::Claim {
+                    glob: "net:9".into(),
+                    ttl_secs: 3600,
+                },
+            ),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "b",
+            &Event::new(
+                "b",
+                "t",
+                Op::Claim {
+                    glob: "net:9".into(),
+                    ttl_secs: 3600,
+                },
+            ),
+        )
+        .unwrap();
+        // No filter → both live claims show.
+        assert_eq!(check_hits(&wal, &repo, "net:9", None).unwrap().len(), 2);
+        // The first holder's probe — exactly one usurper outranks
+        // it (same-ts claims order by fold position, but the
+        // fences are 1 and 2 either way).
+        let hits = check_hits(&wal, &repo, "net:9", Some(1)).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].fence, 2);
+        // The usurper's probe — nothing outranks it.
+        assert!(check_hits(&wal, &repo, "net:9", Some(2)).unwrap().is_empty());
     }
 
     #[test]

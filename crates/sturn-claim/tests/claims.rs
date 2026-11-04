@@ -351,6 +351,210 @@ fn claim_and_release_match_on_canonical_uri() {
 }
 
 #[test]
+fn overlaps_net_port_ranges() {
+    assert!(overlaps("net:13000-13100", "net:13050"));
+    assert!(overlaps("net:13050", "net:13000-13100"));
+    // Bounds are inclusive.
+    assert!(overlaps("net:13000-13100", "net:13100-13200"));
+    assert!(!overlaps("net:13000-13100", "net:13150"));
+    assert!(overlaps("net:13000", "net:13000-13100"));
+    // Bare scheme still claims every port.
+    assert!(overlaps("net:", "net:13000-13100"));
+    // Non-numeric paths fall back to opaque matching.
+    assert!(overlaps("net:13000/tcp", "net:13000"));
+    assert!(!overlaps("net:13000/tcp", "net:13001"));
+    // A reversed range isn't a range — opaque rules, no prefix.
+    assert!(!overlaps("net:13100-13000", "net:13050"));
+}
+
+// --- fencing tokens ------------------------------------------------------
+
+#[test]
+fn fence_rises_when_a_usurper_claims() {
+    let events = vec![
+        ev(
+            "w1",
+            "a",
+            Op::Claim {
+                glob: "dev:display0".into(),
+                ttl_secs: 100,
+            },
+            0,
+        ),
+        ev(
+            "w2",
+            "b",
+            Op::Claim {
+                glob: "dev:display0".into(),
+                ttl_secs: 100,
+            },
+            1,
+        ),
+    ];
+    let live = active(&events, 50);
+    assert_eq!(live[0].fence, 1);
+    assert_eq!(live[1].fence, 2);
+}
+
+#[test]
+fn fence_orders_by_ts_across_workspaces() {
+    // `all_events` concatenates ws logs — fold order isn't claim
+    // order. The later-ts claim is the usurper wherever it sits.
+    let events = vec![
+        ev(
+            "z",
+            "b",
+            Op::Claim {
+                glob: "net:9".into(),
+                ttl_secs: 100,
+            },
+            10,
+        ),
+        ev(
+            "a",
+            "a",
+            Op::Claim {
+                glob: "net:9".into(),
+                ttl_secs: 100,
+            },
+            5,
+        ),
+    ];
+    let live = active(&events, 50);
+    assert_eq!(live[0].fence, 2); // ws z claimed at ts 10
+    assert_eq!(live[1].fence, 1); // ws a claimed at ts 5
+}
+
+#[test]
+fn fence_never_repeats_after_release() {
+    // Released history still counts — the epoch can't rewind.
+    let events = vec![
+        ev(
+            "w1",
+            "a",
+            Op::Claim {
+                glob: "dev:x".into(),
+                ttl_secs: 100,
+            },
+            0,
+        ),
+        ev(
+            "w1",
+            "a",
+            Op::Release {
+                glob: "dev:x".into(),
+            },
+            1,
+        ),
+        ev(
+            "w2",
+            "b",
+            Op::Claim {
+                glob: "dev:x".into(),
+                ttl_secs: 100,
+            },
+            2,
+        ),
+    ];
+    let live = active(&events, 50);
+    assert_eq!(live.len(), 1);
+    assert_eq!(live[0].fence, 2);
+}
+
+#[test]
+fn fence_counts_expired_claims() {
+    let events = vec![
+        ev(
+            "w1",
+            "a",
+            Op::Claim {
+                glob: "dev:x".into(),
+                ttl_secs: 1,
+            },
+            0,
+        ),
+        ev(
+            "w2",
+            "b",
+            Op::Claim {
+                glob: "dev:x".into(),
+                ttl_secs: 100,
+            },
+            5,
+        ),
+    ];
+    let live = active(&events, 50);
+    assert_eq!(live.len(), 1);
+    assert_eq!(live[0].fence, 2);
+}
+
+#[test]
+fn fence_only_rises_over_overlap() {
+    // Unrelated resources keep their own epochs — fences compare
+    // only where claims contend.
+    let events = vec![
+        ev(
+            "w1",
+            "a",
+            Op::Claim {
+                glob: "dev:x".into(),
+                ttl_secs: 100,
+            },
+            0,
+        ),
+        ev(
+            "w2",
+            "b",
+            Op::Claim {
+                glob: "net:1".into(),
+                ttl_secs: 100,
+            },
+            1,
+        ),
+        ev(
+            "w3",
+            "c",
+            Op::Claim {
+                glob: "dev:x/gpu0".into(),
+                ttl_secs: 100,
+            },
+            2,
+        ),
+    ];
+    let live = active(&events, 50);
+    assert_eq!(live[0].fence, 1); // dev:x
+    assert_eq!(live[1].fence, 1); // net:1 — different scheme
+    assert_eq!(live[2].fence, 2); // dev:x/gpu0 prefixes under dev:x
+}
+
+#[test]
+fn same_ws_reclaim_bumps_the_fence() {
+    let events = vec![
+        ev(
+            "w1",
+            "a",
+            Op::Claim {
+                glob: "src/**".into(),
+                ttl_secs: 100,
+            },
+            0,
+        ),
+        ev(
+            "w1",
+            "a",
+            Op::Claim {
+                glob: "src/**".into(),
+                ttl_secs: 100,
+            },
+            1,
+        ),
+    ];
+    let live = active(&events, 50);
+    assert_eq!(live.len(), 1);
+    assert_eq!(live[0].fence, 2);
+}
+
+#[test]
 fn conflicts_reports_opaque_holders() {
     let events = vec![
         ev(

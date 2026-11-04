@@ -327,7 +327,12 @@ fn claim(ctx: &Ctx, a: &Value) -> Value {
         if !hits.is_empty() {
             let detail = hits
                 .iter()
-                .map(|c| format!("{} holds {} (ws {})", c.actor, c.uri, c.ws))
+                .map(|c| {
+                    format!(
+                        "{} holds {} (ws {}, fence {})",
+                        c.actor, c.uri, c.ws, c.fence
+                    )
+                })
                 .collect::<Vec<_>>()
                 .join("; ");
             return Err(format!("conflict: {detail}"));
@@ -347,7 +352,17 @@ fn claim(ctx: &Ctx, a: &Value) -> Value {
                 ),
             )
             .map_err(|e| e.to_string())?;
-        Ok(format!("claimed {glob}"))
+        // Re-fold to read the fence the new claim landed at.
+        let mut all = Vec::new();
+        for w in ctx.wal.workspaces(ctx.repo).map_err(|e| e.to_string())? {
+            all.extend(ctx.wal.events(ctx.repo, &w).map_err(|e| e.to_string())?);
+        }
+        let fence = claims::active(&all, now())
+            .into_iter()
+            .find(|c| c.ws == ws && c.uri == claims::normalize(glob))
+            .map(|c| c.fence)
+            .unwrap_or(0);
+        Ok(format!("claimed {glob} (fence {fence})"))
     })();
     r.map_or_else(tool_err, tool_text)
 }

@@ -705,6 +705,108 @@ fn typed_uri_claims_and_check() {
 }
 
 #[test]
+fn claim_fence_and_check_staleness() {
+    let repo = bare_repo("fence");
+    sturn_ok(&repo, &["ws", "new", "a"], &[]);
+    sturn_ok(&repo, &["ws", "new", "b"], &[]);
+
+    // The claimant learns its fencing token at claim time.
+    let out = sturn_ok(&repo, &["claim", "dev:display0", "--ws", "a"], &[]);
+    assert!(out.contains("fence 1"), "{out}");
+    // Holder's probe: nothing outranks it yet.
+    let out = sturn_ok(&repo, &["check", "dev:display0", "--fence", "1"], &[]);
+    assert!(out.contains("no conflicts"), "{out}");
+
+    // A force-claim usurps — the epoch rises and `claims` shows it.
+    let out = sturn_ok(&repo, &["claim", "dev:display0", "--ws", "b", "--force"], &[]);
+    assert!(out.contains("fence 2"), "{out}");
+    let claims = sturn_ok(&repo, &["claims"], &[]);
+    assert!(claims.contains("fence 1") && claims.contains("fence 2"), "{claims}");
+
+    // The stale holder's probe sees the usurper — and exits 1.
+    let err = sturn_err(&repo, &["check", "dev:display0", "--fence", "1"]);
+    assert!(err.contains("conflicting"), "{err}");
+    // The usurper's own probe stays clean.
+    let out = sturn_ok(&repo, &["check", "dev:display0", "--fence", "2"], &[]);
+    assert!(out.contains("no conflicts"), "{out}");
+}
+
+#[test]
+fn check_watch_streams_conflict_changes() {
+    let repo = bare_repo("chkwatch");
+    sturn_ok(&repo, &["ws", "new", "a"], &[]);
+    sturn_ok(&repo, &["ws", "new", "b"], &[]);
+    sturn_ok(&repo, &["claim", "net:13000", "--ws", "a"], &[]);
+    let home = std::env::temp_dir().join(format!("sturn-home-{}", std::process::id()));
+    std::fs::create_dir_all(&home).unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_sturn"))
+        .current_dir(&repo)
+        .args(["check", "net:13000", "--watch"])
+        .env("HOME", &home)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let stdout = child.stdout.take().unwrap();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        use std::io::BufRead;
+        let mut r = std::io::BufReader::new(stdout);
+        let mut line = String::new();
+        while r.read_line(&mut line).unwrap_or(0) > 0 {
+            if tx.send(line.clone()).is_err() {
+                return;
+            }
+            line.clear();
+        }
+    });
+    // The initial conflict set is the first batch of `+` lines.
+    let first = rx
+        .recv_timeout(std::time::Duration::from_secs(30))
+        .expect("check --watch emitted no initial state");
+    assert!(first.starts_with("+ ") && first.contains("net:13000"), "{first}");
+
+    // Under coverage the infinite driver is stubbed — the child
+    // prints the initial state then exits. Streaming asserts only
+    // run when it stays alive past the grace window (normal builds).
+    let mut exited = false;
+    for _ in 0..60 {
+        if child.try_wait().unwrap().is_some() {
+            exited = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    if !exited {
+        let until = |needle: &str| {
+            let mut got = String::new();
+            for _ in 0..10 {
+                if got.contains(needle) {
+                    break;
+                }
+                match rx.recv_timeout(std::time::Duration::from_secs(30)) {
+                    Ok(line) => got.push_str(&line),
+                    Err(e) => panic!("check --watch: no {needle:?} within 30s ({e}); got {got:?}"),
+                }
+            }
+            got
+        };
+        // A usurper force-claims → a `+` line for the new conflict.
+        sturn_ok(&repo, &["claim", "net:13000", "--ws", "b", "--force"], &[]);
+        let got = until("ws b");
+        assert!(got.contains("+ net:13000"), "{got}");
+        // Releasing both drains the set → `-` lines then `no conflicts`.
+        sturn_ok(&repo, &["release", "net:13000", "--ws", "a"], &[]);
+        sturn_ok(&repo, &["release", "net:13000", "--ws", "b"], &[]);
+        let got = until("no conflicts");
+        assert!(got.contains("- net:13000"), "{got}");
+        let _ = child.kill();
+    }
+    let _ = child.wait();
+}
+
+#[test]
 fn review_verdict_paths() {
     let repo = bare_repo("revv");
     sturn_ok(&repo, &["ws", "new", "a"], &[]);
