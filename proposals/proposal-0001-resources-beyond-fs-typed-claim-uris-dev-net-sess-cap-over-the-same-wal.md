@@ -56,9 +56,12 @@ queueing). Same mechanism/policy split as sepia/peregrin.
 ## Phases
 
 - **v1** — resource URI in the claim record; `sturn check <uri>`;
-  opaque-scheme conflict = equality/prefix.
-- **Later** — fencing tokens; `watch`/subscribe on resource
-  patterns; scheme plugins for non-file overlap (e.g. `net:` port
-  ranges); owner-side consult helpers in pavo/sepia skills.
+  opaque-scheme conflict = equality/prefix. *(shipped 8420a46)*
+- **v2** — fencing tokens: `Active.fence`, a Lamport epoch folded
+  from the WAL (never stored, never repeats); `sturn check
+  --fence N` staleness probe; `check --watch` conflict-set
+  stream; `net:` port-range overlap (`13000-13100` ∩ `13050`).
+- **Later** — general scheme plugins beyond `net:`; owner-side
+  consult helpers in pavo/sepia skills.
 - **Never** — enforcement/blocking locks (kills the ephemeral
   model); arbitration (peregrin's); durable registry (myco's).
