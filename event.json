@@ -1,1 +1,1 @@
-{"id":"","ws":"devin-p001","actor":"luis","ts":1793751638,"op":{"op":"presence","status":"joined"}}
+{"id":"","ws":"devin-p001","actor":"luis","ts":1793751638,"op":{"op":"claim","glob":"crates/sturn-claim/**","ttl_secs":3600}}
