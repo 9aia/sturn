@@ -25,12 +25,12 @@ api:
 - name: DeployCmd
   kind: type
   file: crates/sturn-cli/src/main.rs
-  line: 319
+  line: 328
   module: sturn-cli
 - name: DestroySub
   kind: type
   file: crates/sturn-cli/src/main.rs
-  line: 327
+  line: 336
   module: sturn-cli
 - name: END
   kind: const
@@ -50,17 +50,17 @@ api:
 - name: ServiceCmd
   kind: type
   file: crates/sturn-cli/src/main.rs
-  line: 333
+  line: 342
   module: sturn-cli
 - name: Subs
   kind: type
   file: crates/sturn-cli/src/main.rs
-  line: 1567
+  line: 1664
   module: sturn-cli
 - name: WsCmd
   kind: type
   file: crates/sturn-cli/src/main.rs
-  line: 293
+  line: 302
   module: sturn-cli
 - name: agentmd
   kind: module
@@ -70,12 +70,12 @@ api:
 - name: all_events
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 1557
+  line: 1567
   module: sturn-cli
 - name: append
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 995
+  line: 1005
   module: sturn-cli
 - name: appends_to_existing_prose
   kind: function
@@ -85,17 +85,17 @@ api:
 - name: ask_json
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 1490
+  line: 1500
   module: sturn-cli
 - name: asks_cancel_expire_and_wait_timeout
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
-  line: 1335
+  line: 1437
   module: sturn-cli
 - name: asks_lifecycle_and_wait_codes
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
-  line: 1275
+  line: 1377
   module: sturn-cli
 - name: bare_repo
   kind: function
@@ -105,22 +105,22 @@ api:
 - name: bridge
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 1216
+  line: 1226
   module: sturn-cli
 - name: bridge_requires_secret_env
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
-  line: 974
+  line: 1076
   module: sturn-cli
 - name: bridge_tick
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 1102
+  line: 1112
   module: sturn-cli
 - name: bridge_tick_posts_for_snapshot_events
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 2060
+  line: 2240
   module: sturn-cli
 - name: call
   kind: function
@@ -132,15 +132,50 @@ api:
   file: crates/sturn-cli/src/agentmd.rs
   line: 30
   module: sturn-cli
+- name: check_hits
+  kind: function
+  file: crates/sturn-cli/src/main.rs
+  line: 1587
+  module: sturn-cli
+- name: check_hits_filters_by_fence
+  kind: function
+  file: crates/sturn-cli/src/main.rs
+  line: 1954
+  module: sturn-cli
+- name: check_watch
+  kind: function
+  file: crates/sturn-cli/src/main.rs
+  line: 1630
+  module: sturn-cli
+- name: check_watch
+  kind: function
+  file: crates/sturn-cli/src/main.rs
+  line: 1651
+  module: sturn-cli
+- name: check_watch_streams_conflict_changes
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 735
+  module: sturn-cli
 - name: claim_conflict_force_and_claims_listing
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
   line: 653
   module: sturn-cli
+- name: claim_fence_and_check_staleness
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 708
+  module: sturn-cli
+- name: claim_line
+  kind: function
+  file: crates/sturn-cli/src/main.rs
+  line: 1577
+  module: sturn-cli
 - name: collect
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 2099
+  line: 2279
   module: sturn-cli
 - name: commit
   kind: function
@@ -155,54 +190,19 @@ api:
 - name: coverage_stubs_run
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 2338
+  line: 2518
   module: sturn-cli
 - name: daemon
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 1134
+  line: 1144
   module: sturn-cli
 - name: daemon_tick
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 1236
+  line: 1246
   module: sturn-cli
-- name: daemon_tick_fans_deltas_to_topics
-  kind: function
-  file: crates/sturn-cli/src/main.rs
-  line: 1818
-  module: sturn-cli
-- name: diff_line
-  kind: function
-  file: crates/sturn-cli/src/main.rs
-  line: 1369
-  module: sturn-cli
-- name: diff_line_renders_every_op_kind
-  kind: function
-  file: crates/sturn-cli/src/main.rs
-  line: 2219
-  module: sturn-cli
-- name: diff_lists_inflight_and_clears_on_snap
-  kind: function
-  file: crates/sturn-cli/tests/e2e.rs
-  line: 1445
-  module: sturn-cli
-- name: diff_live
-  kind: function
-  file: crates/sturn-cli/src/main.rs
-  line: 1335
-  module: sturn-cli
-- name: diff_live
-  kind: function
-  file: crates/sturn-cli/src/main.rs
-  line: 1355
-  module: sturn-cli
-- name: diff_live_streams_new_ops
-  kind: function
-  file: crates/sturn-cli/tests/e2e.rs
-  line: 1496
-  module: sturn-cli
-api_omitted: 88
+api_omitted: 97
 deps:
 - clap
 - hex
@@ -251,8 +251,8 @@ provenance:
   hashes:
   - 54fef8d368a3ebc4bed3b8ccdf05d0666f6d72ad
   - 001a3de911915e7c8c49003d5f8937adceb53c69
-  - 23910e5a3b50e9bd421b4c0b12c5918d05377a53
-  - 0c0393498e9e82d0f7e67179c03a01864c935f44
-  commit_sha: 527b9ce180fa85a5572d19f61e13532251875a52
-  generated_at: '1793687886'
+  - d23e5b2b41121cf586d869cd74406ae696383bda
+  - 3292a4607c3ac9db9f5e52aa408804b431293f2e
+  commit_sha: c517fa874a34bd5531e285f20d874d6a8ad081a3
+  generated_at: '1793752064'
   generator: kuda-template/0.1.2

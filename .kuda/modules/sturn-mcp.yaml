@@ -10,22 +10,22 @@ api:
 - name: ErrWal
   kind: type
   file: crates/sturn-mcp/src/lib.rs
-  line: 1251
+  line: 1266
   module: sturn-mcp
 - name: ErrWs
   kind: type
   file: crates/sturn-mcp/src/lib.rs
-  line: 1271
+  line: 1286
   module: sturn-mcp
 - name: FakeWal
   kind: type
   file: crates/sturn-mcp/src/lib.rs
-  line: 771
+  line: 786
   module: sturn-mcp
 - name: FakeWs
   kind: type
   file: crates/sturn-mcp/src/lib.rs
-  line: 828
+  line: 843
   module: sturn-mcp
 - name: TOOLS
   kind: const
@@ -40,22 +40,22 @@ api:
 - name: all_events
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 429
+  line: 444
   module: sturn-mcp
 - name: answer
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 521
+  line: 536
   module: sturn-mcp
 - name: append
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 786
+  line: 801
   module: sturn-mcp
 - name: append
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 1253
+  line: 1268
   module: sturn-mcp
 - name: arg
   kind: function
@@ -65,37 +65,37 @@ api:
 - name: ask
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 437
+  line: 452
   module: sturn-mcp
 - name: ask_answer_asks_lifecycle
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 1480
+  line: 1495
   module: sturn-mcp
 - name: asks
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 475
+  line: 490
   module: sturn-mcp
 - name: asks_errors_propagate
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 1582
+  line: 1597
   module: sturn-mcp
 - name: bad_snap
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 1302
+  line: 1317
   module: sturn-mcp
 - name: blob
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 886
+  line: 901
   module: sturn-mcp
 - name: blob
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 1288
+  line: 1303
   module: sturn-mcp
 - name: call
   kind: function
@@ -105,7 +105,7 @@ api:
 - name: cancel_ask
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 547
+  line: 562
   module: sturn-mcp
 - name: claim
   kind: function
@@ -115,92 +115,92 @@ api:
 - name: claim_conflict_and_release
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 1067
+  line: 1082
   module: sturn-mcp
 - name: compact
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 823
+  line: 838
   module: sturn-mcp
 - name: compact
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 1265
+  line: 1280
   module: sturn-mcp
 - name: create
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 870
+  line: 885
   module: sturn-mcp
 - name: create
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 1282
+  line: 1297
   module: sturn-mcp
 - name: ctx
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 918
+  line: 933
   module: sturn-mcp
 - name: entry
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 877
+  line: 892
   module: sturn-mcp
 - name: entry
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 1285
+  line: 1300
   module: sturn-mcp
 - name: events_since
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 800
+  line: 815
   module: sturn-mcp
 - name: events_since
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 1256
+  line: 1271
   module: sturn-mcp
 - name: every_tool_errors_on_missing_args
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 1307
+  line: 1322
   module: sturn-mcp
 - name: fake_impls_full_surface
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 1444
+  line: 1459
   module: sturn-mcp
 - name: head
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 811
+  line: 826
   module: sturn-mcp
 - name: head
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 1259
+  line: 1274
   module: sturn-mcp
 - name: intent
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 384
+  line: 399
   module: sturn-mcp
 - name: is_err
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 939
+  line: 954
   module: sturn-mcp
 - name: list
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 858
+  line: 873
   module: sturn-mcp
 - name: list
   kind: function
   file: crates/sturn-mcp/src/lib.rs
-  line: 1276
+  line: 1291
   module: sturn-mcp
 api_omitted: 52
 deps:
@@ -224,7 +224,7 @@ provenance:
   - crates/sturn-mcp/src/lib.rs
   hashes:
   - 411c858909f39652d29643dda253615898f09c25
-  - 2ffa6ebf7a80236e8b54e523d5d9dce712fdb7b0
-  commit_sha: 527b9ce180fa85a5572d19f61e13532251875a52
-  generated_at: '1793687886'
+  - bc95b7613e376790b8fbf77f5fe71842fe5dc3f9
+  commit_sha: c517fa874a34bd5531e285f20d874d6a8ad081a3
+  generated_at: '1793752064'
   generator: kuda-template/0.1.2
