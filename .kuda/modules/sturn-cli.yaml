@@ -25,12 +25,12 @@ api:
 - name: DeployCmd
   kind: type
   file: crates/sturn-cli/src/main.rs
-  line: 328
+  line: 329
   module: sturn-cli
 - name: DestroySub
   kind: type
   file: crates/sturn-cli/src/main.rs
-  line: 336
+  line: 337
   module: sturn-cli
 - name: END
   kind: const
@@ -50,17 +50,17 @@ api:
 - name: ServiceCmd
   kind: type
   file: crates/sturn-cli/src/main.rs
-  line: 342
+  line: 343
   module: sturn-cli
 - name: Subs
   kind: type
   file: crates/sturn-cli/src/main.rs
-  line: 1664
+  line: 1665
   module: sturn-cli
 - name: WsCmd
   kind: type
   file: crates/sturn-cli/src/main.rs
-  line: 302
+  line: 303
   module: sturn-cli
 - name: agentmd
   kind: module
@@ -70,12 +70,12 @@ api:
 - name: all_events
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 1567
+  line: 1568
   module: sturn-cli
 - name: append
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 1005
+  line: 1006
   module: sturn-cli
 - name: appends_to_existing_prose
   kind: function
@@ -85,42 +85,42 @@ api:
 - name: ask_json
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 1500
+  line: 1501
   module: sturn-cli
 - name: asks_cancel_expire_and_wait_timeout
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
-  line: 1437
+  line: 1481
   module: sturn-cli
 - name: asks_lifecycle_and_wait_codes
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
-  line: 1377
+  line: 1421
   module: sturn-cli
 - name: bare_repo
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
-  line: 539
+  line: 583
   module: sturn-cli
 - name: bridge
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 1226
+  line: 1227
   module: sturn-cli
 - name: bridge_requires_secret_env
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
-  line: 1076
+  line: 1120
   module: sturn-cli
 - name: bridge_tick
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 1112
+  line: 1113
   module: sturn-cli
 - name: bridge_tick_posts_for_snapshot_events
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 2240
+  line: 2248
   module: sturn-cli
 - name: call
   kind: function
@@ -135,47 +135,47 @@ api:
 - name: check_hits
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 1587
+  line: 1588
   module: sturn-cli
 - name: check_hits_filters_by_fence
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 1954
+  line: 1962
   module: sturn-cli
 - name: check_watch
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 1630
+  line: 1631
   module: sturn-cli
 - name: check_watch
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 1651
+  line: 1652
   module: sturn-cli
 - name: check_watch_streams_conflict_changes
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
-  line: 735
+  line: 779
   module: sturn-cli
 - name: claim_conflict_force_and_claims_listing
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
-  line: 653
+  line: 697
   module: sturn-cli
 - name: claim_fence_and_check_staleness
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
-  line: 708
+  line: 752
   module: sturn-cli
 - name: claim_line
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 1577
+  line: 1578
   module: sturn-cli
 - name: collect
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 2279
+  line: 2287
   module: sturn-cli
 - name: commit
   kind: function
@@ -185,24 +185,24 @@ api:
 - name: config_driven_and_env_fallbacks
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
-  line: 575
+  line: 619
   module: sturn-cli
 - name: coverage_stubs_run
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 2518
+  line: 2526
   module: sturn-cli
 - name: daemon
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 1144
+  line: 1145
   module: sturn-cli
 - name: daemon_tick
   kind: function
   file: crates/sturn-cli/src/main.rs
-  line: 1246
+  line: 1247
   module: sturn-cli
-api_omitted: 97
+api_omitted: 99
 deps:
 - clap
 - hex
@@ -251,8 +251,8 @@ provenance:
   hashes:
   - 54fef8d368a3ebc4bed3b8ccdf05d0666f6d72ad
   - 001a3de911915e7c8c49003d5f8937adceb53c69
-  - d23e5b2b41121cf586d869cd74406ae696383bda
-  - 3292a4607c3ac9db9f5e52aa408804b431293f2e
-  commit_sha: c517fa874a34bd5531e285f20d874d6a8ad081a3
-  generated_at: '1793752064'
+  - 6258cfed020a6733fecb7dcb7c70c042e971fb77
+  - 7c013b7dd467af6209b896e3b4d92f84022e14e4
+  commit_sha: c97ff196e576f7a62d035f1610e7fbae246aea77
+  generated_at: '1793761203'
   generator: kuda-template/0.1.2

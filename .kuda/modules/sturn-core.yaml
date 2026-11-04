@@ -15,12 +15,12 @@ api:
 - name: ActorCfg
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 299
+  line: 570
   module: sturn-core
 - name: BusCfg
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 283
+  line: 554
   module: sturn-core
 - name: CLAIMS
   kind: const
@@ -30,12 +30,17 @@ api:
 - name: Config
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 206
+  line: 477
   module: sturn-core
 - name: Event
   kind: type
   file: crates/sturn-core/src/lib.rs
   line: 33
+  module: sturn-core
+- name: Merge
+  kind: type
+  file: crates/sturn-core/src/lib.rs
+  line: 177
   module: sturn-core
 - name: OPS
   kind: const
@@ -60,17 +65,17 @@ api:
 - name: RepoCfg
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 248
+  line: 519
   module: sturn-core
 - name: ReviewCfg
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 225
+  line: 496
   module: sturn-core
 - name: SigningCfg
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 236
+  line: 507
   module: sturn-core
 - name: Verdict
   kind: type
@@ -80,62 +85,67 @@ api:
 - name: WalCfg
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 274
+  line: 545
   module: sturn-core
 - name: actor_name_prefers_explicit_then_env
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 287
+  line: 326
   module: sturn-core
 - name: claim_ttl_defaults_3600
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 228
+  line: 267
   module: sturn-core
 - name: config_defaults
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 251
+  line: 290
   module: sturn-core
 - name: config_defaults_fill_every_section
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 310
+  line: 349
   module: sturn-core
 - name: default
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 333
+  line: 604
   module: sturn-core
 - name: default
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 341
+  line: 612
   module: sturn-core
 - name: default_branch
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 316
+  line: 587
   module: sturn-core
 - name: default_bus_store
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 325
+  line: 596
   module: sturn-core
 - name: default_poll_ms
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 322
+  line: 593
   module: sturn-core
 - name: default_ref_prefix
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 319
+  line: 590
   module: sturn-core
 - name: default_ttl
   kind: function
   file: crates/sturn-core/src/lib.rs
   line: 122
+  module: sturn-core
+- name: delete
+  kind: function
+  file: crates/sturn-core/tests/core.rs
+  line: 39
   module: sturn-core
 - name: ev
   kind: function
@@ -145,64 +155,54 @@ api:
 - name: event_new_assigns_fields
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 144
+  line: 183
+  module: sturn-core
+- name: final_to
+  kind: function
+  file: crates/sturn-core/src/lib.rs
+  line: 223
   module: sturn-core
 - name: id
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 261
+  line: 532
   module: sturn-core
-- name: name
+- name: merge
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 307
+  line: 195
   module: sturn-core
-- name: new
-  kind: function
-  file: crates/sturn-core/src/lib.rs
-  line: 176
-  module: sturn-core
-- name: op_serde_edges
+- name: merge_clean_streams_passthrough
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 326
+  line: 430
   module: sturn-core
-- name: op_serde_roundtrips_all_variants
+- name: merge_converged_renames_are_quiet
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 175
+  line: 503
   module: sturn-core
-- name: op_tag_is_snake_case
+- name: merge_delete_vs_rename_source_warns
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 212
+  line: 529
   module: sturn-core
-- name: overlay
-  kind: function
-  file: crates/sturn-core/src/lib.rs
-  line: 148
-  module: sturn-core
-- name: overlay_ignores_non_tree_ops
+- name: merge_diverged_renames_warn_and_stay
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 117
+  line: 488
   module: sturn-core
-- name: overlay_rename_falls_back_to_resolve
+- name: merge_own_rename_blocks_retarget
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 95
+  line: 517
   module: sturn-core
-- name: overlay_rename_missing_source_marks_delete_only
+- name: merge_rename_cycle_has_no_final_dest
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 106
+  line: 476
   module: sturn-core
-- name: overlay_rename_resolution
-  kind: function
-  file: crates/sturn-core/tests/core.rs
-  line: 352
-  module: sturn-core
-api_omitted: 14
+api_omitted: 35
 deps:
 - serde
 - serde_json
@@ -219,8 +219,8 @@ provenance:
   - crates/sturn-core/tests/core.rs
   hashes:
   - 8882be00ff91823f5d18b19eaca492be7e9a5ef5
-  - e10cd20d05cf8d1385f02f13b3dd33e1858906b5
-  - 393f7ee5c98b8b8cc53f42b5886697acdbab8867
-  commit_sha: c517fa874a34bd5531e285f20d874d6a8ad081a3
-  generated_at: '1793752064'
+  - 82d2ab9fd5773662b3a941f5635d510a2837e1fc
+  - 4812534f7d89692ef9054819253e990c8c4c8f19
+  commit_sha: c97ff196e576f7a62d035f1610e7fbae246aea77
+  generated_at: '1793761203'
   generator: kuda-template/0.1.2
