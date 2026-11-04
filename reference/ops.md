@@ -11,6 +11,21 @@ content-addressed (blob sha = event id), one commit per append.
 | `rename` | `from`, `to` | move entry |
 | `delete` | `path` | remove entry |
 
+## Multi-workspace merge
+
+`sturn snap a b …` folds several workspaces' pending ops into one
+commit — rename-aware, not a bare path concat:
+
+- a `write` onto a path *another* ws renamed away follows the
+  rename to its destination (the modify-vs-rename case a 3-way
+  merge resolves the same way), chained f→g→h and applied after
+  the rename no matter the ws order;
+- genuinely ambiguous shapes stay put and warn on stderr instead
+  of picking a silent winner: a source renamed two ways
+  (`rename f diverged`), a `delete` meeting a rename (either
+  side), colliding destinations, and cross-ws same-path
+  write/delete collisions.
+
 ## Coordination ops
 
 | Op | Fields | Effect |

@@ -16,7 +16,7 @@ Global flags: `--repo <dir>` (default cwd) · `--config <path>`.
 | `sturn write <path> --ws <w> [--file F] [--intent T]` | append a write op (stdin → blob) |
 | `sturn intent <text> --ws <w>` | record provenance |
 | `sturn log [--ws <w>]` | replay the WAL as JSONL |
-| `sturn snap <ws…> -m <msg>` | fold ops → commit; multi-ws merges into one |
+| `sturn snap <ws…> -m <msg>` | fold ops → commit; multi-ws merges into one — rename-aware; conflicts → stderr |
 | `sturn review <event-id> <approve\|reject> --ws <w>` | continuous review |
 | `sturn ask <subject> --ws <w> [--target T] [--option O…] [--ttl N]` | open a pending ask — event id is the handle |
 | `sturn asks [--all] [--json]` | pending asks; --all adds resolved |
