@@ -1,6 +1,5 @@
 # Backlog
 
-- T-003 Review gates: snap refuses unreviewed ops (policy in sturn.toml)
 - T-004 libgrite-git as alternative Wal impl (CRDT merge across diverged WAL refs) — parked per user call
 - T-005 sturn-wal-jj — jj backend impl — parked per user call
 - T-006 Federation: WAL refs synced via broker, not just git remote
