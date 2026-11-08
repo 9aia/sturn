@@ -2,6 +2,8 @@ name: sturn
 root: /home/luis/GitHub/9aia/sturn
 purpose: '*Ephemeral coordination engine — claims/ops/topics over VCS state.*'
 modules:
+- docs
+- project
 - sturn
 - sturn-ask
 - sturn-bus
@@ -12,6 +14,7 @@ modules:
 - sturn-config-toml
 - sturn-core
 - sturn-dotenv
+- sturn-driver
 - sturn-fuse
 - sturn-git
 - sturn-keyring
@@ -28,8 +31,8 @@ modules:
 commands:
 - cargo check
 - cargo test --workspace
-tree_digest: d22c820142e95770e89d32c5f21c84fe913d03eb
-files_total: 60
+tree_digest: aa6dc6fe7d33a536860256403aa260821396330e
+files_total: 90
 provenance:
   files:
   - Cargo.toml
@@ -43,6 +46,7 @@ provenance:
   - crates/sturn-config-toml/Cargo.toml
   - crates/sturn-core/Cargo.toml
   - crates/sturn-dotenv/Cargo.toml
+  - crates/sturn-driver/Cargo.toml
   - crates/sturn-fuse/Cargo.toml
   - crates/sturn-git/Cargo.toml
   - crates/sturn-keyring/Cargo.toml
@@ -57,7 +61,7 @@ provenance:
   - crates/sturn-ws/Cargo.toml
   - crates/sturn-ws-git/Cargo.toml
   hashes:
-  - d7db93f18e87e4ad6fcf617785ec88fcac5d1711
+  - 071a5f4aafd12d5778244b11a9315fc918cc5506
   - 5b4f58aeb00e9ab5ac9ef4e5edbb14d052939d30
   - 4dafecd121808bfabe6de0b6fd362c82eae4c268
   - d2bdd41da6f91a3199ae6ce1759d4dcdeda1590c
@@ -68,6 +72,7 @@ provenance:
   - 6c4e9170c6f1b07daf372307e3d7e89e3427c28f
   - 8882be00ff91823f5d18b19eaca492be7e9a5ef5
   - 1034b2491bf076039224a52253fddb5330eaa0bf
+  - a480d7cf004a4afc426eb96382e5c2fbd37de987
   - 6c132812f2fc147db0df216bc92eb260e01b2491
   - a759c72fbde15626823a28c6534cfa8025706dd3
   - b880dc8f26d37f2be3f51c066a251ed062f93a0a
@@ -81,6 +86,6 @@ provenance:
   - 920e3060a2a096d2c39647c722b94768629605d2
   - baa5ab79e9ba5d08dbaffbee0a0961c003dc8a4f
   - 74885c8dbd6264f0bc6da2657aeab82fc54a0c70
-  commit_sha: 4c60cb3dcff92dc625af0ba032fa14b315a407f7
-  generated_at: '1793761211'
+  commit_sha: c8e1146d28df610b6b7121fae7f53d0139b02930
+  generated_at: '1794170173'
   generator: kuda/0.1.0

@@ -23,6 +23,7 @@ members = [
     "crates/sturn-dotenv",
     "crates/sturn-service",
     "crates/sturn-systemd",
+    "crates/sturn-driver",
 ]
 
 [workspace.package]
@@ -59,6 +60,7 @@ sturn-keyring = { path = "crates/sturn-keyring", version = "0.1.0" }
 sturn-dotenv = { path = "crates/sturn-dotenv", version = "0.1.0" }
 sturn-service = { path = "crates/sturn-service", version = "0.1.0" }
 sturn-systemd = { path = "crates/sturn-systemd", version = "0.1.0" }
+sturn-driver = { path = "crates/sturn-driver", version = "0.1.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"

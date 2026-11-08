@@ -15,7 +15,7 @@ provenance:
   files:
   - Cargo.toml
   hashes:
-  - d7db93f18e87e4ad6fcf617785ec88fcac5d1711
-  commit_sha: 527b9ce180fa85a5572d19f61e13532251875a52
-  generated_at: '1793687886'
+  - 071a5f4aafd12d5778244b11a9315fc918cc5506
+  commit_sha: c8e1146d28df610b6b7121fae7f53d0139b02930
+  generated_at: '1794170173'
   generator: kuda-template/0.1.2

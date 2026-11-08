@@ -1,0 +1,120 @@
+name: project
+path: project/BACKLOG.md
+purpose: myco work ledger — tasks, ADRs, issues, plans, handoffs
+api:
+- name: ADR-0001
+  kind: record
+  file: project/adrs/0001-adr-0001-evented-coordination-over-the-git-object-store.md
+  line: 2
+  module: project
+- name: ADR-0003
+  kind: record
+  file: project/adrs/0003-wal-sharded-per-workspace-ref-causal-per-ref-consistency.md
+  line: 2
+  module: project
+- name: I-002
+  kind: record
+  file: project/issues/issue-0002-fuse-mount-tests-flaky-in-sandboxed-envs.md
+  line: 2
+  module: project
+- name: I-004
+  kind: record
+  file: project/issues/issue-0004-sturn-odb-assumes-sha-1-write-object-stores-unresolvable-objects-on-sha256-repos-object-id-sha1-only-guards-len-40.md
+  line: 2
+  module: project
+- name: I-005
+  kind: record
+  file: project/issues/issue-0005-evaluate-pando-class-git-hosts-when-if-released-refs-sturn-as-unrelated-refs-sturn-s-native-regime-verify-ref-advertisement-limits-non-ff-retry-loop.md
+  line: 2
+  module: project
+- name: P-001
+  kind: record
+  file: project/handoffs/P-001.md
+  line: 2
+  module: project
+- name: P-001
+  kind: record
+  file: project/proposals/proposal-0001-resources-beyond-fs-typed-claim-uris-dev-net-sess-cap-over-the-same-wal.md
+  line: 2
+  module: project
+- name: T-004
+  kind: record
+  file: project/BACKLOG.md
+  line: 3
+  module: project
+- name: T-005
+  kind: record
+  file: project/BACKLOG.md
+  line: 4
+  module: project
+- name: T-006
+  kind: record
+  file: project/BACKLOG.md
+  line: 5
+  module: project
+- name: T-007
+  kind: record
+  file: project/handoffs/T-007.md
+  line: 2
+  module: project
+- name: T-008
+  kind: record
+  file: project/BACKLOG.md
+  line: 6
+  module: project
+- name: T-009
+  kind: record
+  file: project/BACKLOG.md
+  line: 7
+  module: project
+- name: T-011
+  kind: record
+  file: project/BACKLOG.md
+  line: 8
+  module: project
+- name: T-013
+  kind: record
+  file: project/TODO.md
+  line: 5
+  module: project
+deps: []
+notes: ''
+verify:
+- project/BACKLOG.md
+- project/TODO.md
+- project/adrs/0001-adr-0001-evented-coordination-over-the-git-object-store.md
+- project/adrs/0003-wal-sharded-per-workspace-ref-causal-per-ref-consistency.md
+- project/handoffs/P-001.md
+- project/handoffs/T-007.md
+- project/index.md
+- project/issues/issue-0002-fuse-mount-tests-flaky-in-sandboxed-envs.md
+- project/issues/issue-0004-sturn-odb-assumes-sha-1-write-object-stores-unresolvable-objects-on-sha256-repos-object-id-sha1-only-guards-len-40.md
+- project/issues/issue-0005-evaluate-pando-class-git-hosts-when-if-released-refs-sturn-as-unrelated-refs-sturn-s-native-regime-verify-ref-advertisement-limits-non-ff-retry-loop.md
+provenance:
+  files:
+  - project/BACKLOG.md
+  - project/TODO.md
+  - project/adrs/0001-adr-0001-evented-coordination-over-the-git-object-store.md
+  - project/adrs/0003-wal-sharded-per-workspace-ref-causal-per-ref-consistency.md
+  - project/handoffs/P-001.md
+  - project/handoffs/T-007.md
+  - project/index.md
+  - project/issues/issue-0002-fuse-mount-tests-flaky-in-sandboxed-envs.md
+  - project/issues/issue-0004-sturn-odb-assumes-sha-1-write-object-stores-unresolvable-objects-on-sha256-repos-object-id-sha1-only-guards-len-40.md
+  - project/issues/issue-0005-evaluate-pando-class-git-hosts-when-if-released-refs-sturn-as-unrelated-refs-sturn-s-native-regime-verify-ref-advertisement-limits-non-ff-retry-loop.md
+  - project/proposals/proposal-0001-resources-beyond-fs-typed-claim-uris-dev-net-sess-cap-over-the-same-wal.md
+  hashes:
+  - 343190c56e97f25d148f6c1da5630ed95648bd76
+  - 0dbe26ed3f912b840d1fe09c8094654c160c269e
+  - 61af167c707de1326bacac8f859ee1cfd5037235
+  - 79772519362e97c592e725ff45abefdb0d4dc802
+  - 1d7d47c82f9a3ab694915bcf785a272183caaf46
+  - c00eae6fe6d181790668cdd4a750bd24feba8d74
+  - d9763ad517a5d47eeb3302560a7bea4ba6674db4
+  - a69b5c48955418abe6d7123ff6ea5c4cb9cd61a4
+  - d1caed71d0ed6b9245d41a34cbea88ddfd291476
+  - f93bc3f3c1e1f77299ea4ce488c52ea639a4cb2a
+  - eb321f04f06769b1c89aaf2bdb8ac2dbeb29f1c6
+  commit_sha: c8e1146d28df610b6b7121fae7f53d0139b02930
+  generated_at: '1794170173'
+  generator: kuda-template/0.1.2

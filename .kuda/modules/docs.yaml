@@ -1,0 +1,113 @@
+name: docs
+path: docs/package.json
+purpose: documentation corpus — pages as records, backticked refs as edges
+api:
+- name: Architecture
+  kind: record
+  file: docs/explanation/architecture.md
+  line: 1
+  module: docs
+- name: CLI reference
+  kind: record
+  file: docs/reference/cli.md
+  line: 1
+  module: docs
+- name: Config reference
+  kind: record
+  file: docs/reference/config.md
+  line: 1
+  module: docs
+- name: Crate map
+  kind: record
+  file: docs/reference/crate-api.md
+  line: 1
+  module: docs
+- name: Getting started
+  kind: record
+  file: docs/getting-started.md
+  line: 1
+  module: docs
+- name: 'How-to: mount a workspace'
+  kind: record
+  file: docs/how-to/mount.md
+  line: 1
+  module: docs
+- name: Hydrate a workspace
+  kind: record
+  file: docs/how-to/hydrate.md
+  line: 1
+  module: docs
+- name: Ops
+  kind: record
+  file: docs/reference/ops.md
+  line: 1
+  module: docs
+- name: Run the daemon
+  kind: record
+  file: docs/how-to/daemon.md
+  line: 1
+  module: docs
+- name: The model — files, approval, agents
+  kind: record
+  file: docs/explanation/model.md
+  line: 1
+  module: docs
+- name: Why no CRDT for code
+  kind: record
+  file: docs/explanation/no-crdt.md
+  line: 1
+  module: docs
+- name: Your first swarm
+  kind: record
+  file: docs/tutorials/first-swarm.md
+  line: 1
+  module: docs
+deps: []
+notes: ''
+verify:
+- docs/package.json
+- docs/explanation/architecture.md
+- docs/explanation/model.md
+- docs/explanation/no-crdt.md
+- docs/getting-started.md
+- docs/how-to/daemon.md
+- docs/how-to/hydrate.md
+- docs/how-to/mount.md
+- docs/index.md
+- docs/public/api/static.files/SourceSerif4-LICENSE-a2cfd9d5.md
+provenance:
+  files:
+  - docs/explanation/architecture.md
+  - docs/explanation/model.md
+  - docs/explanation/no-crdt.md
+  - docs/getting-started.md
+  - docs/how-to/daemon.md
+  - docs/how-to/hydrate.md
+  - docs/how-to/mount.md
+  - docs/index.md
+  - docs/package.json
+  - docs/public/api/static.files/SourceSerif4-LICENSE-a2cfd9d5.md
+  - docs/reference/cli.md
+  - docs/reference/config.md
+  - docs/reference/crate-api.md
+  - docs/reference/ops.md
+  - docs/tutorials/first-swarm.md
+  hashes:
+  - 38377502e770c7d95b1c2b14d3f053ac955ec0e6
+  - 013f9ca05541f10e541981becfa30a9d1095da86
+  - e57f877f30d8a79a79f24d0488c9a9f41dc6f1fc
+  - 4298069a091705e8723f2edb954d2283f3e598ec
+  - 821dde498145202bcb8c9749dc79c2faa873d233
+  - 4c2cebeb9c75d0e94f44afb62b58349bf546a5e2
+  - ee344da440b2a293d281ce40c92e3421be36fa72
+  - 955042d3972346fb3e4c7e73bd56cbe72d2f4a4b
+  - 630d6dfb71f069a0263fa6779c4b9725b56f607d
+  - 175fa4f47aecdc02e902d243a1c29914eb2ee258
+  - 90eb1b9e29eb8323ed3ae1dfab0bdda9caf015a3
+  - 7f09041e27a0f13b987ae9f6d56360ba2f5d783e
+  - ec5d24e2fe9d557c5f73700c77ab27a69439c04b
+  - 7d176d052c2fe9e03f0c464a2f9777315d7aa43d
+  - f4a6726904b0bfaf8e0b2b87280bf633b9f1a372
+  commit_sha: c8e1146d28df610b6b7121fae7f53d0139b02930
+  generated_at: '1794170173'
+  generator: kuda-template/0.1.2

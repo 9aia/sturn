@@ -1,0 +1,246 @@
+name: sturn-driver
+path: crates/sturn-driver/Cargo.toml
+purpose: tamias-driver-sturn — pavo view driver over a repo's sturn coordination state (read-only WAL fold)
+api:
+- name: Snapshot
+  kind: type
+  file: crates/sturn-driver/src/data.rs
+  line: 58
+  module: sturn-driver
+- name: WsRow
+  kind: type
+  file: crates/sturn-driver/src/data.rs
+  line: 42
+  module: sturn-driver
+- name: ask_row
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 566
+  module: sturn-driver
+- name: ask_status_label
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 557
+  module: sturn-driver
+- name: asks_rows
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 536
+  module: sturn-driver
+- name: binding
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 90
+  module: sturn-driver
+- name: bound
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 43
+  module: sturn-driver
+- name: capabilities_json
+  kind: function
+  file: crates/sturn-driver/src/main.rs
+  line: 35
+  module: sturn-driver
+- name: claim_row
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 480
+  module: sturn-driver
+- name: claims_rows
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 462
+  module: sturn-driver
+- name: col
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 51
+  module: sturn-driver
+- name: config_path_hint
+  kind: function
+  file: crates/sturn-driver/src/data.rs
+  line: 153
+  module: sturn-driver
+- name: data
+  kind: module
+  file: crates/sturn-driver/src/main.rs
+  line: 24
+  module: sturn-driver
+- name: default
+  kind: function
+  file: crates/sturn-driver/src/data.rs
+  line: 87
+  module: sturn-driver
+- name: degraded_snapshot_yields_error_payloads
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 667
+  module: sturn-driver
+- name: dispatch
+  kind: function
+  file: crates/sturn-driver/src/main.rs
+  line: 45
+  module: sturn-driver
+- name: error_payload
+  kind: function
+  file: crates/sturn-driver/src/data.rs
+  line: 117
+  module: sturn-driver
+- name: every_binding_is_a_known_query
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 658
+  module: sturn-driver
+- name: failed
+  kind: function
+  file: crates/sturn-driver/src/data.rs
+  line: 107
+  module: sturn-driver
+- name: fmt_ts
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 303
+  module: sturn-driver
+- name: fmt_ts_renders_unix_utc
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 680
+  module: sturn-driver
+- name: known_query
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 275
+  module: sturn-driver
+- name: kv
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 59
+  module: sturn-driver
+- name: load
+  kind: function
+  file: crates/sturn-driver/src/data.rs
+  line: 193
+  module: sturn-driver
+- name: load_config
+  kind: function
+  file: crates/sturn-driver/src/data.rs
+  line: 175
+  module: sturn-driver
+- name: main
+  kind: function
+  file: crates/sturn-driver/src/main.rs
+  line: 106
+  module: sturn-driver
+- name: manifest
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 233
+  module: sturn-driver
+- name: manifest_advertises_pavo_and_lists_every_view
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 631
+  module: sturn-driver
+- name: manifest_json
+  kind: function
+  file: crates/sturn-driver/src/main.rs
+  line: 31
+  module: sturn-driver
+- name: md
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 83
+  module: sturn-driver
+- name: now
+  kind: function
+  file: crates/sturn-driver/src/data.rs
+  line: 127
+  module: sturn-driver
+- name: ok
+  kind: function
+  file: crates/sturn-driver/src/data.rs
+  line: 122
+  module: sturn-driver
+- name: op_kind
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 342
+  module: sturn-driver
+- name: op_kind_and_summary_cover_every_variant
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 698
+  module: sturn-driver
+- name: op_summary
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 361
+  module: sturn-driver
+- name: ops_rows
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 497
+  module: sturn-driver
+- name: overrides
+  kind: function
+  file: crates/sturn-driver/src/data.rs
+  line: 137
+  module: sturn-driver
+- name: param
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 324
+  module: sturn-driver
+- name: query_data
+  kind: function
+  file: crates/sturn-driver/src/views.rs
+  line: 285
+  module: sturn-driver
+- name: serve
+  kind: function
+  file: crates/sturn-driver/src/main.rs
+  line: 81
+  module: sturn-driver
+api_omitted: 13
+deps:
+- pavo-protocol
+- serde_json
+- sturn-ask
+- sturn-claim
+- sturn-config
+- sturn-config-toml
+- sturn-core
+- sturn-odb
+- sturn-wal
+- sturn-wal-git
+- sturn-ws
+- sturn-ws-git
+- sturn-config
+- sturn-core
+- sturn-wal
+- sturn-wal-git
+- sturn-ws
+- pavo_protocol
+- serde_json
+- sturn-claim
+notes: ''
+verify:
+- crates/sturn-driver/Cargo.toml
+- crates/sturn-driver/src/data.rs
+- crates/sturn-driver/src/main.rs
+- crates/sturn-driver/src/views.rs
+provenance:
+  files:
+  - crates/sturn-driver/Cargo.toml
+  - crates/sturn-driver/src/data.rs
+  - crates/sturn-driver/src/main.rs
+  - crates/sturn-driver/src/views.rs
+  hashes:
+  - a480d7cf004a4afc426eb96382e5c2fbd37de987
+  - 6bcb09e505957cc9e99f19161cb1b9675ec68897
+  - ad08b8f6134562d20135273eacfbbf2368874c86
+  - d9e21495e69bbde4012f1a216393030cfa9ed48d
+  commit_sha: c8e1146d28df610b6b7121fae7f53d0139b02930
+  generated_at: '1794170173'
+  generator: kuda-template/0.1.2
