@@ -82,6 +82,11 @@ api:
   file: crates/sturn-driver/src/main.rs
   line: 45
   module: sturn-driver
+- name: driver_passes_pavo_conformance
+  kind: function
+  file: crates/sturn-driver/tests/conformance.rs
+  line: 12
+  module: sturn-driver
 - name: error_payload
   kind: function
   file: crates/sturn-driver/src/data.rs
@@ -197,12 +202,7 @@ api:
   file: crates/sturn-driver/src/views.rs
   line: 285
   module: sturn-driver
-- name: serve
-  kind: function
-  file: crates/sturn-driver/src/main.rs
-  line: 81
-  module: sturn-driver
-api_omitted: 13
+api_omitted: 14
 deps:
 - pavo-protocol
 - serde_json
@@ -216,6 +216,7 @@ deps:
 - sturn-wal-git
 - sturn-ws
 - sturn-ws-git
+- pavo-testkit
 - sturn-config
 - sturn-core
 - sturn-wal
@@ -230,17 +231,20 @@ verify:
 - crates/sturn-driver/src/data.rs
 - crates/sturn-driver/src/main.rs
 - crates/sturn-driver/src/views.rs
+- crates/sturn-driver/tests/conformance.rs
 provenance:
   files:
   - crates/sturn-driver/Cargo.toml
   - crates/sturn-driver/src/data.rs
   - crates/sturn-driver/src/main.rs
   - crates/sturn-driver/src/views.rs
+  - crates/sturn-driver/tests/conformance.rs
   hashes:
-  - a480d7cf004a4afc426eb96382e5c2fbd37de987
+  - 4d6c83ff9b5b892c0e84e258eb73e13d96560da1
   - 6bcb09e505957cc9e99f19161cb1b9675ec68897
   - ad08b8f6134562d20135273eacfbbf2368874c86
   - d9e21495e69bbde4012f1a216393030cfa9ed48d
-  commit_sha: c8e1146d28df610b6b7121fae7f53d0139b02930
-  generated_at: '1794170173'
+  - 4f731fec636db60e4ae90d45e355a861b238128f
+  commit_sha: ef4f5da477d80f2d0c482eff27a51e17f94521e0
+  generated_at: '1794178371'
   generator: kuda-template/0.1.2

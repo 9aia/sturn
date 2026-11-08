@@ -28,3 +28,8 @@ serde_json.workspace = true
 # pavo-protocol is published (the whole 9aia org lives side-by-side
 # under one parent dir; `version` is the crates.io fallback).
 pavo-protocol = { path = "../../../pavo/crates/pavo-protocol", version = "0.1.0" }
+
+[dev-dependencies]
+# Conformance gate — `cargo test` runs pavo's wire-contract suite
+# against this crate's own `tamias-driver-sturn serve` binary.
+pavo-testkit = { path = "../../../pavo/crates/pavo-testkit" }
