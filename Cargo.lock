@@ -411,8 +411,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pavo-driver-kit"
+version = "0.1.0"
+source = "git+https://github.com/9aia/pavo#090dcb4bde1a158f8c68b1ddbc85dddf191e4abb"
+dependencies = [
+ "pavo-protocol",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "pavo-protocol"
 version = "0.1.0"
+source = "git+https://github.com/9aia/pavo#090dcb4bde1a158f8c68b1ddbc85dddf191e4abb"
 dependencies = [
  "serde",
  "serde_json",
@@ -422,6 +433,7 @@ dependencies = [
 [[package]]
 name = "pavo-testkit"
 version = "0.1.0"
+source = "git+https://github.com/9aia/pavo#090dcb4bde1a158f8c68b1ddbc85dddf191e4abb"
 dependencies = [
  "pavo-protocol",
  "serde",
@@ -663,6 +675,7 @@ dependencies = [
 name = "sturn-driver"
 version = "0.1.0"
 dependencies = [
+ "pavo-driver-kit",
  "pavo-protocol",
  "pavo-testkit",
  "serde_json",

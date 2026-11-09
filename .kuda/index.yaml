@@ -1,5 +1,5 @@
 name: sturn
-root: /home/luis/GitHub/9aia/sturn
+root: /home/luis/GitHub/9aia/workspace/repos/sturn
 purpose: '*Ephemeral coordination engine — claims/ops/topics over VCS state.*'
 modules:
 - docs
@@ -31,7 +31,7 @@ modules:
 commands:
 - cargo check
 - cargo test --workspace
-tree_digest: a0aac3296a4ba746db9a2edf3f4bdee3c563cc02
+tree_digest: f702e55383755eab636b01925d53faacb1070e68
 files_total: 91
 provenance:
   files:
@@ -72,7 +72,7 @@ provenance:
   - 6c4e9170c6f1b07daf372307e3d7e89e3427c28f
   - 8882be00ff91823f5d18b19eaca492be7e9a5ef5
   - 1034b2491bf076039224a52253fddb5330eaa0bf
-  - 4d6c83ff9b5b892c0e84e258eb73e13d96560da1
+  - 2799e30326564788976fffbaf93761438ae5d126
   - 6c132812f2fc147db0df216bc92eb260e01b2491
   - a759c72fbde15626823a28c6534cfa8025706dd3
   - b880dc8f26d37f2be3f51c066a251ed062f93a0a
@@ -86,6 +86,6 @@ provenance:
   - 920e3060a2a096d2c39647c722b94768629605d2
   - baa5ab79e9ba5d08dbaffbee0a0961c003dc8a4f
   - 74885c8dbd6264f0bc6da2657aeab82fc54a0c70
-  commit_sha: ef4f5da477d80f2d0c482eff27a51e17f94521e0
-  generated_at: '1794178371'
+  commit_sha: 97f15d879100b406708c00c742fac646ed3bf3f0
+  generated_at: '1794245729'
   generator: kuda/0.1.0
