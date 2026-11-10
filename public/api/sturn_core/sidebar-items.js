@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Op","Verdict"],"fn":["overlay","since_last_snapshot"],"mod":["topic"],"struct":["ActorCfg","BusCfg","Config","Event","RepoCfg","ReviewCfg","SigningCfg","WalCfg"]};

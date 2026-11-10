@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["active","conflicts","covers","glob_match"],"struct":["Active"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Status"],"fn":["all","open","status"],"struct":["Open"]};
