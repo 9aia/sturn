@@ -3,7 +3,7 @@ id = "I-002"
 title = "FUSE mount tests flaky in sandboxed envs"
 status = "done"
 created = "2026-10-30"
-priority = "medium"
+priority = "med"
 +++
 
 # FUSE mount tests flaky in sandboxed envs

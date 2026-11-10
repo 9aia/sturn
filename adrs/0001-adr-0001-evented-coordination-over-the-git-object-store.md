@@ -2,7 +2,7 @@
 id = "ADR-0001"
 title = "ADR-0001 — evented coordination over the git object store"
 status = "done"
-priority = "medium"
+priority = "med"
 +++
 
 # ADR-0001 — evented coordination over the git object store

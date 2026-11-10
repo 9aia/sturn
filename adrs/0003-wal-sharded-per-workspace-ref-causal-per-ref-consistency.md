@@ -3,7 +3,7 @@ id = "ADR-0003"
 title = "WAL sharded per-workspace ref; causal (per-ref) consistency"
 status = "done"
 created = "2026-11-03"
-priority = "medium"
+priority = "med"
 +++
 
 ## Context

@@ -4,7 +4,7 @@ title = "resources beyond fs — typed claim URIs (dev/net/sess/cap) over the sa
 status = "in-progress"
 created = "2026-11-03"
 owner = "human:luis"
-priority = "medium"
+priority = "med"
 +++
 
 Status: **proposal v1**. Generalizes claims from worktree globs to
