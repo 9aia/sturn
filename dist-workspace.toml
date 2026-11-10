@@ -4,6 +4,6 @@ members = ["cargo:."]
 # Config for 'dist'
 [dist]
 cargo-dist-version = "0.33.0"
-ci = "none"
-installers = ["shell"]
+ci = []
+installers = []
 targets = ["x86_64-unknown-linux-gnu"]
