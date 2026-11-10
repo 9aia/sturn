@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["commit","common_dir","entry_oid","git_dir","list_tree","object_exists","object_id","read_at","read_object","read_ref","resolve","tree_object","write_object"]};

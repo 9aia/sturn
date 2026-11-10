@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Cmd","DeployCmd","DestroySub","ServiceCmd","WsCmd"],"fn":["all_events","append","ask_json","bridge","bridge_tick","daemon","daemon_tick","do_snap","fanout","handle_sub","hydrate_ws","main","merge_snap","now","post_push","run","run_bridge","status_label","subscribe","wait_ask","wait_exit_code","writeback_ops"],"struct":["Cli"],"type":["Subs"]};

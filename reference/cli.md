@@ -32,7 +32,7 @@ Global flags: `--repo <dir>` (default cwd) · `--config <path>`.
 | `sturn rename\|delete … --ws` | tree ops that keep intent |
 | `sturn verify [--ws W]` | verify event sigs vs allowed_signers |
 | `sturn compact [--ws W]` | drop pre-snapshot WAL history (archived) |
-| `sturn bridge --to <url>` | snapshot ops → HMAC webhook (bupha CI) |
+| `sturn bridge --to <url>` | snapshot ops → HMAC webhook (CI ingest; bupha retired) |
 | `sturn mount <ws> <dir> [--rw]` | FUSE mount; --rw edits flow back as ops |
 | `sturn deploy service\|env` | systemd unit / secrets skeleton |
 | `sturn service enable\|disable\|status\|restart\|logs [-f]` | toggle/bounce the daemon unit (kept); logs tails the journal |

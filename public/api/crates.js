@@ -1,0 +1,2 @@
+window.ALL_CRATES = ["sturn","sturn_ask","sturn_bus","sturn_bus_redb","sturn_claim","sturn_config","sturn_config_toml","sturn_core","sturn_dotenv","sturn_fuse","sturn_git","sturn_keyring","sturn_mcp","sturn_odb","sturn_secret","sturn_service","sturn_systemd","sturn_vcs","sturn_wal","sturn_wal_git","sturn_ws","sturn_ws_git"];
+//{"start":21,"fragment_lengths":[7,12,12,17,14,15,20,13,15,13,12,16,12,12,15,16,16,12,12,16,11,15]}
