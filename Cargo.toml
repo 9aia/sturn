@@ -39,6 +39,7 @@ inherits = "release"
 lto = "thin"
 
 [workspace.dependencies]
+sturn = { path = "crates/sturn-cli", version = "0.1.0" }
 sturn-core = { path = "crates/sturn-core", version = "0.1.0" }
 sturn-wal = { path = "crates/sturn-wal", version = "0.1.0" }
 sturn-wal-git = { path = "crates/sturn-wal-git", version = "0.1.0" }

@@ -1,7 +1,27 @@
 name: sturn-driver
 path: crates/sturn-driver/Cargo.toml
-purpose: tamias-driver-sturn — pavo view driver over a repo's sturn coordination state (read-only WAL fold)
+purpose: tamias-driver-sturn — pavo view driver over a repo's sturn coordination state plus engine ops dispatching to the sturn lib
 api:
+- name: Engine
+  kind: type
+  file: crates/sturn-driver/src/surface.rs
+  line: 20
+  module: sturn-driver
+- name: READ_ONLY
+  kind: const
+  file: crates/sturn-driver/src/ops.rs
+  line: 41
+  module: sturn-driver
+- name: SKIP_PARAMS
+  kind: const
+  file: crates/sturn-driver/src/ops.rs
+  line: 36
+  module: sturn-driver
+- name: SURFACES
+  kind: const
+  file: crates/sturn-driver/src/ops.rs
+  line: 31
+  module: sturn-driver
 - name: Snapshot
   kind: type
   file: crates/sturn-driver/src/data.rs
@@ -11,6 +31,21 @@ api:
   kind: type
   file: crates/sturn-driver/src/data.rs
   line: 42
+  module: sturn-driver
+- name: argv
+  kind: function
+  file: crates/sturn-driver/src/ops.rs
+  line: 179
+  module: sturn-driver
+- name: argv_maps_params_to_sturn_flags
+  kind: function
+  file: crates/sturn-driver/src/ops.rs
+  line: 322
+  module: sturn-driver
+- name: argv_splits_dotted_names_and_repeatables
+  kind: function
+  file: crates/sturn-driver/src/ops.rs
+  line: 347
   module: sturn-driver
 - name: ask_row
   kind: function
@@ -35,7 +70,7 @@ api:
 - name: capabilities_json
   kind: function
   file: crates/sturn-driver/src/main.rs
-  line: 30
+  line: 54
   module: sturn-driver
 - name: claim_row
   kind: function
@@ -60,7 +95,7 @@ api:
 - name: data
   kind: module
   file: crates/sturn-driver/src/main.rs
-  line: 24
+  line: 45
   module: sturn-driver
 - name: default
   kind: function
@@ -75,7 +110,7 @@ api:
 - name: dispatch
   kind: function
   file: crates/sturn-driver/src/main.rs
-  line: 40
+  line: 64
   module: sturn-driver
 - name: driver_passes_pavo_conformance
   kind: function
@@ -107,6 +142,11 @@ api:
   file: crates/sturn-driver/src/views.rs
   line: 632
   module: sturn-driver
+- name: kind
+  kind: function
+  file: crates/sturn-driver/src/ops.rs
+  line: 90
+  module: sturn-driver
 - name: known_query
   kind: function
   file: crates/sturn-driver/src/views.rs
@@ -120,7 +160,7 @@ api:
 - name: load
   kind: function
   file: crates/sturn-driver/src/data.rs
-  line: 193
+  line: 221
   module: sturn-driver
 - name: load_config
   kind: function
@@ -130,7 +170,12 @@ api:
 - name: main
   kind: function
   file: crates/sturn-driver/src/main.rs
-  line: 89
+  line: 122
+  module: sturn-driver
+- name: manifest
+  kind: function
+  file: crates/sturn-driver/src/ops.rs
+  line: 122
   module: sturn-driver
 - name: manifest
   kind: function
@@ -142,6 +187,11 @@ api:
   file: crates/sturn-driver/src/views.rs
   line: 583
   module: sturn-driver
+- name: manifest_lists_every_leaf_as_cli_query
+  kind: function
+  file: crates/sturn-driver/src/ops.rs
+  line: 299
+  module: sturn-driver
 - name: md
   kind: function
   file: crates/sturn-driver/src/views.rs
@@ -152,61 +202,13 @@ api:
   file: crates/sturn-driver/src/data.rs
   line: 127
   module: sturn-driver
-- name: ok
-  kind: function
-  file: crates/sturn-driver/src/data.rs
-  line: 122
-  module: sturn-driver
-- name: op_kind
-  kind: function
-  file: crates/sturn-driver/src/views.rs
-  line: 294
-  module: sturn-driver
-- name: op_kind_and_summary_cover_every_variant
-  kind: function
-  file: crates/sturn-driver/src/views.rs
-  line: 650
-  module: sturn-driver
-- name: op_summary
-  kind: function
-  file: crates/sturn-driver/src/views.rs
-  line: 313
-  module: sturn-driver
-- name: ops_rows
-  kind: function
-  file: crates/sturn-driver/src/views.rs
-  line: 449
-  module: sturn-driver
-- name: overrides
-  kind: function
-  file: crates/sturn-driver/src/data.rs
-  line: 137
-  module: sturn-driver
-- name: param
-  kind: function
-  file: crates/sturn-driver/src/views.rs
-  line: 276
-  module: sturn-driver
-- name: query_data
-  kind: function
-  file: crates/sturn-driver/src/views.rs
-  line: 237
-  module: sturn-driver
-- name: serve
-  kind: function
-  file: crates/sturn-driver/src/main.rs
-  line: 82
-  module: sturn-driver
-- name: short
-  kind: function
-  file: crates/sturn-driver/src/views.rs
-  line: 283
-  module: sturn-driver
-api_omitted: 12
+api_omitted: 39
 deps:
+- clap
 - pavo-driver-kit
 - pavo-protocol
 - serde_json
+- sturn
 - sturn-ask
 - sturn-claim
 - sturn-config
@@ -218,19 +220,22 @@ deps:
 - sturn-ws
 - sturn-ws-git
 - pavo-testkit
+- clap
+- serde_json
 - sturn-config
 - sturn-core
 - sturn-wal
 - sturn-wal-git
 - sturn-ws
 - pavo_protocol
-- serde_json
 - sturn-claim
 notes: ''
 verify:
 - crates/sturn-driver/Cargo.toml
 - crates/sturn-driver/src/data.rs
 - crates/sturn-driver/src/main.rs
+- crates/sturn-driver/src/ops.rs
+- crates/sturn-driver/src/surface.rs
 - crates/sturn-driver/src/views.rs
 - crates/sturn-driver/tests/conformance.rs
 provenance:
@@ -238,14 +243,18 @@ provenance:
   - crates/sturn-driver/Cargo.toml
   - crates/sturn-driver/src/data.rs
   - crates/sturn-driver/src/main.rs
+  - crates/sturn-driver/src/ops.rs
+  - crates/sturn-driver/src/surface.rs
   - crates/sturn-driver/src/views.rs
   - crates/sturn-driver/tests/conformance.rs
   hashes:
-  - 2799e30326564788976fffbaf93761438ae5d126
-  - 6bcb09e505957cc9e99f19161cb1b9675ec68897
-  - a55202fa12d510b7fc353a174e281600716a6555
+  - ed8639621781e0497bce755fad7b430a7972dd32
+  - 415183a66f71115deb0450055833009f44490e48
+  - 6c4be2d3a65ef7f8bd27b05bc6a8d2b0f51edf48
+  - dc84336fb4d790684b6922c4224aa83907846c0f
+  - 160c293d1212bc16c2500e4268d5aaff4092a0fb
   - a6c14e6ad89e6b9de14d17c1142924e9b2149ed4
   - 4f731fec636db60e4ae90d45e355a861b238128f
-  commit_sha: 97f15d879100b406708c00c742fac646ed3bf3f0
-  generated_at: '1794245729'
+  commit_sha: 5859dfe61488ba8f52662c03fb6bf2c07aecdd31
+  generated_at: '1794290482'
   generator: kuda-template/0.1.2

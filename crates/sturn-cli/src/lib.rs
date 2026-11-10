@@ -1,0 +1,2765 @@
+//! sturn — the engine as a library. Everything that used to live
+//! in the binary lives here: Cli/Cmd, the WAL/bus/ws plumbing,
+//! claims/asks, snap/push, daemon/sub/mcp/mount surfaces.
+//! `run()` is the compat CLI's whole body; drivers (sturn bin,
+//! tamias-driver-sturn `run`) split it into [`parse`]/[`parse_from`]
+//! + [`dispatch`] — argv in, exit code out, ops callable as
+//! `dispatch(&cli)`.
+//!
+//! sturn — evented coordination over the git object store.
+//!
+//! The WAL is the state; the tree is a projection; the bus is a
+//! cache. Composition root: wires ports (wal/bus/ws/vcs/config/
+//! service) to impls (git plumbing, redb, toml, systemd).
+
+mod agentmd;
+
+use clap::{Parser, Subcommand};
+use std::collections::HashMap;
+use std::io::{BufRead, BufReader, Read, Write};
+use std::os::unix::net::{UnixListener, UnixStream};
+use std::path::{Path, PathBuf};
+use std::sync::{mpsc, Arc, Mutex};
+use std::time::Duration;
+use sturn_bus::Bus;
+use sturn_claim as claims;
+use sturn_config::ConfigSource;
+use sturn_core::{topic, Config, Event, Op, Verdict};
+use sturn_service::Service;
+use sturn_vcs::Vcs;
+use sturn_wal::Wal;
+use sturn_ws::Ws;
+
+#[derive(Parser)]
+#[command(
+    name = "sturn",
+    version,
+    about = "Evented coordination over the git object store — agents murmurate, not merge"
+)]
+pub struct Cli {
+    /// Repo dir (default: cwd).
+    #[arg(long, global = true)]
+    repo: Option<PathBuf>,
+    /// Config path (default: $STURN_CONFIG → ./sturn.toml → ~/.config/sturn/).
+    #[arg(long, global = true)]
+    config: Option<String>,
+    #[command(subcommand)]
+    cmd: Cmd,
+}
+
+#[derive(Subcommand)]
+enum Cmd {
+    /// Wire a repo for sturn — writes sturn.toml if absent.
+    Init,
+    /// Workspace namespaces — virtual checkouts that cost a pointer.
+    Ws {
+        #[command(subcommand)]
+        cmd: WsCmd,
+    },
+    /// Advisory lock on a resource URI — published *before* edits.
+    Claim {
+        /// Resource URI or path glob — "fs:src/**", "dev:display0",
+        /// "net:13000", "sess:T-012"; a bare glob means "fs:".
+        uri: String,
+        /// Workspace claiming it.
+        #[arg(long)]
+        ws: String,
+        /// Seconds the claim lives (auto-expiry, no zombie locks).
+        #[arg(long, default_value_t = 3600)]
+        ttl: u64,
+        /// Take the claim even if it conflicts with a live one.
+        #[arg(long)]
+        force: bool,
+    },
+    /// Drop a claim — same URI form `claim` takes.
+    Release {
+        uri: String,
+        #[arg(long)]
+        ws: String,
+    },
+    /// Append a write op — stdin or --file becomes an ODB blob.
+    Write {
+        /// Path inside the tree.
+        path: String,
+        #[arg(long)]
+        ws: String,
+        #[arg(long)]
+        file: Option<PathBuf>,
+        /// Why this edit exists — attached to the op.
+        #[arg(long)]
+        intent: Option<String>,
+    },
+    /// Append a rename op — intent survives where git loses it.
+    Rename {
+        from: String,
+        to: String,
+        #[arg(long)]
+        ws: String,
+    },
+    /// Append a delete op.
+    Delete {
+        path: String,
+        #[arg(long)]
+        ws: String,
+    },
+    /// Record why work exists — provenance as data.
+    Intent {
+        text: String,
+        #[arg(long)]
+        ws: String,
+    },
+    /// Drop pre-snapshot WAL history (archived, not lost).
+    Compact {
+        /// One workspace, or all when omitted.
+        #[arg(long)]
+        ws: Option<String>,
+    },
+    /// Replay the WAL — ops in order, JSONL.
+    Log {
+        /// One workspace, or all when omitted.
+        #[arg(long)]
+        ws: Option<String>,
+    },
+    /// In-flight ops per workspace — logged since the last snap,
+    /// not yet landed. `--live` keeps streaming as new ops arrive.
+    Diff {
+        /// One workspace, or all when omitted.
+        #[arg(long)]
+        ws: Option<String>,
+        /// Emit the raw events as JSONL (same shape `log` produces).
+        #[arg(long)]
+        json: bool,
+        /// Keep streaming new ops — WAL poll, works daemon-free.
+        #[arg(long)]
+        live: bool,
+    },
+    /// Fold ws ops into a real commit on the branch. Multiple ws =
+    /// merged into ONE commit — rename-aware (writes follow renames);
+    /// semantic conflicts warn on stderr, later ops win same-path.
+    Snap {
+        #[arg(required = true)]
+        ws: Vec<String>,
+        #[arg(short, long)]
+        message: String,
+        /// Branch to update (default: repo.branch / main).
+        #[arg(long)]
+        branch: Option<String>,
+    },
+    /// Approve/reject an event — continuous review.
+    Review {
+        /// Event id (blob sha) to judge.
+        event: String,
+        /// approve | reject.
+        verdict: String,
+        #[arg(long)]
+        ws: String,
+    },
+    /// Push heads + refs/sturn/* — coordination rides the remote.
+    Push {
+        #[arg(long, default_value = "origin")]
+        remote: String,
+    },
+    /// WAL→topic fan-out loop. The bus is a cache — ops still sync
+    /// through git when it's down.
+    Daemon,
+    /// Stream a topic live — ops|claims|review|presence, JSONL.
+    Sub {
+        /// Topic suffix under `repo.<id>.`.
+        topic: String,
+    },
+    /// Announce presence — `leave` drops all the actor's claims.
+    Join { ws: String },
+    /// Leave a ws — sweeps the actor's claims on it.
+    Leave { ws: String },
+    /// Verify event signatures against allowed_signers.
+    Verify {
+        #[arg(long)]
+        ws: Option<String>,
+    },
+    /// Live claims across every workspace.
+    Claims,
+    /// List live claims conflicting with a URI — consult before
+    /// acting on a resource. Exits 1 when the URI is contested.
+    Check {
+        /// Resource URI or path glob — same form `claim` takes.
+        uri: String,
+        /// Staleness probe: report only conflicting claims with a
+        /// fencing token above N — pass the fence `claim` printed
+        /// to ask "has my claim been superseded?".
+        #[arg(long)]
+        fence: Option<u64>,
+        /// Keep watching — stream conflict-set changes via WAL
+        /// poll. Works daemon-free; combines with --fence.
+        #[arg(long)]
+        watch: bool,
+    },
+    /// Open a pending-response ask — the printed event id is the
+    /// ask handle that `answer`/`cancel`/`wait` take.
+    Ask {
+        /// What is being asked.
+        subject: String,
+        /// Workspace asking.
+        #[arg(long)]
+        ws: String,
+        /// Who may answer — free-form spec: `actor:<name>`,
+        /// `human:<name>`, `node:<host>`, `claim-holder:<glob>`, `any`.
+        #[arg(long, default_value = "any")]
+        target: String,
+        /// Offered verdict — repeatable, advisory only.
+        #[arg(long = "option")]
+        options: Vec<String>,
+        /// Seconds until the ask expires. 0 = never.
+        #[arg(long, default_value_t = 3600)]
+        ttl: u64,
+    },
+    /// Pending asks across every workspace — open by default.
+    Asks {
+        /// Include resolved asks (answered/cancelled/expired).
+        #[arg(long)]
+        all: bool,
+        /// Emit a JSON array instead of text lines.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Answer an open ask — the verdict rides your ws's WAL.
+    Answer {
+        /// Ask event id.
+        ask: String,
+        verdict: String,
+        /// Workspace answering.
+        #[arg(long)]
+        ws: String,
+    },
+    /// Withdraw an open ask.
+    Cancel {
+        /// Ask event id.
+        ask: String,
+        #[arg(long)]
+        ws: String,
+    },
+    /// Block until an ask resolves — prints the result as JSON.
+    /// Exit: 0 answered, 2 cancelled, 3 expired, 4 timeout.
+    Wait {
+        /// Ask event id.
+        ask: String,
+        /// Max seconds to wait. 0 = until resolved.
+        #[arg(long, default_value_t = 0)]
+        timeout: u64,
+        /// Poll interval, ms.
+        #[arg(long, default_value_t = 100)]
+        poll: u64,
+    },
+    /// Bridge snapshot events to a bupha webhook — GitHub-shaped,
+    /// HMAC-signed. Bupha runs CI on snaps with zero bupha changes.
+    Bridge {
+        /// bupha listener URL (e.g. http://127.0.0.1:29173/).
+        #[arg(long)]
+        to: String,
+        /// Env var naming the webhook secret (HMAC-SHA256).
+        #[arg(long, default_value = "BUPHA_WEBHOOK_SECRET")]
+        secret_env: String,
+    },
+    /// MCP stdio server — the 9-tool agent surface on JSON-RPC.
+    /// --ws makes it the agent's ws: presence ops emit on connect.
+    Mcp {
+        #[arg(long)]
+        ws: Option<String>,
+    },
+    /// Hydrate a ws to tmpfs and run a command inside — compilers
+    /// need POSIX; agents don't. Exits with the command's status.
+    Exec {
+        /// Workspace to hydrate.
+        #[arg(long)]
+        ws: String,
+        /// Keep the hydrated dir after exit.
+        #[arg(long)]
+        keep: bool,
+        /// Write filesystem edits back as ops on the ws.
+        #[arg(long)]
+        writeback: bool,
+        /// Command + args, after `--`.
+        #[arg(trailing_var_arg = true, required = true)]
+        cmd: Vec<String>,
+    },
+    /// Mount a ws tree via FUSE — POSIX for tools/GUIs.
+    /// --rw: edits flow back as Write/Delete/Rename ops.
+    Mount {
+        ws: String,
+        dir: PathBuf,
+        #[arg(long)]
+        rw: bool,
+    },
+    /// Deploy the daemon — systemd user unit + env skeleton.
+    Deploy {
+        #[command(subcommand)]
+        cmd: DeployCmd,
+    },
+    /// Teardown counterparts of `deploy`.
+    Destroy {
+        #[command(subcommand)]
+        cmd: DestroySub,
+    },
+    /// Toggle the daemon unit without removing it — free the box
+    /// when fan-out isn't needed, `enable` brings it back.
+    Service {
+        #[command(subcommand)]
+        cmd: ServiceCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum WsCmd {
+    /// Create a workspace — zero materialization, just a ref.
+    New {
+        name: String,
+        /// Base commit/branch (default: HEAD).
+        #[arg(long)]
+        base: Option<String>,
+    },
+    /// List workspaces.
+    Ls,
+    /// Read a file from a ws tree — no checkout.
+    Read { name: String, path: String },
+    /// Materialize a ws tree into a dir — tip + uncommitted ops.
+    /// --path filters to a subset (repeatable); empty = whole tree.
+    Hydrate {
+        name: String,
+        dir: PathBuf,
+        #[arg(long = "path")]
+        paths: Vec<String>,
+        /// After materializing, diff the dir back into ops now.
+        #[arg(long)]
+        writeback: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum DeployCmd {
+    /// Write + enable the systemd user unit for `sturn daemon`.
+    Service,
+    /// Seed ~/.config/sturn/env (0600, names only).
+    Env,
+}
+
+#[derive(Subcommand)]
+enum DestroySub {
+    /// Disable + remove the systemd user unit.
+    Service,
+}
+
+#[derive(Subcommand)]
+enum ServiceCmd {
+    /// Enable + start the daemon unit now and at login.
+    Enable,
+    /// Stop the daemon now; stays stopped across logins until
+    /// `service enable` (the unit file is kept).
+    Disable,
+    /// Whether the daemon unit is enabled and running.
+    Status,
+    /// Bounce the daemon unit in place.
+    Restart,
+    /// Recent journal lines — `-f` follows the stream live.
+    Logs {
+        /// Follow the log stream (journalctl -f).
+        #[arg(short = 'f', long = "f")]
+        follow: bool,
+    },
+}
+
+/// Process argv → a parsed [`Cli`]. Split from [`dispatch`] so
+/// drivers can parse *their* argv (a `run` verb, a re-exec)
+/// without owning process args. Clap errors/help still exit the
+/// process, same as argv parsing.
+pub fn parse() -> Cli {
+    Cli::parse()
+}
+
+/// Same, from an argv iterator — `parse_from(["sturn", "claims"])`.
+pub fn parse_from<I, T>(itr: I) -> Cli
+where
+    I: IntoIterator<Item = T>,
+    T: Into<std::ffi::OsString> + Clone,
+{
+    Cli::parse_from(itr)
+}
+
+/// The clap verb tree as a [`clap::Command`] — the ops manifest
+/// derives itself from this, so a verb can't exist on the CLI and
+/// be missing from the driver's wire surface.
+pub fn command() -> clap::Command {
+    <Cli as clap::CommandFactory>::command()
+}
+
+/// One parsed command → exit code. The dispatch every driver
+/// shares; argv parsing is a caller concern.
+pub fn dispatch(cli: &Cli) -> i32 {
+    match execute(cli) {
+        Ok(()) => 0,
+        Err(e) => {
+            eprintln!("sturn: {e}");
+            1
+        }
+    }
+}
+
+/// The compat CLI body — parse argv, dispatch, hand back the code.
+pub fn run() -> i32 {
+    dispatch(&parse())
+}
+
+/// Same, from an argv iterator — the `run` passthrough entry
+/// drivers re-exec (`tamias-driver-sturn run <sturn argv>`).
+pub fn run_from<I, T>(argv: I) -> i32
+where
+    I: IntoIterator<Item = T>,
+    T: Into<std::ffi::OsString> + Clone,
+{
+    dispatch(&parse_from(argv))
+}
+
+fn execute(cli: &Cli) -> Result<(), String> {
+    // Config is optional — everything works flag-driven too.
+    let cfg: Option<Config> = sturn_config_toml::TomlSource {
+        path: cli.config.clone(),
+    }
+    .load()
+    .ok();
+    let repo = cli
+        .repo
+        .clone()
+        .or_else(|| cfg.as_ref().map(|c| c.repo.dir.clone()))
+        .unwrap_or_else(|| PathBuf::from("."));
+    let repo_id = cfg.as_ref().map(|c| c.repo.id()).unwrap_or_else(|| {
+        repo.canonicalize()
+            .ok()
+            .and_then(|p| p.file_name().map(|s| s.to_string_lossy().into_owned()))
+            .unwrap_or_else(|| "repo".into())
+    });
+    let branch = cfg
+        .as_ref()
+        .map(|c| c.repo.branch.clone())
+        .unwrap_or_else(|| "main".into());
+    let actor = cfg.as_ref().map(|c| c.actor.name()).unwrap_or_else(|| {
+        std::env::var("STURN_ACTOR")
+            .or_else(|_| std::env::var("USER"))
+            .unwrap_or_else(|_| "anon".into())
+    });
+    let wal = sturn_wal_git::GitWal {
+        ref_prefix: cfg
+            .as_ref()
+            .map(|c| c.wal.ref_prefix.clone())
+            .unwrap_or_else(|| "refs/sturn/wal".into()),
+        sign_key: cfg
+            .as_ref()
+            .and_then(|c| c.signing.key.clone())
+            .map(|k| k.replace('~', &std::env::var("HOME").unwrap_or_else(|_| ".".into())))
+            .map(PathBuf::from),
+    };
+    let ws_impl = sturn_ws_git::GitWs;
+    let bus_path = cfg
+        .as_ref()
+        .map(|c| c.bus.store.clone())
+        .unwrap_or_else(|| {
+            std::env::var("HOME")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| ".".into())
+                .join(".local/state/sturn/bus.redb")
+        });
+    let poll_ms = cfg.as_ref().map(|c| c.bus.poll_ms).unwrap_or(100);
+
+    match &cli.cmd {
+        Cmd::Init => {
+            if !Path::new(".git").exists() && !repo.join(".git").exists() {
+                return Err("not a git repo — run inside one".into());
+            }
+            if Path::new(".jj").exists() || repo.join(".jj").exists() {
+                println!("colocated jj detected — refs/sturn/* stays git-side");
+            }
+            if !Path::new("sturn.toml").exists() {
+                std::fs::write(
+                    "sturn.toml",
+                    "# sturn — coordination over git refs\n[repo]\ndir = \".\"\n",
+                )
+                .map_err(|e| e.to_string())?;
+                println!("wrote sturn.toml");
+            }
+            // Converge AGENTS.md to the managed agent-awareness
+            // block — markers scoped, prose untouched, idempotent.
+            match agentmd::sync(Path::new("."))? {
+                agentmd::Change::Created => {
+                    println!("wrote AGENTS.md (sturn agent-awareness block)")
+                }
+                agentmd::Change::Updated => {
+                    println!("updated AGENTS.md agent-awareness block")
+                }
+                agentmd::Change::Unchanged => {}
+            }
+            println!("sturn ready — WAL: refs/sturn/wal/*, ws: refs/sturn/ws/*");
+            Ok(())
+        }
+        Cmd::Ws { cmd } => match cmd {
+            WsCmd::New { name, base } => {
+                let base = base.clone().unwrap_or_else(|| "HEAD".into());
+                ws_impl
+                    .create(&repo, name, &base)
+                    .map_err(|e| e.to_string())?;
+                println!("ws {name} → {base}");
+                Ok(())
+            }
+            WsCmd::Ls => {
+                // Union: ws namespaces (pointer-only) + WAL refs.
+                let mut names = ws_impl.workspaces(&repo).unwrap_or_default();
+                names.extend(wal.workspaces(&repo).unwrap_or_default());
+                names.sort();
+                names.dedup();
+                names.iter().for_each(|n| println!("{n}"));
+                Ok(())
+            }
+            WsCmd::Read { name, path } => {
+                let tip = ws_impl.tip(&repo, name).map_err(|e| e.to_string())?;
+                let bytes = ws_impl.read(&repo, &tip, path).map_err(|e| e.to_string())?;
+                print!("{}", String::from_utf8_lossy(&bytes));
+                Ok(())
+            }
+            WsCmd::Hydrate {
+                name,
+                dir,
+                paths,
+                writeback,
+            } => {
+                hydrate_ws(&repo, &wal, &ws_impl, name, dir, paths).map_err(|e| e.to_string())?;
+                if *writeback {
+                    let n = writeback_ops(&repo, &wal, &ws_impl, name, dir, &actor)?;
+                    println!("writeback: {n} op(s)");
+                }
+                println!("hydrated {name} → {}", dir.display());
+                Ok(())
+            }
+        },
+        Cmd::Claim {
+            uri,
+            ws,
+            ttl,
+            force,
+        } => {
+            let all = all_events(&wal, &repo)?;
+            let now = now();
+            let live = claims::active(&all, now);
+            // Overlap within the same ws is fine — one workspace,
+            // one writer.
+            let hits: Vec<_> = claims::conflicts(&live, uri)
+                .into_iter()
+                .filter(|c| c.ws != *ws)
+                .collect();
+            if !hits.is_empty() && !force {
+                for c in &hits {
+                    eprintln!("conflict: {} claimed {}", c.actor, claim_line(c));
+                }
+                return Err("claim denied — --force to override".into());
+            }
+            append(
+                &wal,
+                &repo,
+                ws,
+                &actor,
+                Op::Claim {
+                    glob: uri.clone(),
+                    ttl_secs: *ttl,
+                },
+            )?;
+            let fence = claims::active(&all_events(&wal, &repo)?, now)
+                .into_iter()
+                .find(|c| c.ws == *ws && c.uri == claims::normalize(uri))
+                .map(|c| c.fence)
+                .unwrap_or(0);
+            println!("claimed {uri} (ws {ws}, ttl {ttl}s, fence {fence})");
+            Ok(())
+        }
+        Cmd::Release { uri, ws } => {
+            append(&wal, &repo, ws, &actor, Op::Release { glob: uri.clone() })?;
+            println!("released {uri}");
+            Ok(())
+        }
+        Cmd::Join { ws } => {
+            append(
+                &wal,
+                &repo,
+                ws,
+                &actor,
+                Op::Presence {
+                    status: "joined".into(),
+                },
+            )?;
+            println!("{actor} joined {ws}");
+            Ok(())
+        }
+        Cmd::Leave { ws } => {
+            append(
+                &wal,
+                &repo,
+                ws,
+                &actor,
+                Op::Presence {
+                    status: "left".into(),
+                },
+            )?;
+            println!("{actor} left {ws} — claims swept");
+            Ok(())
+        }
+        Cmd::Verify { ws } => {
+            let signers = cfg
+                .as_ref()
+                .and_then(|c| c.signing.allowed_signers.clone())
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    std::env::var("HOME")
+                        .map(PathBuf::from)
+                        .unwrap_or_else(|_| ".".into())
+                        .join(".config/sturn/allowed_signers")
+                });
+            if !signers.exists() {
+                return Err(format!(
+                    "no allowed_signers at {} — can't verify",
+                    signers.display()
+                ));
+            }
+            let names = match ws {
+                Some(w) => vec![w.clone()],
+                None => wal.workspaces(&repo).map_err(|e| e.to_string())?,
+            };
+            let (mut ok, mut nosig, mut bad) = (0u32, 0u32, 0u32);
+            for n in names {
+                for ev in wal.events(&repo, &n).map_err(|e| e.to_string())? {
+                    let Some(sig) = &ev.sig else {
+                        nosig += 1;
+                        continue;
+                    };
+                    let dir = std::env::temp_dir();
+                    let data = dir.join(format!("sturn-vfy-{}", std::process::id()));
+                    let sigf = dir.join(format!("sturn-vfy-{}.sig", std::process::id()));
+                    std::fs::write(&data, ev.signing_bytes()).map_err(|e| e.to_string())?;
+                    std::fs::write(&sigf, sig).map_err(|e| e.to_string())?;
+                    let st = std::process::Command::new("ssh-keygen")
+                        .args(["-Y", "verify", "-f"])
+                        .arg(&signers)
+                        .args(["-I", &ev.actor, "-n", "sturn-event", "-s"])
+                        .arg(&sigf)
+                        .stdin(std::process::Stdio::from(
+                            std::fs::File::open(&data).map_err(|e| e.to_string())?,
+                        ))
+                        .stdout(std::process::Stdio::null())
+                        .status();
+                    let _ = std::fs::remove_file(&data);
+                    let _ = std::fs::remove_file(&sigf);
+                    match st.map(|s| s.success()) {
+                        Ok(true) => ok += 1,
+                        _ => {
+                            bad += 1;
+                            eprintln!("bad sig: {} ({})", ev.id, ev.actor);
+                        }
+                    }
+                }
+            }
+            println!("verify: {ok} ok, {nosig} unsigned, {bad} bad");
+            if bad > 0 {
+                Err("bad signatures found".into())
+            } else {
+                Ok(())
+            }
+        }
+        Cmd::Claims => {
+            let all = all_events(&wal, &repo)?;
+            for c in claims::active(&all, now()) {
+                println!("{}", claim_line(&c));
+            }
+            Ok(())
+        }
+        Cmd::Check { uri, fence, watch } => {
+            let hits = check_hits(&wal, &repo, uri, *fence)?;
+            // Watch streams set changes — initial state is the
+            // first batch of `+` lines, same shape as `diff --live`.
+            for c in &hits {
+                println!("{}{}", if *watch { "+ " } else { "" }, claim_line(c));
+            }
+            if hits.is_empty() {
+                println!("no conflicts: {uri}");
+            }
+            if *watch {
+                return check_watch(&wal, &repo, uri, *fence, hits, poll_ms);
+            }
+            if hits.is_empty() {
+                Ok(())
+            } else {
+                Err(format!("{} conflicting claim(s)", hits.len()))
+            }
+        }
+        Cmd::Ask {
+            subject,
+            ws,
+            target,
+            options,
+            ttl,
+        } => {
+            let id = append(
+                &wal,
+                &repo,
+                ws,
+                &actor,
+                Op::Ask {
+                    subject: subject.clone(),
+                    target: target.clone(),
+                    options: options.clone(),
+                    ttl_secs: *ttl,
+                },
+            )?;
+            let exp = if *ttl == 0 {
+                "never".to_string()
+            } else {
+                format!("{}s", ttl)
+            };
+            println!("ask {id} open (ws {ws} → {target}, ttl {exp})");
+            Ok(())
+        }
+        Cmd::Asks { all, json } => {
+            let entries = sturn_ask::all(&all_events(&wal, &repo)?, now())
+                .into_iter()
+                .filter(|(_, s)| *all || matches!(s, sturn_ask::Status::Open))
+                .collect::<Vec<_>>();
+            if *json {
+                let arr: Vec<serde_json::Value> =
+                    entries.iter().map(|(o, s)| ask_json(o, s)).collect();
+                println!(
+                    "{}",
+                    serde_json::to_string(&arr).map_err(|e| e.to_string())?
+                );
+            } else {
+                for (o, s) in &entries {
+                    let exp = o
+                        .expires
+                        .map(|e| format!("expires {e}"))
+                        .unwrap_or_else(|| "no expiry".into());
+                    println!(
+                        "{} \"{}\" (ws {}, {} → {}, {exp}, {})",
+                        o.id,
+                        o.subject,
+                        o.ws,
+                        o.actor,
+                        o.target,
+                        status_label(s)
+                    );
+                }
+            }
+            Ok(())
+        }
+        Cmd::Answer { ask, verdict, ws } => {
+            match sturn_ask::status(&all_events(&wal, &repo)?, now(), ask) {
+                None => return Err(format!("no such ask: {ask}")),
+                Some(sturn_ask::Status::Open) => {}
+                Some(s) => return Err(format!("ask {ask} is {} — can't answer", status_label(&s))),
+            }
+            append(
+                &wal,
+                &repo,
+                ws,
+                &actor,
+                Op::Answer {
+                    ask: ask.clone(),
+                    verdict: verdict.clone(),
+                },
+            )?;
+            println!("{verdict} → ask {ask}");
+            Ok(())
+        }
+        Cmd::Cancel { ask, ws } => {
+            match sturn_ask::status(&all_events(&wal, &repo)?, now(), ask) {
+                None => return Err(format!("no such ask: {ask}")),
+                Some(sturn_ask::Status::Open) => {}
+                Some(s) => return Err(format!("ask {ask} is {} — can't cancel", status_label(&s))),
+            }
+            append(&wal, &repo, ws, &actor, Op::Cancel { ask: ask.clone() })?;
+            println!("cancelled ask {ask}");
+            Ok(())
+        }
+        Cmd::Wait { ask, timeout, poll } => match wait_ask(&wal, &repo, ask, *timeout, *poll)? {
+            None => {
+                println!("{}", serde_json::json!({"ask": ask, "status": "timeout"}));
+                std::process::exit(4);
+            }
+            Some(sturn_ask::Status::Answered { verdict, by }) => {
+                println!(
+                    "{}",
+                    serde_json::json!({"ask": ask, "status": "answered", "verdict": verdict, "by": by})
+                );
+                Ok(())
+            }
+            Some(s) => {
+                println!(
+                    "{}",
+                    serde_json::json!({"ask": ask, "status": status_label(&s)})
+                );
+                std::process::exit(wait_exit_code(&s));
+            }
+        },
+        Cmd::Write {
+            path,
+            ws,
+            file,
+            intent,
+        } => {
+            let content = match file {
+                Some(f) => std::fs::read(f).map_err(|e| e.to_string())?,
+                None => {
+                    let mut b = Vec::new();
+                    std::io::stdin()
+                        .read_to_end(&mut b)
+                        .map_err(|e| e.to_string())?;
+                    b
+                }
+            };
+            let blob = sturn_git::store_blob(&repo, &content).map_err(|e| e.to_string())?;
+            let id = append(
+                &wal,
+                &repo,
+                ws,
+                &actor,
+                Op::Write {
+                    path: path.clone(),
+                    blob: blob.clone(),
+                    intent: intent.clone(),
+                },
+            )?;
+            println!("write {path} (blob {blob}, event {id})");
+            Ok(())
+        }
+        Cmd::Rename { from, to, ws } => {
+            append(
+                &wal,
+                &repo,
+                ws,
+                &actor,
+                Op::Rename {
+                    from: from.clone(),
+                    to: to.clone(),
+                },
+            )?;
+            println!("rename {from} → {to}");
+            Ok(())
+        }
+        Cmd::Delete { path, ws } => {
+            append(&wal, &repo, ws, &actor, Op::Delete { path: path.clone() })?;
+            println!("delete {path}");
+            Ok(())
+        }
+        Cmd::Intent { text, ws } => {
+            append(&wal, &repo, ws, &actor, Op::Intent { text: text.clone() })?;
+            Ok(())
+        }
+        Cmd::Compact { ws } => {
+            let names = match ws {
+                Some(w) => vec![w.clone()],
+                None => wal.workspaces(&repo).map_err(|e| e.to_string())?,
+            };
+            for n in names {
+                let dropped = wal.compact(&repo, &n).map_err(|e| e.to_string())?;
+                println!("{n}: dropped {dropped} pre-snapshot events");
+            }
+            Ok(())
+        }
+        Cmd::Log { ws } => {
+            let names = match ws {
+                Some(w) => vec![w.clone()],
+                None => wal.workspaces(&repo).map_err(|e| e.to_string())?,
+            };
+            for n in names {
+                for ev in wal.events(&repo, &n).map_err(|e| e.to_string())? {
+                    println!("{}", serde_json::to_string(&ev).map_err(|e| e.to_string())?);
+                }
+            }
+            Ok(())
+        }
+        Cmd::Diff { ws, json, live } => {
+            // The initial batch is one tick with an empty cursor
+            // map — it also seeds cursors for `--live`.
+            let mut heads: HashMap<String, Option<String>> = HashMap::new();
+            diff_tick(
+                &repo,
+                &wal,
+                &ws_impl,
+                ws.as_deref(),
+                &mut heads,
+                &mut |ev| println!("{}", diff_line(&repo, &ws_impl, ev, *json)),
+            );
+            if *live {
+                return diff_live(&repo, &wal, &ws_impl, ws.as_deref(), heads, *json, poll_ms);
+            }
+            Ok(())
+        }
+        Cmd::Snap {
+            ws,
+            message,
+            branch: b,
+        } => {
+            let require = cfg.as_ref().map(|c| c.review.require).unwrap_or(false);
+            let br = b.as_deref().unwrap_or(&branch);
+            if ws.len() == 1 {
+                let commit = do_snap(&repo, &wal, &ws_impl, &ws[0], message, br, &actor, require)
+                    .map_err(|e| e.to_string())?;
+                println!("snap {commit} → {br}");
+            } else {
+                let commit = merge_snap(&repo, &wal, &ws_impl, ws, message, br, &actor, require)?;
+                println!("snap {commit} → {br} ({} ws merged)", ws.len());
+            }
+            Ok(())
+        }
+        Cmd::Bridge { to, secret_env } => {
+            let secret = std::env::var(secret_env).map_err(|_| format!("${secret_env} not set"))?;
+            run_bridge(
+                &repo, &wal, &ws_impl, to, &secret, &repo_id, &branch, poll_ms,
+            )
+        }
+        Cmd::Mcp { ws: mws } => {
+            let snap = |ws: &str, msg: &str, branch: &str| {
+                do_snap(
+                    &repo,
+                    &wal,
+                    &ws_impl,
+                    ws,
+                    msg,
+                    branch,
+                    &actor,
+                    cfg.as_ref().map(|c| c.review.require).unwrap_or(false),
+                )
+            };
+            sturn_mcp::serve(&sturn_mcp::Ctx {
+                repo: &repo,
+                repo_id: &repo_id,
+                wal: &wal,
+                wsi: &ws_impl,
+                actor: &actor,
+                branch: &branch,
+                snap: &snap,
+                ws: mws.as_deref(),
+            })
+            .map_err(|e| e.to_string())
+        }
+        Cmd::Exec {
+            ws,
+            keep,
+            writeback,
+            cmd,
+        } => {
+            let dir = std::env::temp_dir().join(format!("sturn-exec-{}", std::process::id()));
+            hydrate_ws(&repo, &wal, &ws_impl, ws, &dir, &[])?;
+            let status = std::process::Command::new(&cmd[0])
+                .args(&cmd[1..])
+                .current_dir(&dir)
+                .status()
+                .map_err(|e| e.to_string())?;
+            if *writeback {
+                let n = writeback_ops(&repo, &wal, &ws_impl, ws, &dir, &actor)?;
+                eprintln!("writeback: {n} op(s)");
+            }
+            if !*keep {
+                let _ = std::fs::remove_dir_all(&dir);
+            } else {
+                eprintln!("kept {}", dir.display());
+            }
+            if !status.success() {
+                std::process::exit(status.code().unwrap_or(1));
+            }
+            Ok(())
+        }
+        Cmd::Review { event, verdict, ws } => {
+            let v = match verdict.as_str() {
+                "approve" => Verdict::Approve,
+                "reject" => Verdict::Reject,
+                _ => return Err("verdict: approve|reject".into()),
+            };
+            append(
+                &wal,
+                &repo,
+                ws,
+                &actor,
+                Op::Review {
+                    event: event.clone(),
+                    verdict: v,
+                },
+            )?;
+            println!("{verdict} {event}");
+            Ok(())
+        }
+        Cmd::Push { remote } => {
+            if sturn_git::GitVcs.push(&repo, remote) {
+                println!("pushed heads + refs/sturn/* → {remote}");
+                Ok(())
+            } else {
+                Err("push failed".into())
+            }
+        }
+        // The poll loop is infinite by design — the driver is
+        // excluded under coverage; `daemon_tick` (one iteration),
+        // `handle_sub` and `fanout` carry the logic and are
+        // unit-tested directly.
+        #[cfg(not(coverage))]
+        Cmd::Daemon => {
+            daemon(&repo, &cfg, &wal, &bus_path, poll_ms, &repo_id).map_err(|e| e.to_string())
+        }
+        #[cfg(coverage)]
+        Cmd::Daemon => Ok(()),
+        Cmd::Sub { topic } => {
+            let sock_path = bus_path.with_file_name("bus.sock");
+            subscribe(&sock_path, &repo_id, topic)
+        }
+        Cmd::Mount { ws, dir, rw } => {
+            let tip = ws_impl.tip(&repo, ws).map_err(|e| e.to_string())?;
+            if *rw {
+                sturn_fuse::SturnFs::new_rw(&repo, &tip, &ws_impl, &wal, ws, &actor)
+                    .and_then(|fs| fs.mount(dir))
+                    .map_err(|e| e.to_string())
+            } else {
+                sturn_fuse::SturnFs::new(&repo, &tip, &ws_impl)
+                    .and_then(|fs| fs.mount(dir))
+                    .map_err(|e| e.to_string())
+            }
+        }
+        Cmd::Deploy { cmd } => match cmd {
+            DeployCmd::Service => {
+                let svc = sturn_systemd::SystemdService {
+                    unit: "sturn-daemon.service".into(),
+                    bin: std::env::current_exe().map_err(|e| e.to_string())?,
+                    env: std::env::var("HOME")
+                        .map(PathBuf::from)
+                        .unwrap_or_else(|_| ".".into())
+                        .join(".config/sturn/env"),
+                    config: cli.config.clone().map(PathBuf::from),
+                };
+                let p = svc.write().map_err(|e| e.to_string())?;
+                svc.enable().map_err(|e| e.to_string())?;
+                println!("enabled {}", p.display());
+                Ok(())
+            }
+            DeployCmd::Env => {
+                let dir = std::env::var("HOME")
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|_| ".".into())
+                    .join(".config/sturn");
+                let p = sturn_systemd::write_env_skeleton(&dir).map_err(|e| e.to_string())?;
+                println!("env skeleton: {}", p.display());
+                Ok(())
+            }
+        },
+        Cmd::Destroy { cmd } => match cmd {
+            DestroySub::Service => {
+                let p = sturn_systemd::disable_service("sturn-daemon.service")
+                    .map_err(|e| e.to_string())?;
+                println!("removed {}", p.display());
+                Ok(())
+            }
+        },
+        Cmd::Service { cmd } => {
+            // Toggle only — `deploy service` writes the unit, and the
+            // file stays put through enable/disable cycles.
+            let unit = "sturn-daemon.service";
+            match cmd {
+                ServiceCmd::Enable => {
+                    sturn_systemd::enable_service(unit).map_err(|e| e.to_string())?;
+                    println!("sturn-daemon enabled — running now and at login");
+                }
+                ServiceCmd::Disable => {
+                    sturn_systemd::stop_service(unit).map_err(|e| e.to_string())?;
+                    println!("sturn-daemon disabled — stopped, will not restart at login");
+                }
+                ServiceCmd::Status => {
+                    let s = sturn_systemd::unit_status(unit).map_err(|e| e.to_string())?;
+                    println!("{s}");
+                }
+                ServiceCmd::Restart => {
+                    sturn_systemd::restart_service(unit).map_err(|e| e.to_string())?;
+                    println!("sturn-daemon restarted");
+                }
+                ServiceCmd::Logs { follow } => {
+                    let code =
+                        sturn_systemd::service_logs(unit, *follow).map_err(|e| e.to_string())?;
+                    if code != 0 {
+                        std::process::exit(code);
+                    }
+                }
+            }
+            Ok(())
+        }
+    }
+}
+
+fn now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+fn append(wal: &dyn Wal, repo: &Path, ws: &str, actor: &str, op: Op) -> Result<String, String> {
+    wal.append(repo, ws, &Event::new(ws, actor, op))
+        .map_err(|e| e.to_string())
+}
+
+/// Fold a ws's pending ops (since last Snapshot) into a real commit
+/// on `branch`, move the ws ref, append the Snapshot marker.
+/// Shared by `sturn snap` and the MCP `snap` tool.
+#[allow(clippy::too_many_arguments)]
+fn do_snap(
+    repo: &Path,
+    wal: &dyn Wal,
+    wsi: &dyn Ws,
+    ws: &str,
+    message: &str,
+    branch: &str,
+    actor: &str,
+    require_review: bool,
+) -> std::io::Result<String> {
+    let base = wsi.tip(repo, ws)?;
+    let events = wal.events(repo, ws)?;
+    let since = sturn_core::since_last_snapshot(&events);
+    if require_review {
+        // Approvals are swarm-wide — any ws's WAL may hold them.
+        let mut approved = std::collections::HashSet::new();
+        for w in wal.workspaces(repo)? {
+            for e in wal.events(repo, &w)? {
+                if let Op::Review {
+                    event,
+                    verdict: Verdict::Approve,
+                } = &e.op
+                {
+                    approved.insert(event.clone());
+                }
+            }
+        }
+        let unreviewed: Vec<&Event> = events[since..]
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e.op,
+                    Op::Write { .. } | Op::Rename { .. } | Op::Delete { .. }
+                )
+            })
+            .filter(|e| !approved.contains(&e.id))
+            .collect();
+        if !unreviewed.is_empty() {
+            let ids: Vec<&str> = unreviewed.iter().map(|e| e.id.as_str()).collect();
+            return Err(std::io::Error::other(format!(
+                "review gate: {} unreviewed op(s) — {}",
+                unreviewed.len(),
+                ids.join(", ")
+            )));
+        }
+    }
+    let commit = sturn_git::snap_commit(repo, &base, &events[since..], message, branch)?;
+    wsi.create(repo, ws, &commit)?;
+    wal.append(
+        repo,
+        ws,
+        &Event::new(
+            ws,
+            actor,
+            Op::Snapshot {
+                message: message.into(),
+            },
+        ),
+    )?;
+    Ok(commit)
+}
+
+/// POST a GitHub-shaped push webhook (HMAC-SHA256 signed) — bupha's
+/// GitHubTrigger accepts it as an ordinary push. Pure std::net.
+fn post_push(
+    url: &str,
+    secret: &str,
+    repo_id: &str,
+    branch: &str,
+    sha: &str,
+    sender: &str,
+) -> Result<(), String> {
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+    let body = format!(
+        "{{\"ref\":\"refs/heads/{branch}\",\"after\":\"{sha}\",\
+         \"repository\":{{\"full_name\":\"{repo_id}\"}},\"sender\":{{\"login\":\"{sender}\"}}}}"
+    );
+    let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).map_err(|e| e.to_string())?;
+    mac.update(body.as_bytes());
+    let sig = hex::encode(mac.finalize().into_bytes());
+    // minimal HTTP/1.1 POST over TcpStream
+    let url = url.trim_end_matches('/');
+    let host = url.strip_prefix("http://").unwrap_or(url);
+    let (hostport, path) = host.split_once('/').unwrap_or((host, ""));
+    let mut s = std::net::TcpStream::connect(hostport).map_err(|e| e.to_string())?;
+    let req = format!(
+        "POST /{path} HTTP/1.1\r\nHost: {hostport}\r\nContent-Type: application/json\r\n\
+         X-GitHub-Event: push\r\nX-Hub-Signature-256: sha256={sig}\r\n\
+         X-GitHub-Delivery: sturn-{sha}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+    s.write_all(req.as_bytes()).map_err(|e| e.to_string())?;
+    let mut resp = String::new();
+    s.read_to_string(&mut resp).map_err(|e| e.to_string())?;
+    if resp.starts_with("HTTP/1.1 2") || resp.starts_with("HTTP/1.0 2") {
+        Ok(())
+    } else {
+        Err(format!(
+            "bridge POST {url}: {}",
+            resp.lines().next().unwrap_or("?")
+        ))
+    }
+}
+
+/// One bridge poll iteration — publish webhook posts for snapshot
+/// events since each ws's last-seen head. Extracted so tests drive
+/// it directly; the `loop` around it is coverage-excluded.
+#[allow(clippy::too_many_arguments)]
+fn bridge_tick(
+    repo: &Path,
+    wal: &dyn Wal,
+    wsi: &dyn Ws,
+    heads: &mut HashMap<String, Option<String>>,
+    to: &str,
+    secret: &str,
+    repo_id: &str,
+    branch: &str,
+) {
+    for ws in wal.workspaces(repo).unwrap_or_default() {
+        let head = wal.head(repo, &ws).unwrap_or(None);
+        let prev = heads.get(&ws).cloned().unwrap_or(None);
+        if head == prev {
+            continue;
+        }
+        for ev in wal
+            .events_since(repo, &ws, prev.as_deref())
+            .unwrap_or_default()
+        {
+            if let Op::Snapshot { .. } = ev.op {
+                if let Ok(sha) = wsi.tip(repo, &ws) {
+                    let _ = post_push(to, secret, repo_id, branch, &sha, &ev.actor);
+                }
+            }
+        }
+        heads.insert(ws, head);
+    }
+}
+
+/// WAL→topic fan-out loop. Infinite by design — excluded under
+/// coverage; everything it does per iteration lives in
+/// `daemon_tick`, `handle_sub` and `fanout`, which are unit-tested.
+#[cfg(not(coverage))]
+fn daemon(
+    repo: &Path,
+    cfg: &Option<Config>,
+    wal: &dyn Wal,
+    bus_path: &Path,
+    poll_ms: u64,
+    repo_id: &str,
+) -> std::io::Result<()> {
+    let bus = sturn_bus_redb::RedbBus::open(bus_path.to_path_buf())?;
+    // Push side: unix socket next to the store. Subscribers
+    // send one line "repo|topic", then get JSONL forever.
+    let sock_path = bus_path.with_file_name("bus.sock");
+    if let Some(d) = sock_path.parent() {
+        let _ = std::fs::create_dir_all(d);
+    }
+    let _ = std::fs::remove_file(&sock_path);
+    let listener = UnixListener::bind(&sock_path)?;
+    let subs: Subs = Arc::new(Mutex::new(HashMap::new()));
+    {
+        let subs = subs.clone();
+        std::thread::spawn(move || {
+            for conn in listener.incoming().flatten() {
+                let subs = subs.clone();
+                std::thread::spawn(move || handle_sub(conn, subs));
+            }
+        });
+    }
+    // Multi-repo: this repo + any [bus] repos. Topics key
+    // per repo id; heads key per (dir, ws).
+    let mut dirs: Vec<PathBuf> = vec![repo.to_path_buf()];
+    dirs.extend(
+        cfg.as_ref()
+            .map(|c| c.bus.repos.clone())
+            .unwrap_or_default(),
+    );
+    let mut heads: HashMap<(PathBuf, String), Option<String>> = HashMap::new();
+    println!(
+        "sturn daemon — fan-out {} repo(s) (poll {poll_ms}ms, sub {})",
+        dirs.len(),
+        sock_path.display()
+    );
+    loop {
+        daemon_tick(wal, &dirs, repo, repo_id, &mut heads, &bus, &subs);
+        std::thread::sleep(Duration::from_millis(poll_ms));
+    }
+}
+
+/// Bridge driver: banner + the infinite poll loop. Excluded under
+/// coverage (infinite by design); `bridge_tick` is unit-tested.
+#[cfg(not(coverage))]
+#[allow(clippy::too_many_arguments)]
+fn run_bridge(
+    repo: &Path,
+    wal: &dyn Wal,
+    wsi: &dyn Ws,
+    to: &str,
+    secret: &str,
+    repo_id: &str,
+    branch: &str,
+    poll_ms: u64,
+) -> Result<(), String> {
+    println!("sturn bridge — {repo_id} snapshots → {to}");
+    bridge(repo, wal, wsi, to, secret, repo_id, branch, poll_ms)
+}
+
+/// Coverage build stub — returns immediately so the arm dispatch is
+/// covered without an infinite loop.
+#[cfg(coverage)]
+#[allow(clippy::too_many_arguments)]
+fn run_bridge(
+    _repo: &Path,
+    _wal: &dyn Wal,
+    _wsi: &dyn Ws,
+    _to: &str,
+    _secret: &str,
+    _repo_id: &str,
+    _branch: &str,
+    _poll_ms: u64,
+) -> Result<(), String> {
+    Ok(())
+}
+
+/// The snapshot-event → bupha webhook loop. `!` return — runs until
+/// killed; excluded under coverage for the same reason as `daemon`.
+#[cfg(not(coverage))]
+#[allow(clippy::too_many_arguments)]
+fn bridge(
+    repo: &Path,
+    wal: &dyn Wal,
+    wsi: &dyn Ws,
+    to: &str,
+    secret: &str,
+    repo_id: &str,
+    branch: &str,
+    poll_ms: u64,
+) -> ! {
+    let mut heads: HashMap<String, Option<String>> = HashMap::new();
+    loop {
+        bridge_tick(repo, wal, wsi, &mut heads, to, secret, repo_id, branch);
+        std::thread::sleep(Duration::from_millis(poll_ms));
+    }
+}
+
+/// One WAL→topic fan-out iteration across `dirs`: for each ws whose
+/// head moved, publish the delta to `ops` plus the op-kind topic and
+/// push to live socket subscribers.
+fn daemon_tick(
+    wal: &dyn Wal,
+    dirs: &[PathBuf],
+    repo: &Path,
+    repo_id: &str,
+    heads: &mut HashMap<(PathBuf, String), Option<String>>,
+    bus: &sturn_bus_redb::RedbBus,
+    subs: &Subs,
+) {
+    for dir in dirs {
+        let rid = if *dir == repo {
+            repo_id.to_string()
+        } else {
+            dir.file_name()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "repo".into())
+        };
+        for ws in wal.workspaces(dir).unwrap_or_default() {
+            let head = wal.head(dir, &ws).unwrap_or(None);
+            let key = (dir.clone(), ws.clone());
+            let prev = heads.get(&key).cloned().unwrap_or(None);
+            if head != prev {
+                // Only the delta — refs moved, walk the range.
+                for ev in wal
+                    .events_since(dir, &ws, prev.as_deref())
+                    .unwrap_or_default()
+                {
+                    let payload = Arc::new(serde_json::to_vec(&ev).unwrap_or_default());
+                    let _ = bus.publish(&rid, topic::OPS, &payload);
+                    fanout(subs, &rid, topic::OPS, &payload);
+                    let t = match &ev.op {
+                        Op::Claim { .. } | Op::Release { .. } => Some(topic::CLAIMS),
+                        Op::Review { .. } => Some(topic::REVIEW),
+                        Op::Presence { .. } => Some(topic::PRESENCE),
+                        Op::Ask { .. } | Op::Answer { .. } | Op::Cancel { .. } => Some(topic::ASKS),
+                        _ => None,
+                    };
+                    if let Some(t) = t {
+                        let _ = bus.publish(&rid, t, &payload);
+                        fanout(subs, &rid, t, &payload);
+                    }
+                }
+                heads.insert(key, head);
+            }
+        }
+    }
+}
+
+/// One `diff` pass over `scope` (`None` = ws namespaces ∪ WAL
+/// refs): for each workspace whose WAL head moved since `heads`,
+/// emit the new events. An empty cursor means the ws log replays
+/// whole — sliced to post-snapshot so both a fresh `diff` and a ws
+/// born mid-stream show only in-flight ops. Errors degrade to
+/// silence, matching `daemon_tick` — the WAL stays the authority.
+fn diff_tick(
+    repo: &Path,
+    wal: &dyn Wal,
+    wsi: &dyn Ws,
+    scope: Option<&str>,
+    heads: &mut HashMap<String, Option<String>>,
+    emit: &mut dyn FnMut(&Event),
+) {
+    let mut names: Vec<String> = match scope {
+        Some(w) => vec![w.to_string()],
+        None => {
+            let mut n = wsi.workspaces(repo).unwrap_or_default();
+            n.extend(wal.workspaces(repo).unwrap_or_default());
+            n
+        }
+    };
+    names.sort();
+    names.dedup();
+    for ws in names {
+        let head = wal.head(repo, &ws).unwrap_or(None);
+        let prev = heads.get(&ws).cloned().unwrap_or(None);
+        if head == prev {
+            continue;
+        }
+        let delta = wal
+            .events_since(repo, &ws, prev.as_deref())
+            .unwrap_or_default();
+        for ev in &delta[sturn_core::since_last_snapshot(&delta)..] {
+            emit(ev);
+        }
+        heads.insert(ws, head);
+    }
+}
+
+/// `--live` driver — `diff_tick` on the bus poll cadence, forever.
+/// WAL polling is the authority: the stream works daemon-free and
+/// survives daemon restarts. Infinite by design, so the driver is
+/// excluded under coverage (killed by signal like `daemon`);
+/// `diff_tick` carries the logic and is unit-tested.
+#[cfg(not(coverage))]
+fn diff_live(
+    repo: &Path,
+    wal: &dyn Wal,
+    wsi: &dyn Ws,
+    scope: Option<&str>,
+    mut heads: HashMap<String, Option<String>>,
+    json: bool,
+    poll_ms: u64,
+) -> Result<(), String> {
+    loop {
+        diff_tick(repo, wal, wsi, scope, &mut heads, &mut |ev| {
+            println!("{}", diff_line(repo, wsi, ev, json));
+        });
+        std::thread::sleep(Duration::from_millis(poll_ms));
+    }
+}
+
+/// Coverage build stub — returns immediately so the `live` arm
+/// dispatches without an infinite loop, same trick as `daemon`.
+#[cfg(coverage)]
+fn diff_live(
+    _repo: &Path,
+    _wal: &dyn Wal,
+    _wsi: &dyn Ws,
+    _scope: Option<&str>,
+    _heads: HashMap<String, Option<String>>,
+    _json: bool,
+    _poll_ms: u64,
+) -> Result<(), String> {
+    Ok(())
+}
+
+/// One in-flight op as a display line: `ws ts actor <summary>`.
+/// `json` emits the raw event — the same shape `log` produces.
+fn diff_line(repo: &Path, wsi: &dyn Ws, ev: &Event, json: bool) -> String {
+    if json {
+        return serde_json::to_string(ev).unwrap_or_default();
+    }
+    format!(
+        "{} {} {} {}",
+        ev.ws,
+        ev.ts,
+        ev.actor,
+        op_summary(repo, wsi, &ev.op)
+    )
+}
+
+/// Compact one-line rendering for every op kind — path(s) first;
+/// Write carries its content hint (byte size via the blob, else the
+/// blob id itself) and its intent when one was logged.
+fn op_summary(repo: &Path, wsi: &dyn Ws, op: &Op) -> String {
+    match op {
+        Op::Write { path, blob, intent } => {
+            let hint = wsi
+                .blob(repo, blob)
+                .map(|b| format!("({} B)", b.len()))
+                .unwrap_or_else(|_| format!("(blob {blob})"));
+            let why = intent
+                .as_deref()
+                .map(|i| format!(" \"{i}\""))
+                .unwrap_or_default();
+            format!("write {path} {hint}{why}")
+        }
+        Op::Rename { from, to } => format!("rename {from} → {to}"),
+        Op::Delete { path } => format!("delete {path}"),
+        Op::Claim { glob, ttl_secs } => format!("claim {glob} ttl={ttl_secs}s"),
+        Op::Release { glob } => format!("release {glob}"),
+        Op::Intent { text } => format!("intent \"{text}\""),
+        Op::Snapshot { message } => format!("snapshot \"{message}\""),
+        Op::Review { event, verdict } => format!(
+            "review {} {}",
+            match verdict {
+                Verdict::Approve => "approve",
+                Verdict::Reject => "reject",
+            },
+            short_id(event)
+        ),
+        Op::Presence { status } => format!("presence {status}"),
+        Op::Ask {
+            subject,
+            target,
+            ttl_secs,
+            ..
+        } => format!("ask \"{subject}\" → {target} ttl={ttl_secs}s"),
+        Op::Answer { ask, verdict } => {
+            format!("answer {verdict} → ask {}", short_id(ask))
+        }
+        Op::Cancel { ask } => format!("cancel ask {}", short_id(ask)),
+    }
+}
+
+/// First chars of an event id — enough to recognize it in a listing.
+fn short_id(id: &str) -> String {
+    id.chars().take(8).collect()
+}
+
+/// `sturn sub` — connect to the daemon socket, name the topic, then
+/// stream JSONL to stdout until the socket closes.
+fn subscribe(sock_path: &Path, repo_id: &str, topic: &str) -> Result<(), String> {
+    let mut s = UnixStream::connect(sock_path).map_err(|e| {
+        format!(
+            "connect {}: {e} (is `sturn daemon` up?)",
+            sock_path.display()
+        )
+    })?;
+    writeln!(s, "{repo_id}|{topic}").map_err(|e| e.to_string())?;
+    let mut out = std::io::stdout().lock();
+    std::io::copy(&mut s, &mut out).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Hydrate a ws into `dir`: tip commit via `git archive` (+ optional
+/// path filter), then the WAL overlay since the last snapshot —
+/// hydrated dirs see uncommitted ops, matching `ws_read`.
+fn hydrate_ws(
+    repo: &Path,
+    wal: &dyn Wal,
+    wsi: &dyn Ws,
+    name: &str,
+    dir: &Path,
+    paths: &[String],
+) -> Result<(), String> {
+    let tip = wsi.tip(repo, name).map_err(|e| e.to_string())?;
+    wsi.materialize(repo, &tip, dir, paths)
+        .map_err(|e| e.to_string())?;
+    let events = wal.events(repo, name).map_err(|e| e.to_string())?;
+    let pending = &events[sturn_core::since_last_snapshot(&events)..];
+    for (p, v) in sturn_core::overlay(pending, |p| wsi.entry(repo, &tip, p).ok().flatten()) {
+        let f = dir.join(&p);
+        match v {
+            Some(sha) => {
+                if let Some(d) = f.parent() {
+                    std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
+                }
+                std::fs::write(&f, wsi.blob(repo, &sha).map_err(|e| e.to_string())?)
+                    .map_err(|e| e.to_string())?;
+            }
+            None => {
+                let _ = std::fs::remove_file(&f);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Human label for an ask state — used in `asks`/`wait` output.
+fn status_label(s: &sturn_ask::Status) -> String {
+    match s {
+        sturn_ask::Status::Open => "open".into(),
+        sturn_ask::Status::Answered { verdict, by } => {
+            format!("answered {verdict} by {by}")
+        }
+        sturn_ask::Status::Cancelled => "cancelled".into(),
+        sturn_ask::Status::Expired => "expired".into(),
+    }
+}
+
+/// One ask as a JSON object for `asks --json`.
+fn ask_json(o: &sturn_ask::Open, s: &sturn_ask::Status) -> serde_json::Value {
+    let (status, verdict, by) = match s {
+        sturn_ask::Status::Open => ("open", serde_json::Value::Null, serde_json::Value::Null),
+        sturn_ask::Status::Answered { verdict, by } => {
+            ("answered", verdict.clone().into(), by.clone().into())
+        }
+        sturn_ask::Status::Cancelled => (
+            "cancelled",
+            serde_json::Value::Null,
+            serde_json::Value::Null,
+        ),
+        sturn_ask::Status::Expired => ("expired", serde_json::Value::Null, serde_json::Value::Null),
+    };
+    serde_json::json!({
+        "id": o.id,
+        "ws": o.ws,
+        "actor": o.actor,
+        "subject": o.subject,
+        "target": o.target,
+        "options": o.options,
+        "asked": o.asked,
+        "expires": o.expires,
+        "status": status,
+        "verdict": verdict,
+        "by": by,
+    })
+}
+
+/// Process exit code for a resolved `wait`: 0 answered, 2 cancelled,
+/// 3 expired; the `Open` arm maps to the timeout code (unreachable
+/// through `wait_ask`, kept so the map is total).
+fn wait_exit_code(s: &sturn_ask::Status) -> i32 {
+    match s {
+        sturn_ask::Status::Answered { .. } => 0,
+        sturn_ask::Status::Cancelled => 2,
+        sturn_ask::Status::Expired => 3,
+        sturn_ask::Status::Open => 4,
+    }
+}
+
+/// Poll `asks` until `ask` reaches a terminal state or `timeout`
+/// seconds pass (0 = wait until resolved). `Ok(Some)` is the
+/// terminal state, `Ok(None)` the deadline hit, `Err` means the
+/// ask id doesn't exist.
+fn wait_ask(
+    wal: &dyn Wal,
+    repo: &Path,
+    ask: &str,
+    timeout: u64,
+    poll: u64,
+) -> Result<Option<sturn_ask::Status>, String> {
+    let deadline = (timeout > 0).then(|| now() + timeout);
+    loop {
+        let s = sturn_ask::status(&all_events(wal, repo)?, now(), ask)
+            .ok_or_else(|| format!("no such ask: {ask}"))?;
+        if !matches!(s, sturn_ask::Status::Open) {
+            return Ok(Some(s));
+        }
+        if deadline.is_some_and(|d| now() >= d) {
+            return Ok(None);
+        }
+        std::thread::sleep(Duration::from_millis(poll));
+    }
+}
+
+/// Every workspace's events — claims are swarm-wide, so conflict
+/// checks fold all WALs, not just the caller's.
+fn all_events(wal: &dyn Wal, repo: &Path) -> Result<Vec<Event>, String> {
+    let mut all = Vec::new();
+    for ws in wal.workspaces(repo).map_err(|e| e.to_string())? {
+        all.extend(wal.events(repo, &ws).map_err(|e| e.to_string())?);
+    }
+    Ok(all)
+}
+
+/// One live claim as a display line — shared by `claims`, `check`,
+/// and claim-conflict warnings so the fence is always visible.
+fn claim_line(c: &claims::Active) -> String {
+    format!(
+        "{} (ws {}, actor {}, expires {}, fence {})",
+        c.uri, c.ws, c.actor, c.expires, c.fence
+    )
+}
+
+/// Live claims conflicting with `uri`. `fence` narrows to
+/// usurpers — only claims whose fencing token beats it — which
+/// turns `check` into the staleness probe for a held claim.
+fn check_hits(
+    wal: &dyn Wal,
+    repo: &Path,
+    uri: &str,
+    fence: Option<u64>,
+) -> Result<Vec<claims::Active>, String> {
+    let live = claims::active(&all_events(wal, repo)?, now());
+    Ok(claims::conflicts(&live, uri)
+        .into_iter()
+        .filter(|c| fence.is_none_or(|f| c.fence > f))
+        .cloned()
+        .collect())
+}
+
+/// Diff two conflict snapshots into stream lines: `+` for claims
+/// that appeared, `-` for ones that left, `no conflicts` when the
+/// set drains. The rendered line is the identity — a re-claim at
+/// a new fence reads as `-`/`+`, which is the truthful story.
+fn watch_tick(prev: &[claims::Active], hits: &[claims::Active], uri: &str) -> Vec<String> {
+    let had: Vec<String> = prev.iter().map(claim_line).collect();
+    let have: Vec<String> = hits.iter().map(claim_line).collect();
+    let mut out = Vec::new();
+    for l in &have {
+        if !had.contains(l) {
+            out.push(format!("+ {l}"));
+        }
+    }
+    for l in &had {
+        if !have.contains(l) {
+            out.push(format!("- {l}"));
+        }
+    }
+    if have.is_empty() && !had.is_empty() {
+        out.push(format!("no conflicts: {uri}"));
+    }
+    out
+}
+
+/// `check --watch` driver — re-fold the WAL each bus-poll tick
+/// and emit only conflict-set changes. Infinite by design, so the
+/// driver is excluded under coverage like `diff_live`;
+/// `watch_tick` carries the diffing logic and is unit-tested.
+#[cfg(not(coverage))]
+fn check_watch(
+    wal: &dyn Wal,
+    repo: &Path,
+    uri: &str,
+    fence: Option<u64>,
+    mut prev: Vec<claims::Active>,
+    poll_ms: u64,
+) -> Result<(), String> {
+    loop {
+        std::thread::sleep(Duration::from_millis(poll_ms));
+        let hits = check_hits(wal, repo, uri, fence)?;
+        for line in watch_tick(&prev, &hits, uri) {
+            println!("{line}");
+        }
+        prev = hits;
+    }
+}
+
+/// Coverage build stub — returns immediately, same trick as
+/// `diff_live`'s `#[cfg(coverage)]` twin.
+#[cfg(coverage)]
+fn check_watch(
+    _wal: &dyn Wal,
+    _repo: &Path,
+    _uri: &str,
+    _fence: Option<u64>,
+    _prev: Vec<claims::Active>,
+    _poll_ms: u64,
+) -> Result<(), String> {
+    Ok(())
+}
+
+/// Live subscribers, keyed `"<repo>|<topic>"` — the daemon's push
+/// side. Dead senders get pruned on the next failed delivery.
+type Subs = Arc<Mutex<HashMap<String, Vec<mpsc::Sender<Arc<Vec<u8>>>>>>>;
+
+/// First line on the socket names the topic; then JSONL payloads
+/// stream until the client hangs up.
+fn handle_sub(mut conn: UnixStream, subs: Subs) {
+    let mut key = String::new();
+    // try_clone only fails on a dead fd — defensive.
+    let mut rdr = BufReader::new(match conn.try_clone() {
+        Ok(c) => c,
+        Err(_) => return,
+    });
+    if rdr.read_line(&mut key).is_err() || key.trim().is_empty() {
+        return;
+    }
+    let (tx, rx) = mpsc::channel::<Arc<Vec<u8>>>();
+    subs.lock()
+        .unwrap()
+        .entry(key.trim().to_string())
+        .or_default()
+        .push(tx);
+    for msg in rx {
+        if conn
+            .write_all(&msg)
+            .and_then(|_| conn.write_all(b"\n"))
+            .is_err()
+        {
+            break;
+        }
+    }
+}
+
+/// Push a published payload to live subscribers of the topic.
+fn fanout(subs: &Subs, repo: &str, topic: &str, payload: &Arc<Vec<u8>>) {
+    let key = format!("{repo}|{topic}");
+    let mut map = subs.lock().unwrap();
+    if let Some(list) = map.get_mut(&key) {
+        list.retain(|tx| tx.send(payload.clone()).is_ok());
+    }
+}
+
+/// Walk `dir`, diff against the ws view (tip + pending overlay),
+/// append Write/Delete ops for the difference. Returns ops written.
+fn writeback_ops(
+    repo: &Path,
+    wal: &dyn Wal,
+    wsi: &dyn Ws,
+    ws: &str,
+    dir: &Path,
+    actor: &str,
+) -> Result<usize, String> {
+    let tip = wsi.tip(repo, ws).map_err(|e| e.to_string())?;
+    let events = wal.events(repo, ws).map_err(|e| e.to_string())?;
+    let pending = &events[sturn_core::since_last_snapshot(&events)..];
+    let ov = sturn_core::overlay(pending, |p| wsi.entry(repo, &tip, p).ok().flatten());
+    // expected path → content bytes (overlay wins, else tip)
+    let mut expected: HashMap<String, Vec<u8>> = HashMap::new();
+    for p in wsi.list(repo, &tip).map_err(|e| e.to_string())? {
+        if let Ok(b) = wsi.read(repo, &tip, &p) {
+            expected.insert(p, b);
+        }
+    }
+    for (p, v) in &ov {
+        match v {
+            Some(sha) => {
+                if let Ok(b) = wsi.blob(repo, sha) {
+                    expected.insert(p.clone(), b);
+                }
+            }
+            None => {
+                expected.remove(p);
+            }
+        }
+    }
+    // walk the hydrated dir
+    let mut seen = std::collections::HashSet::new();
+    let mut stack = vec![dir.to_path_buf()];
+    let mut n = 0;
+    while let Some(d) = stack.pop() {
+        for ent in std::fs::read_dir(&d).map_err(|e| e.to_string())? {
+            let ent = ent.map_err(|e| e.to_string())?;
+            let ft = ent.file_type().map_err(|e| e.to_string())?;
+            if ft.is_dir() {
+                stack.push(ent.path());
+                continue;
+            }
+            if !ft.is_file() {
+                continue;
+            }
+            let rel = ent
+                .path()
+                .strip_prefix(dir)
+                .map_err(|e| e.to_string())?
+                .to_string_lossy()
+                .into_owned();
+            seen.insert(rel.clone());
+            let bytes = std::fs::read(ent.path()).map_err(|e| e.to_string())?;
+            let differs = expected.get(&rel).map(|e| *e != bytes).unwrap_or(true);
+            if differs {
+                let blob = wsi.store(repo, &bytes).map_err(|e| e.to_string())?;
+                wal.append(
+                    repo,
+                    ws,
+                    &Event::new(
+                        ws,
+                        actor,
+                        Op::Write {
+                            path: rel,
+                            blob,
+                            intent: Some("writeback".into()),
+                        },
+                    ),
+                )
+                .map_err(|e| e.to_string())?;
+                n += 1;
+            }
+        }
+    }
+    for p in expected.keys() {
+        if !seen.contains(p) {
+            wal.append(
+                repo,
+                ws,
+                &Event::new(ws, actor, Op::Delete { path: p.clone() }),
+            )
+            .map_err(|e| e.to_string())?;
+            n += 1;
+        }
+    }
+    Ok(n)
+}
+
+/// Merge several ws's pending ops into ONE commit on `branch`.
+/// `sturn_core::merge` folds them rename-aware — a write onto a
+/// path another ws renamed away follows the rename; ambiguous
+/// shapes warn on stderr instead of picking a silent winner.
+/// Later ops still win on true same-path collisions — claims
+/// should have prevented that upstream.
+#[allow(clippy::too_many_arguments)]
+fn merge_snap(
+    repo: &Path,
+    wal: &dyn Wal,
+    wsi: &dyn Ws,
+    wss: &[String],
+    message: &str,
+    branch: &str,
+    actor: &str,
+    require_review: bool,
+) -> Result<String, String> {
+    let mut pending: Vec<Event> = Vec::new();
+    for ws in wss {
+        let events = wal.events(repo, ws).map_err(|e| e.to_string())?;
+        let since = sturn_core::since_last_snapshot(&events);
+        pending.extend(events[since..].iter().cloned());
+    }
+    if require_review {
+        let mut approved = std::collections::HashSet::new();
+        for w in wal.workspaces(repo).map_err(|e| e.to_string())? {
+            for e in wal.events(repo, &w).map_err(|e| e.to_string())? {
+                if let Op::Review {
+                    event,
+                    verdict: Verdict::Approve,
+                } = &e.op
+                {
+                    approved.insert(event.clone());
+                }
+            }
+        }
+        let unreviewed: Vec<&Event> = pending
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e.op,
+                    Op::Write { .. } | Op::Rename { .. } | Op::Delete { .. }
+                )
+            })
+            .filter(|e| !approved.contains(&e.id))
+            .collect();
+        if !unreviewed.is_empty() {
+            return Err(format!(
+                "review gate: {} unreviewed op(s)",
+                unreviewed.len()
+            ));
+        }
+    }
+    // Base = current branch head, not any ws tip — merged ops apply
+    // to where the branch is now.
+    let base = sturn_git::GitVcs
+        .resolve(repo, &format!("refs/heads/{branch}"))
+        .unwrap_or_else(|| "HEAD".into());
+    let merged = sturn_core::merge(&pending);
+    for w in &merged.warnings {
+        eprintln!("{w}");
+    }
+    let commit = sturn_git::snap_commit(repo, &base, &merged.events, message, branch)
+        .map_err(|e| e.to_string())?;
+    for ws in wss {
+        wsi.create(repo, ws, &commit).map_err(|e| e.to_string())?;
+        let _ = wal.append(
+            repo,
+            ws,
+            &Event::new(
+                ws,
+                actor,
+                Op::Snapshot {
+                    message: message.into(),
+                },
+            ),
+        );
+    }
+    Ok(commit)
+}
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests for the pieces the e2e can't reach: the daemon's
+    //! per-iteration fan-out, the bridge's per-iteration webhook
+    //! POST, socket subscribe/fanout helpers, and post_push.
+
+    use super::*;
+    use std::process::Command;
+
+    fn git(dir: &Path, args: &[&str]) {
+        let o = Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            o.status.success(),
+            "git {}: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&o.stderr)
+        );
+    }
+
+    fn scratch(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("sturn-cli-ut-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    fn repo(name: &str) -> PathBuf {
+        let d = scratch(name);
+        git(&d, &["init", "-q", "-b", "main"]);
+        // Repo-local identity — wal append runs commit-tree.
+        git(&d, &["config", "user.email", "t@t"]);
+        git(&d, &["config", "user.name", "t"]);
+        git(
+            &d,
+            &[
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "commit",
+                "-qm",
+                "init",
+                "--allow-empty",
+            ],
+        );
+        d
+    }
+
+    fn ws(repo: &Path, name: &str) {
+        sturn_ws_git::GitWs.create(repo, name, "HEAD").unwrap();
+    }
+
+    #[test]
+    fn watch_tick_diffs_conflict_snapshots() {
+        let c = |ws: &str, uri: &str, fence: u64| claims::Active {
+            ws: ws.into(),
+            actor: "a".into(),
+            uri: uri.into(),
+            expires: 100,
+            fence,
+        };
+        // A claim appearing is a `+` line.
+        assert_eq!(
+            watch_tick(&[], &[c("w1", "dev:x", 1)], "dev:x"),
+            vec!["+ dev:x (ws w1, actor a, expires 100, fence 1)"]
+        );
+        // Only the delta emits — an unchanged claim stays silent.
+        assert_eq!(
+            watch_tick(
+                &[c("w1", "dev:x", 1)],
+                &[c("w1", "dev:x", 1), c("w2", "dev:x", 2)],
+                "dev:x"
+            ),
+            vec!["+ dev:x (ws w2, actor a, expires 100, fence 2)"]
+        );
+        // A drained set reports the departure then `no conflicts`.
+        assert_eq!(
+            watch_tick(&[c("w1", "dev:x", 1)], &[], "dev:x"),
+            vec![
+                "- dev:x (ws w1, actor a, expires 100, fence 1)",
+                "no conflicts: dev:x"
+            ]
+        );
+        // No change → silence; the empty-initial line is the
+        // caller's job, so both-empty is silent too.
+        assert!(watch_tick(&[c("w1", "dev:x", 1)], &[c("w1", "dev:x", 1)], "dev:x").is_empty());
+        assert!(watch_tick(&[], &[], "dev:x").is_empty());
+    }
+
+    #[test]
+    fn check_hits_filters_by_fence() {
+        let repo = repo("hits");
+        ws(&repo, "a");
+        ws(&repo, "b");
+        let wal = sturn_wal_git::GitWal::default();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "t",
+                Op::Claim {
+                    glob: "net:9".into(),
+                    ttl_secs: 3600,
+                },
+            ),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "b",
+            &Event::new(
+                "b",
+                "t",
+                Op::Claim {
+                    glob: "net:9".into(),
+                    ttl_secs: 3600,
+                },
+            ),
+        )
+        .unwrap();
+        // No filter → both live claims show.
+        assert_eq!(check_hits(&wal, &repo, "net:9", None).unwrap().len(), 2);
+        // The first holder's probe — exactly one usurper outranks
+        // it (same-ts claims order by fold position, but the
+        // fences are 1 and 2 either way).
+        let hits = check_hits(&wal, &repo, "net:9", Some(1)).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].fence, 2);
+        // The usurper's probe — nothing outranks it.
+        assert!(check_hits(&wal, &repo, "net:9", Some(2))
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn daemon_tick_fans_deltas_to_topics() {
+        let repo_dir = repo("tick");
+        let other = repo("tick-other");
+        let repo = repo_dir;
+        ws(&repo, "a");
+        let wal = sturn_wal_git::GitWal::default();
+        let bus = sturn_bus_redb::RedbBus::open(scratch("bus").join("b.redb")).unwrap();
+        let subs: Subs = Arc::new(Mutex::new(HashMap::new()));
+        // A live subscriber on the ops topic receives payloads.
+        let (tx, rx) = mpsc::channel();
+        subs.lock().unwrap().insert("tick|ops".into(), vec![tx]);
+        let mut heads = HashMap::new();
+        // ghost-repo: wal errors degrade to empty; "/" has no
+        // file_name → rid falls back to "repo".
+        let dirs = vec![
+            repo.clone(),
+            other.clone(),
+            scratch("ghost-repo"),
+            PathBuf::from("/"),
+        ];
+
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "t",
+                Op::Claim {
+                    glob: "x".into(),
+                    ttl_secs: 1,
+                },
+            ),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new("a", "t", Op::Release { glob: "x".into() }),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "t",
+                Op::Review {
+                    event: "e".into(),
+                    verdict: Verdict::Reject,
+                },
+            ),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "t",
+                Op::Presence {
+                    status: "joined".into(),
+                },
+            ),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new("a", "t", Op::Intent { text: "i".into() }),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "t",
+                Op::Ask {
+                    subject: "s".into(),
+                    target: "any".into(),
+                    options: vec![],
+                    ttl_secs: 60,
+                },
+            ),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "t",
+                Op::Answer {
+                    ask: "x".into(),
+                    verdict: "v".into(),
+                },
+            ),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new("a", "t", Op::Cancel { ask: "x".into() }),
+        )
+        .unwrap();
+
+        daemon_tick(&wal, &dirs, &repo, "tick", &mut heads, &bus, &subs);
+        // ops firehose got all 8; kind topics got theirs.
+        let mut cursor = u64::MAX;
+        let (mut c1, mut c2, mut c3, mut c4) = (u64::MAX, u64::MAX, u64::MAX, u64::MAX);
+        assert_eq!(bus.poll("tick", topic::OPS, &mut cursor).unwrap().len(), 8);
+        assert_eq!(bus.poll("tick", topic::CLAIMS, &mut c1).unwrap().len(), 2);
+        assert_eq!(bus.poll("tick", topic::REVIEW, &mut c2).unwrap().len(), 1);
+        assert_eq!(bus.poll("tick", topic::PRESENCE, &mut c3).unwrap().len(), 1);
+        assert_eq!(bus.poll("tick", topic::ASKS, &mut c4).unwrap().len(), 3);
+        // Live socket subscriber saw the ops payloads.
+        assert_eq!(rx.try_iter().count(), 8);
+
+        // No new events → next tick publishes nothing.
+        daemon_tick(&wal, &dirs, &repo, "tick", &mut heads, &bus, &subs);
+        let mut c4 = u64::MAX;
+        assert_eq!(bus.poll("tick", topic::OPS, &mut c4).unwrap().len(), 8);
+
+        // A new event lands → only the delta publishes.
+        wal.append(
+            &repo,
+            "a",
+            &Event::new("a", "t", Op::Intent { text: "j".into() }),
+        )
+        .unwrap();
+        daemon_tick(&wal, &dirs, &repo, "tick", &mut heads, &bus, &subs);
+        let mut c5 = u64::MAX;
+        assert_eq!(bus.poll("tick", topic::OPS, &mut c5).unwrap().len(), 9);
+    }
+
+    #[test]
+    fn handle_sub_streams_and_drops() {
+        let subs: Subs = Arc::new(Mutex::new(HashMap::new()));
+        let (a, mut b) = UnixStream::pair().unwrap();
+        let subs2 = subs.clone();
+        let h = std::thread::spawn(move || handle_sub(a, subs2));
+        writeln!(b, "repo|ops").unwrap();
+        b.flush().unwrap();
+        // Registered under the topic key.
+        for _ in 0..100 {
+            if subs.lock().unwrap().contains_key("repo|ops") {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let payload: Arc<Vec<u8>> = Arc::new(b"{}".to_vec());
+        fanout(&subs, "repo", topic::OPS, &payload);
+        let mut line = String::new();
+        BufReader::new(&mut b).read_line(&mut line).unwrap();
+        assert_eq!(line.trim(), "{}");
+        // Dead receiver gets pruned on the next fanout.
+        drop(b);
+        fanout(&subs, "repo", topic::OPS, &payload);
+        let _ = h.join();
+
+        // Empty topic line → early return.
+        let (a, mut b) = UnixStream::pair().unwrap();
+        let subs3 = subs.clone();
+        let h = std::thread::spawn(move || handle_sub(a, subs3));
+        writeln!(b).unwrap();
+        b.flush().unwrap();
+        drop(b);
+        h.join().unwrap();
+
+        // Closed peer → read_line fails → early return.
+        let (a, b) = UnixStream::pair().unwrap();
+        drop(b);
+        handle_sub(a, subs);
+    }
+
+    #[test]
+    fn fanout_prunes_dead_senders() {
+        let subs: Subs = Arc::new(Mutex::new(HashMap::new()));
+        let (tx, rx) = mpsc::channel();
+        let (dead, dead_rx) = mpsc::channel();
+        drop(dead_rx);
+        subs.lock().unwrap().insert("r|t".into(), vec![tx, dead]);
+        let payload: Arc<Vec<u8>> = Arc::new(b"p".to_vec());
+        fanout(&subs, "r", "t", &payload);
+        assert_eq!(rx.try_iter().count(), 1);
+        assert_eq!(subs.lock().unwrap()["r|t"].len(), 1);
+        // No subscriber for the key — nothing to prune.
+        fanout(&subs, "r", "other", &payload);
+        drop(rx);
+    }
+
+    #[test]
+    fn subscribe_streams_until_close() {
+        let dir = scratch("sub");
+        let sock = dir.join("bus.sock");
+        let listener = UnixListener::bind(&sock).unwrap();
+        let h = std::thread::spawn(move || {
+            let (mut conn, _) = listener.accept().unwrap();
+            let mut key = String::new();
+            BufReader::new(conn.try_clone().unwrap())
+                .read_line(&mut key)
+                .unwrap();
+            assert_eq!(key.trim(), "rid|ops");
+            conn.write_all(b"{}\n").unwrap();
+        });
+        subscribe(&sock, "rid", "ops").unwrap();
+        h.join().unwrap();
+
+        // No daemon → connect error.
+        assert!(subscribe(&sock, "rid", "ops").is_err());
+    }
+
+    fn http_server(status: &'static str) -> (String, std::thread::JoinHandle<String>) {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let h = std::thread::spawn(move || {
+            let (mut s, _) = listener.accept().unwrap();
+            let mut rdr = BufReader::new(s.try_clone().unwrap());
+            // Read headers then the body.
+            let mut len = 0usize;
+            loop {
+                let mut line = String::new();
+                rdr.read_line(&mut line).unwrap();
+                if let Some(v) = line.strip_prefix("Content-Length: ") {
+                    len = v.trim().parse().unwrap();
+                }
+                if line.trim().is_empty() {
+                    break;
+                }
+            }
+            let mut body = vec![0u8; len];
+            std::io::Read::read_exact(&mut rdr, &mut body).unwrap();
+            s.write_all(status.as_bytes()).unwrap();
+            String::from_utf8_lossy(&body).into_owned()
+        });
+        (format!("http://127.0.0.1:{port}/"), h)
+    }
+
+    #[test]
+    fn post_push_signs_and_posts() {
+        let (url, h) = http_server("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+        post_push(&url, "secret", "rid", "main", "deadbeef", "actor").unwrap();
+        let body = h.join().unwrap();
+        assert!(body.contains("refs/heads/main"));
+        assert!(body.contains("deadbeef"));
+        assert!(body.contains("rid"));
+
+        // Non-2xx → error naming the status line.
+        let (url, h) = http_server("HTTP/1.1 500 Nope\r\nContent-Length: 0\r\n\r\n");
+        let err = post_push(&url, "s", "r", "main", "x", "a").unwrap_err();
+        assert!(err.contains("500"), "{err}");
+        let _ = h.join().unwrap();
+
+        // Connection refused → error.
+        assert!(post_push("http://127.0.0.1:1/", "s", "r", "m", "x", "a").is_err());
+    }
+
+    #[test]
+    fn bridge_tick_posts_for_snapshot_events() {
+        let repo = repo("bridge");
+        ws(&repo, "a");
+        let wal = sturn_wal_git::GitWal::default();
+        let wsi = sturn_ws_git::GitWs;
+        let mut heads = HashMap::new();
+
+        // A snapshot event on ws `a` → one webhook POST.
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "actor",
+                Op::Snapshot {
+                    message: "m".into(),
+                },
+            ),
+        )
+        .unwrap();
+        // A non-snapshot event → ignored by the hook filter.
+        wal.append(
+            &repo,
+            "a",
+            &Event::new("a", "actor", Op::Intent { text: "i".into() }),
+        )
+        .unwrap();
+
+        let (url, h) = http_server("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+        bridge_tick(&repo, &wal, &wsi, &mut heads, &url, "s", "rid", "main");
+        let body = h.join().unwrap();
+        assert!(body.contains("actor"));
+
+        // Head unchanged → no repost.
+        bridge_tick(&repo, &wal, &wsi, &mut heads, &url, "s", "rid", "main");
+
+        // Dead endpoint → tick survives (post errors are dropped).
+        bridge_tick(
+            &repo,
+            &wal,
+            &wsi,
+            &mut heads,
+            "http://127.0.0.1:1/",
+            "s",
+            "rid",
+            "main",
+        );
+    }
+
+    /// Collect what `diff_tick` emits.
+    fn collect(
+        repo: &Path,
+        wal: &dyn Wal,
+        wsi: &dyn Ws,
+        scope: Option<&str>,
+        heads: &mut HashMap<String, Option<String>>,
+    ) -> Vec<Event> {
+        let mut seen = Vec::new();
+        diff_tick(repo, wal, wsi, scope, heads, &mut |ev| {
+            seen.push(ev.clone())
+        });
+        seen
+    }
+
+    #[test]
+    fn diff_tick_emits_only_inflight_deltas() {
+        let repo = repo("diff");
+        ws(&repo, "a");
+        ws(&repo, "b");
+        ws(&repo, "c"); // ws namespace with no WAL — silently skipped.
+        let wal = sturn_wal_git::GitWal::default();
+        let wsi = sturn_ws_git::GitWs;
+        let mut heads = HashMap::new();
+
+        // Pre-snapshot history must not replay: a fresh diff sees
+        // only ops after the marker.
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "t",
+                Op::Write {
+                    path: "old.txt".into(),
+                    blob: wsi.store(&repo, b"old\n").unwrap(),
+                    intent: None,
+                },
+            ),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "t",
+                Op::Snapshot {
+                    message: "landed".into(),
+                },
+            ),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "t",
+                Op::Intent {
+                    text: "post".into(),
+                },
+            ),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "b",
+            &Event::new(
+                "b",
+                "u",
+                Op::Delete {
+                    path: "gone.txt".into(),
+                },
+            ),
+        )
+        .unwrap();
+
+        let seen = collect(&repo, &wal, &wsi, None, &mut heads);
+        assert_eq!(seen.len(), 2, "{seen:?}");
+        // Sorted ws order: a's in-flight intent, then b's delete.
+        assert_eq!(seen[0].ws, "a");
+        assert!(matches!(seen[0].op, Op::Intent { .. }));
+        assert_eq!(seen[1].ws, "b");
+        assert!(matches!(seen[1].op, Op::Delete { .. }));
+
+        // Heads unchanged → second pass is silent.
+        assert!(collect(&repo, &wal, &wsi, None, &mut heads).is_empty());
+
+        // A new op → only the delta streams.
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "t",
+                Op::Rename {
+                    from: "x".into(),
+                    to: "y".into(),
+                },
+            ),
+        )
+        .unwrap();
+        let seen = collect(&repo, &wal, &wsi, None, &mut heads);
+        assert_eq!(seen.len(), 1);
+        assert!(matches!(seen[0].op, Op::Rename { .. }));
+
+        // A snap lands mid-stream: events between the cursor and
+        // the marker are folded away — only post-marker ops show.
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "t",
+                Op::Intent {
+                    text: "folded".into(),
+                },
+            ),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "t",
+                Op::Snapshot {
+                    message: "again".into(),
+                },
+            ),
+        )
+        .unwrap();
+        wal.append(
+            &repo,
+            "a",
+            &Event::new(
+                "a",
+                "t",
+                Op::Intent {
+                    text: "fresh".into(),
+                },
+            ),
+        )
+        .unwrap();
+        let seen = collect(&repo, &wal, &wsi, None, &mut heads);
+        assert_eq!(seen.len(), 1);
+        assert!(matches!(&seen[0].op, Op::Intent { text } if text == "fresh"));
+
+        // Scoped to one ws — other workspaces aren't walked.
+        wal.append(
+            &repo,
+            "b",
+            &Event::new(
+                "b",
+                "u",
+                Op::Intent {
+                    text: "hidden".into(),
+                },
+            ),
+        )
+        .unwrap();
+        assert!(collect(&repo, &wal, &wsi, Some("a"), &mut heads).is_empty());
+        // Scoped ghost ws — no WAL, no output, no error.
+        assert!(collect(&repo, &wal, &wsi, Some("ghost"), &mut heads).is_empty());
+    }
+
+    #[test]
+    fn diff_line_renders_every_op_kind() {
+        let repo = repo("difffmt");
+        let wsi = sturn_ws_git::GitWs;
+        let blob = wsi.store(&repo, b"hi\n").unwrap();
+        let cases: Vec<(Op, String)> = vec![
+            (
+                Op::Write {
+                    path: "f".into(),
+                    blob: blob.clone(),
+                    intent: Some("why".into()),
+                },
+                "write f (3 B) \"why\"".into(),
+            ),
+            (
+                Op::Write {
+                    path: "f".into(),
+                    blob,
+                    intent: None,
+                },
+                "write f (3 B)".into(),
+            ),
+            (
+                Op::Write {
+                    path: "f".into(),
+                    blob: "missing".into(),
+                    intent: None,
+                },
+                "write f (blob missing)".into(),
+            ),
+            (
+                Op::Rename {
+                    from: "a".into(),
+                    to: "b".into(),
+                },
+                "rename a → b".into(),
+            ),
+            (Op::Delete { path: "d".into() }, "delete d".into()),
+            (
+                Op::Claim {
+                    glob: "g/**".into(),
+                    ttl_secs: 60,
+                },
+                "claim g/** ttl=60s".into(),
+            ),
+            (
+                Op::Release {
+                    glob: "g/**".into(),
+                },
+                "release g/**".into(),
+            ),
+            (Op::Intent { text: "i".into() }, "intent \"i\"".into()),
+            (
+                Op::Snapshot {
+                    message: "m".into(),
+                },
+                "snapshot \"m\"".into(),
+            ),
+            (
+                Op::Review {
+                    event: "ev".into(),
+                    verdict: Verdict::Approve,
+                },
+                "review approve ev".into(),
+            ),
+            (
+                Op::Review {
+                    event: "0123456789abcdef".into(),
+                    verdict: Verdict::Reject,
+                },
+                "review reject 01234567".into(),
+            ),
+            (
+                Op::Presence {
+                    status: "joined".into(),
+                },
+                "presence joined".into(),
+            ),
+            (
+                Op::Ask {
+                    subject: "ok?".into(),
+                    target: "any".into(),
+                    options: vec![],
+                    ttl_secs: 5,
+                },
+                "ask \"ok?\" → any ttl=5s".into(),
+            ),
+            (
+                Op::Answer {
+                    ask: "0123456789".into(),
+                    verdict: "v".into(),
+                },
+                "answer v → ask 01234567".into(),
+            ),
+            (
+                Op::Cancel {
+                    ask: "0123456789".into(),
+                },
+                "cancel ask 01234567".into(),
+            ),
+        ];
+        for (op, want) in cases {
+            let ev = Event::new("w", "actor", op);
+            assert_eq!(
+                diff_line(&repo, &wsi, &ev, false),
+                format!("w {} actor {want}", ev.ts)
+            );
+        }
+        // json → the raw event, same shape `log` emits.
+        let ev = Event::new("w", "actor", Op::Intent { text: "i".into() });
+        assert_eq!(
+            diff_line(&repo, &wsi, &ev, true),
+            serde_json::to_string(&ev).unwrap()
+        );
+    }
+
+    #[test]
+    fn wait_exit_code_map() {
+        assert_eq!(
+            wait_exit_code(&sturn_ask::Status::Answered {
+                verdict: "v".into(),
+                by: "b".into()
+            }),
+            0
+        );
+        assert_eq!(wait_exit_code(&sturn_ask::Status::Cancelled), 2);
+        assert_eq!(wait_exit_code(&sturn_ask::Status::Expired), 3);
+        assert_eq!(wait_exit_code(&sturn_ask::Status::Open), 4);
+    }
+
+    // Under coverage, infinite drivers are stubbed; running the arms
+    // covers their dispatch lines.
+    #[cfg(coverage)]
+    #[test]
+    fn coverage_stubs_run() {
+        std::env::set_var("BUPHA_WEBHOOK_SECRET", "s");
+        let cli = Cli {
+            repo: None,
+            config: None,
+            cmd: Cmd::Daemon,
+        };
+        assert!(execute(&cli).is_ok());
+        let cli = Cli {
+            repo: None,
+            config: None,
+            cmd: Cmd::Bridge {
+                to: "http://127.0.0.1:1/".into(),
+                secret_env: "BUPHA_WEBHOOK_SECRET".into(),
+            },
+        };
+        assert!(execute(&cli).is_ok());
+        // --live dispatches to the stubbed driver; a ghost --ws
+        // keeps the initial batch quiet on the host repo.
+        let cli = Cli {
+            repo: None,
+            config: None,
+            cmd: Cmd::Diff {
+                ws: Some("ghost".into()),
+                json: false,
+                live: true,
+            },
+        };
+        assert!(execute(&cli).is_ok());
+    }
+}

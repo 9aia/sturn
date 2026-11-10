@@ -25,18 +25,18 @@ for c in sturn-core sturn-wal sturn-bus sturn-ws sturn-vcs \
     grep -q "^crates/$c/" <<<"$changed" && touched="$touched $c"
 done
 # the bin re-publishes whenever any crate changed
-[ -n "$touched" ] && touched="$touched sturn"
+[ -n "$touched" ] && touched="$touched sturn-cli"
 if [ -z "$touched" ]; then echo "no crate changes since $last"; exit 0; fi
 
 order="sturn-core sturn-secret sturn-config sturn-fuse \
 sturn-tunnel sturn-vcs sturn-bus sturn-service sturn-secret sturn-config sturn-claim \
 sturn-wal-git sturn-bus-redb sturn-ws-git sturn-git \
 sturn-git sturn-bus-redb sturn-keyring sturn-dotenv sturn-config-toml sturn-mcp \
-sturn-systemd sturn"
+sturn-systemd sturn-cli"
 published=""
 for c in $order; do
-    p="${c}"; [ "$c" = sturn ] && p="sturn"   # cli package name
-    dir="crates/$c"
+    # package name: dir sturn-cli ships as package `sturn`
+    p="${c}"; [ "$c" = sturn-cli ] && p="sturn"
     grep -q " ${c} \|^${c} \?$\| ${c}$" <<<" $touched " || continue
     cargo set-version -p "$p" --bump patch
     for i in 1 2 3 4 5; do
@@ -44,7 +44,7 @@ for c in $order; do
     done
     published="$published $p"
     # Per-crate tag — versions diverge independently in a monorepo.
-    ver_c="$(grep -m1 '^version' "crates/$p/Cargo.toml" | cut -d'"' -f2)"
+    ver_c="$(grep -m1 '^version' "crates/$c/Cargo.toml" | cut -d'"' -f2)"
     tags="$tags $p-v$ver_c"
 done
 

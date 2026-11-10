@@ -54,7 +54,7 @@ api:
   module: project
 - name: T-007
   kind: record
-  file: project/handoffs/T-007.md
+  file: project/handoffs/archive/T-007.md
   line: 2
   module: project
 - name: T-008
@@ -77,27 +77,33 @@ api:
   file: project/TODO.md
   line: 5
   module: project
+- name: T-015
+  kind: record
+  file: project/TODO.md
+  line: 6
+  module: project
 deps: []
 notes: ''
 verify:
 - project/BACKLOG.md
+- project/DONE.md
 - project/TODO.md
 - project/adrs/0001-adr-0001-evented-coordination-over-the-git-object-store.md
 - project/adrs/0003-wal-sharded-per-workspace-ref-causal-per-ref-consistency.md
 - project/handoffs/P-001.md
-- project/handoffs/T-007.md
+- project/handoffs/archive/T-007.md
 - project/index.md
 - project/issues/issue-0002-fuse-mount-tests-flaky-in-sandboxed-envs.md
 - project/issues/issue-0004-sturn-odb-assumes-sha-1-write-object-stores-unresolvable-objects-on-sha256-repos-object-id-sha1-only-guards-len-40.md
-- project/issues/issue-0005-evaluate-pando-class-git-hosts-when-if-released-refs-sturn-as-unrelated-refs-sturn-s-native-regime-verify-ref-advertisement-limits-non-ff-retry-loop.md
 provenance:
   files:
   - project/BACKLOG.md
+  - project/DONE.md
   - project/TODO.md
   - project/adrs/0001-adr-0001-evented-coordination-over-the-git-object-store.md
   - project/adrs/0003-wal-sharded-per-workspace-ref-causal-per-ref-consistency.md
   - project/handoffs/P-001.md
-  - project/handoffs/T-007.md
+  - project/handoffs/archive/T-007.md
   - project/index.md
   - project/issues/issue-0002-fuse-mount-tests-flaky-in-sandboxed-envs.md
   - project/issues/issue-0004-sturn-odb-assumes-sha-1-write-object-stores-unresolvable-objects-on-sha256-repos-object-id-sha1-only-guards-len-40.md
@@ -105,7 +111,8 @@ provenance:
   - project/proposals/proposal-0001-resources-beyond-fs-typed-claim-uris-dev-net-sess-cap-over-the-same-wal.md
   hashes:
   - 343190c56e97f25d148f6c1da5630ed95648bd76
-  - 0dbe26ed3f912b840d1fe09c8094654c160c269e
+  - 043c72083824501be0dd939539075300db2c03eb
+  - f1eccf1bac3fb55f4316abe282e25ade2f709cd3
   - 61af167c707de1326bacac8f859ee1cfd5037235
   - 79772519362e97c592e725ff45abefdb0d4dc802
   - 1d7d47c82f9a3ab694915bcf785a272183caaf46
@@ -115,6 +122,6 @@ provenance:
   - d1caed71d0ed6b9245d41a34cbea88ddfd291476
   - f93bc3f3c1e1f77299ea4ce488c52ea639a4cb2a
   - eb321f04f06769b1c89aaf2bdb8ac2dbeb29f1c6
-  commit_sha: c8e1146d28df610b6b7121fae7f53d0139b02930
-  generated_at: '1794170173'
+  commit_sha: 5859dfe61488ba8f52662c03fb6bf2c07aecdd31
+  generated_at: '1794290482'
   generator: kuda-template/0.1.2

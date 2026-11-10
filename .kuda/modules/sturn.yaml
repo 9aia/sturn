@@ -2,20 +2,263 @@ name: sturn
 path: Cargo.toml
 purpose: '*Ephemeral coordination engine — claims/ops/topics over VCS state.*'
 api:
-- name: sturn
-  kind: module
-  file: Cargo.toml
-  line: 1
+- name: BEGIN
+  kind: const
+  file: crates/sturn-cli/src/agentmd.rs
+  line: 11
   module: sturn
-deps: []
+- name: Change
+  kind: type
+  file: crates/sturn-cli/src/agentmd.rs
+  line: 36
+  module: sturn
+- name: Cli
+  kind: type
+  file: crates/sturn-cli/src/lib.rs
+  line: 39
+  module: sturn
+- name: Cmd
+  kind: type
+  file: crates/sturn-cli/src/lib.rs
+  line: 51
+  module: sturn
+- name: DeployCmd
+  kind: type
+  file: crates/sturn-cli/src/lib.rs
+  line: 337
+  module: sturn
+- name: DestroySub
+  kind: type
+  file: crates/sturn-cli/src/lib.rs
+  line: 345
+  module: sturn
+- name: END
+  kind: const
+  file: crates/sturn-cli/src/agentmd.rs
+  line: 13
+  module: sturn
+- name: Mcp
+  kind: type
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 182
+  module: sturn
+- name: SECTION
+  kind: const
+  file: crates/sturn-cli/src/agentmd.rs
+  line: 17
+  module: sturn
+- name: ServiceCmd
+  kind: type
+  file: crates/sturn-cli/src/lib.rs
+  line: 351
+  module: sturn
+- name: Subs
+  kind: type
+  file: crates/sturn-cli/src/lib.rs
+  line: 1774
+  module: sturn
+- name: WsCmd
+  kind: type
+  file: crates/sturn-cli/src/lib.rs
+  line: 311
+  module: sturn
+- name: agentmd
+  kind: module
+  file: crates/sturn-cli/src/lib.rs
+  line: 15
+  module: sturn
+- name: all_events
+  kind: function
+  file: crates/sturn-cli/src/lib.rs
+  line: 1677
+  module: sturn
+- name: append
+  kind: function
+  file: crates/sturn-cli/src/lib.rs
+  line: 1100
+  module: sturn
+- name: appends_to_existing_prose
+  kind: function
+  file: crates/sturn-cli/src/agentmd.rs
+  line: 188
+  module: sturn
+- name: ask_json
+  kind: function
+  file: crates/sturn-cli/src/lib.rs
+  line: 1610
+  module: sturn
+- name: asks_cancel_expire_and_wait_timeout
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 1481
+  module: sturn
+- name: asks_lifecycle_and_wait_codes
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 1421
+  module: sturn
+- name: bare_repo
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 583
+  module: sturn
+- name: bridge
+  kind: function
+  file: crates/sturn-cli/src/lib.rs
+  line: 1338
+  module: sturn
+- name: bridge_requires_secret_env
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 1120
+  module: sturn
+- name: bridge_tick
+  kind: function
+  file: crates/sturn-cli/src/lib.rs
+  line: 1218
+  module: sturn
+- name: bridge_tick_posts_for_snapshot_events
+  kind: function
+  file: crates/sturn-cli/src/lib.rs
+  line: 2385
+  module: sturn
+- name: call
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 233
+  module: sturn
+- name: canonical
+  kind: function
+  file: crates/sturn-cli/src/agentmd.rs
+  line: 30
+  module: sturn
+- name: check_hits
+  kind: function
+  file: crates/sturn-cli/src/lib.rs
+  line: 1697
+  module: sturn
+- name: check_hits_filters_by_fence
+  kind: function
+  file: crates/sturn-cli/src/lib.rs
+  line: 2081
+  module: sturn
+- name: check_watch
+  kind: function
+  file: crates/sturn-cli/src/lib.rs
+  line: 1740
+  module: sturn
+- name: check_watch
+  kind: function
+  file: crates/sturn-cli/src/lib.rs
+  line: 1761
+  module: sturn
+- name: check_watch_streams_conflict_changes
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 779
+  module: sturn
+- name: claim_conflict_force_and_claims_listing
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 697
+  module: sturn
+- name: claim_fence_and_check_staleness
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 752
+  module: sturn
+- name: claim_line
+  kind: function
+  file: crates/sturn-cli/src/lib.rs
+  line: 1687
+  module: sturn
+- name: collect
+  kind: function
+  file: crates/sturn-cli/src/lib.rs
+  line: 2435
+  module: sturn
+- name: command
+  kind: function
+  file: crates/sturn-cli/src/lib.rs
+  line: 389
+  module: sturn
+- name: commit
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 84
+  module: sturn
+- name: config_driven_and_env_fallbacks
+  kind: function
+  file: crates/sturn-cli/tests/e2e.rs
+  line: 619
+  module: sturn
+- name: coverage_stubs_run
+  kind: function
+  file: crates/sturn-cli/src/lib.rs
+  line: 2735
+  module: sturn
+- name: daemon
+  kind: function
+  file: crates/sturn-cli/src/lib.rs
+  line: 1252
+  module: sturn
+api_omitted: 106
+deps:
+- clap
+- hex
+- hmac
+- serde_json
+- sha2
+- sturn-ask
+- sturn-bus
+- sturn-bus-redb
+- sturn-claim
+- sturn-config
+- sturn-config-toml
+- sturn-core
+- sturn-fuse
+- sturn-git
+- sturn-mcp
+- sturn-service
+- sturn-systemd
+- sturn-vcs
+- sturn-wal
+- sturn-wal-git
+- sturn-ws
+- sturn-ws-git
+- clap
+- sturn-bus
+- sturn-config
+- sturn-core
+- sturn-service
+- sturn-vcs
+- sturn-wal
+- sturn-ws
+- hmac
+- sha2
 notes: ''
 verify:
 - Cargo.toml
+- crates/sturn-cli/Cargo.toml
+- crates/sturn-cli/src/agentmd.rs
+- crates/sturn-cli/src/lib.rs
+- crates/sturn-cli/src/main.rs
+- crates/sturn-cli/tests/e2e.rs
 provenance:
   files:
   - Cargo.toml
+  - crates/sturn-cli/Cargo.toml
+  - crates/sturn-cli/src/agentmd.rs
+  - crates/sturn-cli/src/lib.rs
+  - crates/sturn-cli/src/main.rs
+  - crates/sturn-cli/tests/e2e.rs
   hashes:
-  - 071a5f4aafd12d5778244b11a9315fc918cc5506
-  commit_sha: c8e1146d28df610b6b7121fae7f53d0139b02930
-  generated_at: '1794170173'
+  - 5348a47286c7d74dda18c03e4b59d3ee4da81b36
+  - 8a1965963ca67fbc963b0e276b890fb15e79b32f
+  - 001a3de911915e7c8c49003d5f8937adceb53c69
+  - 50c1ceb78ac8891bf9463388a3d080a9ad8cbba0
+  - 357aee45a3503b2675f2a56bf577e04e32b3e0c9
+  - 7c013b7dd467af6209b896e3b4d92f84022e14e4
+  commit_sha: 5859dfe61488ba8f52662c03fb6bf2c07aecdd31
+  generated_at: '1794290482'
   generator: kuda-template/0.1.2

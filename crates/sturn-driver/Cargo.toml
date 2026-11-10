@@ -1,6 +1,6 @@
 [package]
 name = "sturn-driver"
-description = "tamias-driver-sturn — pavo view driver over a repo's sturn coordination state (read-only WAL fold)"
+description = "tamias-driver-sturn — pavo view driver over a repo's sturn coordination state plus engine ops dispatching to the sturn lib"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,7 +12,18 @@ categories = ["development-tools"]
 name = "tamias-driver-sturn"
 path = "src/main.rs"
 
+[features]
+# Embedded surfaces (pavo-driver-kit's surface layer) — optional,
+# acyclic: the driver gains `cli`/`mcp` argv verbs that serve its own
+# ops manifest; the standalone tamias-driver-cli/-mcp binaries front
+# the same ops without any feature. default = view driver + `run`
+# passthrough only.
+default = []
+cli = ["pavo-driver-kit/cli"]
+mcp = ["pavo-driver-kit/mcp"]
+
 [dependencies]
+sturn.workspace = true
 sturn-core.workspace = true
 sturn-wal.workspace = true
 sturn-wal-git.workspace = true
@@ -23,6 +34,7 @@ sturn-claim.workspace = true
 sturn-ask.workspace = true
 sturn-config.workspace = true
 sturn-config-toml.workspace = true
+clap.workspace = true
 serde_json.workspace = true
 # Git deps, not path: a fresh sturn clone has no sibling ../pavo
 # checkout and CI must build without it. `version` is the crates.io

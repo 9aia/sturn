@@ -187,6 +187,34 @@ fn load_config(path: Option<String>) -> (Option<Config>, Vec<String>) {
     }
 }
 
+/// Where a `cli.<verb>` re-exec should run — the repo dir plus the
+/// config file the same chain `load` uses would read, so engine ops
+/// land exactly where the views see state. Both come back absolute:
+/// the child's cwd is the repo dir, so a relative candidate like
+/// `sturn.toml` would re-resolve against the wrong root.
+pub fn resolve(params: &serde_json::Map<String, serde_json::Value>) -> (PathBuf, Option<String>) {
+    let (param_repo, param_config) = overrides(params);
+    let (cfg, _) = load_config(param_config.clone());
+    let repo = param_repo
+        .or_else(|| {
+            std::env::var("STURN_REPO")
+                .ok()
+                .filter(|s| !s.is_empty())
+                .map(PathBuf::from)
+        })
+        .or_else(|| cfg.as_ref().map(|c| c.repo.dir.clone()))
+        .unwrap_or_else(|| PathBuf::from("."));
+    let repo = std::fs::canonicalize(&repo).unwrap_or(repo);
+    let config = config_path_hint(param_config.as_deref())
+        .map(|p| {
+            std::fs::canonicalize(&p)
+                .map(|a| a.to_string_lossy().into_owned())
+                .unwrap_or(p)
+        })
+        .or(param_config);
+    (repo, config)
+}
+
 /// Resolve + load. `params` are the wire op's caller params —
 /// `dir`/`root`/`repo`/`config` steer resolution, the rest pass
 /// through to the query resolvers untouched.

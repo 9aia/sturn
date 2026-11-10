@@ -413,8 +413,9 @@ dependencies = [
 [[package]]
 name = "pavo-driver-kit"
 version = "0.1.0"
-source = "git+https://github.com/9aia/pavo#090dcb4bde1a158f8c68b1ddbc85dddf191e4abb"
+source = "git+https://github.com/9aia/pavo#1f5e37afdb0b66a1ef908c2cc2448248493399c2"
 dependencies = [
+ "clap",
  "pavo-protocol",
  "serde",
  "serde_json",
@@ -423,7 +424,7 @@ dependencies = [
 [[package]]
 name = "pavo-protocol"
 version = "0.1.0"
-source = "git+https://github.com/9aia/pavo#090dcb4bde1a158f8c68b1ddbc85dddf191e4abb"
+source = "git+https://github.com/9aia/pavo#1f5e37afdb0b66a1ef908c2cc2448248493399c2"
 dependencies = [
  "serde",
  "serde_json",
@@ -433,7 +434,7 @@ dependencies = [
 [[package]]
 name = "pavo-testkit"
 version = "0.1.0"
-source = "git+https://github.com/9aia/pavo#090dcb4bde1a158f8c68b1ddbc85dddf191e4abb"
+source = "git+https://github.com/9aia/pavo#1f5e37afdb0b66a1ef908c2cc2448248493399c2"
 dependencies = [
  "pavo-protocol",
  "serde",
@@ -587,33 +588,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
-name = "sturn-ask"
-version = "0.1.0"
-dependencies = [
- "sturn-core",
-]
-
-[[package]]
-name = "sturn-bus"
-version = "0.1.0"
-
-[[package]]
-name = "sturn-bus-redb"
-version = "0.1.0"
-dependencies = [
- "redb",
- "sturn-bus",
-]
-
-[[package]]
-name = "sturn-claim"
-version = "0.1.0"
-dependencies = [
- "sturn-core",
-]
-
-[[package]]
-name = "sturn-cli"
+name = "sturn"
 version = "0.1.0"
 dependencies = [
  "clap",
@@ -638,6 +613,32 @@ dependencies = [
  "sturn-wal-git",
  "sturn-ws",
  "sturn-ws-git",
+]
+
+[[package]]
+name = "sturn-ask"
+version = "0.1.0"
+dependencies = [
+ "sturn-core",
+]
+
+[[package]]
+name = "sturn-bus"
+version = "0.1.0"
+
+[[package]]
+name = "sturn-bus-redb"
+version = "0.1.0"
+dependencies = [
+ "redb",
+ "sturn-bus",
+]
+
+[[package]]
+name = "sturn-claim"
+version = "0.1.0"
+dependencies = [
+ "sturn-core",
 ]
 
 [[package]]
@@ -675,10 +676,12 @@ dependencies = [
 name = "sturn-driver"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "pavo-driver-kit",
  "pavo-protocol",
  "pavo-testkit",
  "serde_json",
+ "sturn",
  "sturn-ask",
  "sturn-claim",
  "sturn-config",
