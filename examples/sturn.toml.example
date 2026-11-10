@@ -14,3 +14,9 @@ dir = "."                 # the git repo being coordinated
 
 # [actor]
 # name = "agent-7"        # default: $STURN_ACTOR → $USER
+
+# [hooks]
+# post_op = "kuda sync"   # detached `sh -c` after a successful ref-moving
+                          # verb (claim/write/snap/push/…) — best-effort,
+                          # never fails the op. String or list; off by
+                          # default. $STURN_POST_OP overrides.

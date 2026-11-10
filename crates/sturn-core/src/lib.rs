@@ -487,6 +487,52 @@ pub struct Config {
     pub signing: SigningCfg,
     #[serde(default)]
     pub review: ReviewCfg,
+    #[serde(default)]
+    pub hooks: HooksCfg,
+}
+
+/// `[hooks]` — external commands the CLI runs around ops. Off by
+/// default; every hook is best-effort and detached — a failing
+/// hook can never fail the op that triggered it.
+#[derive(Debug, Deserialize, Clone, Default)]
+#[serde(deny_unknown_fields)]
+pub struct HooksCfg {
+    /// Shell commands spawned (`sh -c`, detached, cwd = repo dir)
+    /// after a successful ref-moving verb — claim, leave, write,
+    /// snap, push, … The event-driven way to re-index: e.g.
+    /// `post_op = "kuda sync"` replaces `kuda watch --poll-refs`
+    /// when sturn drives the writes. One string or a list;
+    /// `$STURN_POST_OP` (single command) overrides.
+    #[serde(default, deserialize_with = "one_or_many")]
+    pub post_op: Vec<String>,
+}
+
+impl HooksCfg {
+    /// Resolved post-op commands — `$STURN_POST_OP` overrides the
+    /// configured list when set to a non-empty value.
+    pub fn post_ops(&self) -> Vec<String> {
+        match std::env::var("STURN_POST_OP") {
+            Ok(s) if !s.trim().is_empty() => vec![s],
+            _ => self.post_op.clone(),
+        }
+    }
+}
+
+/// `post_op = "cmd"` and `post_op = ["a", "b"]` both parse.
+fn one_or_many<'de, D>(d: D) -> Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum OneOrMany {
+        One(String),
+        Many(Vec<String>),
+    }
+    Ok(match OneOrMany::deserialize(d)? {
+        OneOrMany::One(s) => vec![s],
+        OneOrMany::Many(v) => v,
+    })
 }
 
 /// `[review]` — turn continuous review into a gate: snap refuses

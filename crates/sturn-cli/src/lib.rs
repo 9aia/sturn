@@ -394,10 +394,95 @@ pub fn command() -> clap::Command {
 /// shares; argv parsing is a caller concern.
 pub fn dispatch(cli: &Cli) -> i32 {
     match execute(cli) {
-        Ok(()) => 0,
+        Ok(()) => {
+            post_op(cli);
+            0
+        }
         Err(e) => {
             eprintln!("sturn: {e}");
             1
+        }
+    }
+}
+
+/// Whether `cmd` moved refs — the `[hooks] post_op` list fires
+/// only after these land, so read verbs never spawn the hook.
+/// "Moved" includes appends (WAL events are commits under
+/// refs/sturn/wal/*), ref creates/moves (ws new, snap), pushes
+/// (remote-tracking refs move), and surfaces that write through
+/// a ws (mcp, hydrate/exec --writeback, mount --rw).
+fn mutates(cmd: &Cmd) -> bool {
+    match cmd {
+        Cmd::Claim { .. }
+        | Cmd::Release { .. }
+        | Cmd::Join { .. }
+        | Cmd::Leave { .. }
+        | Cmd::Write { .. }
+        | Cmd::Rename { .. }
+        | Cmd::Delete { .. }
+        | Cmd::Intent { .. }
+        | Cmd::Ask { .. }
+        | Cmd::Answer { .. }
+        | Cmd::Cancel { .. }
+        | Cmd::Review { .. }
+        | Cmd::Compact { .. }
+        | Cmd::Snap { .. }
+        | Cmd::Push { .. }
+        | Cmd::Mcp { .. } => true,
+        Cmd::Ws { cmd } => matches!(
+            cmd,
+            WsCmd::New { .. }
+                | WsCmd::Hydrate {
+                    writeback: true,
+                    ..
+                }
+        ),
+        Cmd::Exec { writeback, .. } => *writeback,
+        Cmd::Mount { rw, .. } => *rw,
+        _ => false,
+    }
+}
+
+/// `[hooks] post_op` — spawn each configured command detached
+/// (`sh -c`, null stdio, cwd = repo dir) after a successful
+/// ref-moving verb. Best-effort by contract: a spawn failure
+/// warns on stderr, hook exit status is never observed, and the
+/// op's exit code already printed above stands. Off by default.
+fn post_op(cli: &Cli) {
+    if !mutates(&cli.cmd) {
+        return;
+    }
+    let cfg: Option<Config> = sturn_config_toml::TomlSource {
+        path: cli.config.clone(),
+    }
+    .load()
+    .ok();
+    let cmds = cfg
+        .as_ref()
+        .map(|c| c.hooks.clone())
+        .unwrap_or_default()
+        .post_ops();
+    if cmds.is_empty() {
+        return;
+    }
+    let repo = cli
+        .repo
+        .clone()
+        .or_else(|| cfg.as_ref().map(|c| c.repo.dir.clone()))
+        .unwrap_or_else(|| PathBuf::from("."));
+    for cmd in &cmds {
+        // Dropped Child never reaps — the hook outlives the op
+        // and the process exits anyway, so no zombie lingers.
+        if let Err(e) = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(cmd)
+            .current_dir(&repo)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+        {
+            eprintln!("sturn: post_op hook `{cmd}`: {e}");
         }
     }
 }
@@ -2712,6 +2797,257 @@ mod tests {
             diff_line(&repo, &wsi, &ev, true),
             serde_json::to_string(&ev).unwrap()
         );
+    }
+
+    #[test]
+    fn mutates_classifies_ref_writers() {
+        // Ref-moving verbs → true.
+        assert!(mutates(&Cmd::Claim {
+            uri: "x".into(),
+            ws: "a".into(),
+            ttl: 1,
+            force: false
+        }));
+        assert!(mutates(&Cmd::Release {
+            uri: "x".into(),
+            ws: "a".into()
+        }));
+        assert!(mutates(&Cmd::Join { ws: "a".into() }));
+        assert!(mutates(&Cmd::Leave { ws: "a".into() }));
+        assert!(mutates(&Cmd::Intent {
+            text: "i".into(),
+            ws: "a".into()
+        }));
+        assert!(mutates(&Cmd::Write {
+            path: "f".into(),
+            ws: "a".into(),
+            file: None,
+            intent: None
+        }));
+        assert!(mutates(&Cmd::Rename {
+            from: "a".into(),
+            to: "b".into(),
+            ws: "a".into()
+        }));
+        assert!(mutates(&Cmd::Delete {
+            path: "f".into(),
+            ws: "a".into()
+        }));
+        assert!(mutates(&Cmd::Snap {
+            ws: vec!["a".into()],
+            message: "m".into(),
+            branch: None
+        }));
+        assert!(mutates(&Cmd::Push {
+            remote: "origin".into()
+        }));
+        assert!(mutates(&Cmd::Review {
+            event: "e".into(),
+            verdict: "approve".into(),
+            ws: "a".into()
+        }));
+        assert!(mutates(&Cmd::Ask {
+            subject: "s".into(),
+            ws: "a".into(),
+            target: "any".into(),
+            options: vec![],
+            ttl: 1
+        }));
+        assert!(mutates(&Cmd::Answer {
+            ask: "x".into(),
+            verdict: "v".into(),
+            ws: "a".into()
+        }));
+        assert!(mutates(&Cmd::Cancel {
+            ask: "x".into(),
+            ws: "a".into()
+        }));
+        assert!(mutates(&Cmd::Compact { ws: None }));
+        assert!(mutates(&Cmd::Mcp { ws: None }));
+        // Ws verbs split — only writers.
+        assert!(mutates(&Cmd::Ws {
+            cmd: WsCmd::New {
+                name: "w".into(),
+                base: None
+            }
+        }));
+        assert!(mutates(&Cmd::Ws {
+            cmd: WsCmd::Hydrate {
+                name: "w".into(),
+                dir: PathBuf::from("/tmp/x"),
+                paths: vec![],
+                writeback: true
+            }
+        }));
+        assert!(!mutates(&Cmd::Ws {
+            cmd: WsCmd::Hydrate {
+                name: "w".into(),
+                dir: PathBuf::from("/tmp/x"),
+                paths: vec![],
+                writeback: false
+            }
+        }));
+        assert!(!mutates(&Cmd::Ws { cmd: WsCmd::Ls }));
+        // Flag-gated writers.
+        assert!(mutates(&Cmd::Exec {
+            ws: "a".into(),
+            keep: false,
+            writeback: true,
+            cmd: vec!["true".into()]
+        }));
+        assert!(!mutates(&Cmd::Exec {
+            ws: "a".into(),
+            keep: false,
+            writeback: false,
+            cmd: vec!["true".into()]
+        }));
+        assert!(mutates(&Cmd::Mount {
+            ws: "a".into(),
+            dir: PathBuf::from("/tmp/x"),
+            rw: true
+        }));
+        assert!(!mutates(&Cmd::Mount {
+            ws: "a".into(),
+            dir: PathBuf::from("/tmp/x"),
+            rw: false
+        }));
+        // Readers never fire.
+        assert!(!mutates(&Cmd::Claims));
+        assert!(!mutates(&Cmd::Log { ws: None }));
+        assert!(!mutates(&Cmd::Diff {
+            ws: None,
+            json: false,
+            live: false
+        }));
+        assert!(!mutates(&Cmd::Check {
+            uri: "x".into(),
+            fence: None,
+            watch: false
+        }));
+        assert!(!mutates(&Cmd::Asks {
+            all: false,
+            json: false
+        }));
+        assert!(!mutates(&Cmd::Wait {
+            ask: "x".into(),
+            timeout: 0,
+            poll: 1
+        }));
+        assert!(!mutates(&Cmd::Verify { ws: None }));
+        assert!(!mutates(&Cmd::Sub {
+            topic: "ops".into()
+        }));
+        assert!(!mutates(&Cmd::Init));
+        assert!(!mutates(&Cmd::Daemon));
+    }
+
+    /// Everything env-dependent about post_op lives here — one
+    /// test keeps `STURN_POST_OP` set/removes serial.
+    #[test]
+    fn post_op_fires_detached_never_fails() {
+        let repo = repo("hooks");
+        ws(&repo, "a");
+        let out = scratch("hooks-out");
+        let sentinel = out.join("fired");
+        // Bogus --config path keeps the host's real sturn.toml and
+        // $STURN_CONFIG out of the resolution — flag-driven mode.
+        let bogus = repo.join("no-such.toml").to_string_lossy().into_owned();
+        let cli = |cmd: Cmd| Cli {
+            repo: Some(repo.clone()),
+            config: Some(bogus.clone()),
+            cmd,
+        };
+        let wait_file = |p: &Path| {
+            for _ in 0..200 {
+                if p.exists() {
+                    return true;
+                }
+                std::thread::sleep(Duration::from_millis(25));
+            }
+            false
+        };
+
+        // No hook configured → mutating op is a silent no-op.
+        std::env::remove_var("STURN_POST_OP");
+        assert_eq!(
+            dispatch(&cli(Cmd::Leave { ws: "a".into() })),
+            0,
+            "leave should succeed"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(!sentinel.exists());
+
+        // Hook set, but a read verb never spawns it.
+        std::env::set_var("STURN_POST_OP", format!("touch {}", sentinel.display()));
+        assert_eq!(dispatch(&cli(Cmd::Claims)), 0);
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(!sentinel.exists());
+
+        // Mutating op → the detached hook lands the sentinel.
+        assert_eq!(
+            dispatch(&cli(Cmd::Claim {
+                uri: "net:9".into(),
+                ws: "a".into(),
+                ttl: 60,
+                force: false
+            })),
+            0
+        );
+        assert!(wait_file(&sentinel), "post_op hook never fired");
+
+        // A failing hook can't fail the op — the claim is long
+        // committed by the time the hook exits nonzero.
+        std::env::set_var("STURN_POST_OP", "exit 3");
+        assert_eq!(dispatch(&cli(Cmd::Leave { ws: "a".into() })), 0);
+
+        // Config-file hooks fire too — list form, no env.
+        std::env::remove_var("STURN_POST_OP");
+        let s2 = out.join("from-config");
+        let cfg = repo.join("sturn.toml");
+        std::fs::write(
+            &cfg,
+            format!(
+                "[repo]\ndir = \".\"\n\n[hooks]\npost_op = [\"touch {}\"]\n",
+                s2.display()
+            ),
+        )
+        .unwrap();
+        let cli2 = Cli {
+            repo: Some(repo.clone()),
+            config: Some(cfg.to_string_lossy().into_owned()),
+            cmd: Cmd::Intent {
+                text: "hook me".into(),
+                ws: "a".into(),
+            },
+        };
+        assert_eq!(dispatch(&cli2), 0);
+        assert!(wait_file(&s2), "config post_op hook never fired");
+
+        // $STURN_POST_OP overrides the config list: the env's
+        // target lands, the config's does not.
+        let s3 = out.join("from-env");
+        let s4 = out.join("overridden");
+        std::fs::write(
+            &cfg,
+            format!(
+                "[repo]\ndir = \".\"\n\n[hooks]\npost_op = \"touch {}\"\n",
+                s4.display()
+            ),
+        )
+        .unwrap();
+        std::env::set_var("STURN_POST_OP", format!("touch {}", s3.display()));
+        let cli3 = Cli {
+            cmd: Cmd::Intent {
+                text: "env wins".into(),
+                ws: "a".into(),
+            },
+            ..cli2
+        };
+        assert_eq!(dispatch(&cli3), 0);
+        assert!(wait_file(&s3), "env post_op never fired");
+        std::env::remove_var("STURN_POST_OP");
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(!s4.exists());
     }
 
     #[test]
