@@ -12,5 +12,5 @@ categories = ["development-tools"]
 sturn-core.workspace = true
 
 [dev-dependencies]
+lasius-vcs.workspace = true
 serde_json.workspace = true
-sturn-vcs.workspace = true

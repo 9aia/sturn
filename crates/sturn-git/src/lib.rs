@@ -1,15 +1,17 @@
-//! Git impl of `Vcs`, plus the snap bridge: fold WAL ops into a
+//! Git helpers for sturn — the snap bridge (WAL ops → real
+//! commit) plus thin wrappers over `lasius-vcs-git` for the
+//! coordination ops (resolve/has_commit/push). Generic VCS
+//! expertise lives in lasius (P-019).: fold WAL ops into a
 //! real commit — the crossing from the evented world back to
 //! ordinary git history. `snap` is why GitHub sees a normal repo.
 
+use lasius_vcs::Vcs;
+use lasius_vcs_git::GitVcs as LasiusGit;
 use std::io;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use sturn_core::{Event, Op};
-use sturn_vcs::Vcs;
-
-pub struct GitVcs;
 
 fn git(repo: &Path, args: &[&str]) -> io::Result<String> {
     let o = Command::new("git")
@@ -30,64 +32,26 @@ fn git(repo: &Path, args: &[&str]) -> io::Result<String> {
     }
 }
 
-impl Vcs for GitVcs {
-    fn sync(&self, repo: &Path, remote: &str) -> bool {
-        Command::new("git")
-            .arg("-C")
-            .arg(repo)
-            .args(["fetch", remote, "--prune"])
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
+/// Resolve `rev` — sturn_odb loose objects first (snap commits
+/// may not be referenced yet), then the shared lasius port.
+pub fn resolve(repo: &Path, rev: &str) -> Option<String> {
+    if let Ok(Some(sha)) = sturn_odb::resolve(repo, rev) {
+        return Some(sha);
     }
+    LasiusGit.resolve(repo, rev)
+}
 
-    fn resolve(&self, repo: &Path, rev: &str) -> Option<String> {
-        if let Ok(Some(sha)) = sturn_odb::resolve(repo, rev) {
-            return Some(sha);
-        }
-        Command::new("git")
-            .arg("-C")
-            .arg(repo)
-            .args(["rev-parse", "-q", "--verify", rev])
-            .output()
-            .ok()
-            .filter(|o| o.status.success())
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-            .filter(|s| !s.is_empty())
-    }
+/// Object-exists probe — ODB fast path, then `cat-file -e` via
+/// the shared port.
+pub fn has_commit(repo: &Path, sha: &str) -> bool {
+    sturn_odb::object_exists(repo, sha) || LasiusGit.has_commit(repo, sha)
+}
 
-    fn has_commit(&self, repo: &Path, sha: &str) -> bool {
-        // Loose-object hit needs no spawn; packs/alternates fall
-        // through to `cat-file -e`.
-        if sturn_odb::object_exists(repo, sha) {
-            return true;
-        }
-        Command::new("git")
-            .arg("-C")
-            .arg(repo)
-            .args(["cat-file", "-e", sha])
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
-    }
-
-    fn push(&self, repo: &Path, remote: &str) -> bool {
-        let heads = Command::new("git")
-            .arg("-C")
-            .arg(repo)
-            .args(["push", remote, "--all"])
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false);
-        let sturn = Command::new("git")
-            .arg("-C")
-            .arg(repo)
-            .args(["push", remote, "refs/sturn/*:refs/sturn/*"])
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false);
-        heads && sturn
-    }
+/// Push heads + `refs/sturn/*` — the coordination-specific part
+/// sturn keeps; the mechanics are lasius-vcs-git's.
+pub fn push(repo: &Path, remote: &str) -> bool {
+    LasiusGit.push(repo, remote, &["--all"])
+        && LasiusGit.push(repo, remote, &["refs/sturn/*:refs/sturn/*"])
 }
 
 /// Store `content` as a blob in the ODB; returns its sha.
@@ -162,7 +126,12 @@ pub fn snap_commit(
     for ev in events {
         match &ev.op {
             Op::Write { path, blob, .. } => {
-                gi(&["update-index", "--add", "--cacheinfo", &format!("100644,{blob},{path}")])?;
+                gi(&[
+                    "update-index",
+                    "--add",
+                    "--cacheinfo",
+                    &format!("100644,{blob},{path}"),
+                ])?;
                 seen.insert(path.clone(), blob.clone());
             }
             Op::Delete { path } => {
@@ -175,7 +144,12 @@ pub fn snap_commit(
                     None => git(repo, &["rev-parse", &format!("{base}:{from}")])?,
                 };
                 gi(&["update-index", "--force-remove", from])?;
-                gi(&["update-index", "--add", "--cacheinfo", &format!("100644,{blob},{to}")])?;
+                gi(&[
+                    "update-index",
+                    "--add",
+                    "--cacheinfo",
+                    &format!("100644,{blob},{to}"),
+                ])?;
                 seen.remove(from.as_str());
                 seen.insert(to.clone(), blob);
             }

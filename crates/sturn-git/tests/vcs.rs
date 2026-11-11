@@ -2,11 +2,12 @@
 //! store_blob, snap_commit folding, has_commit, push to a bare
 //! remote, sync.
 
+use lasius_vcs::Vcs;
+use lasius_vcs_git::GitVcs as LasiusGit;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use sturn_core::{Event, Op};
-use sturn_git::{snap_commit, store_blob, GitVcs};
-use sturn_vcs::Vcs;
+use sturn_git::{has_commit, push, snap_commit, store_blob};
 
 fn git(dir: &Path, args: &[&str]) -> String {
     let o = Command::new("git")
@@ -70,10 +71,13 @@ fn store_blob_writes_object() {
 #[test]
 fn has_commit_checks_objects() {
     let repo = repo("has");
-    let vcs = GitVcs;
+
     let tip = git(&repo, &["rev-parse", "HEAD"]);
-    assert!(vcs.has_commit(&repo, &tip));
-    assert!(!vcs.has_commit(&repo, "0000000000000000000000000000000000000000"));
+    assert!(has_commit(&repo, &tip));
+    assert!(!has_commit(
+        &repo,
+        "0000000000000000000000000000000000000000"
+    ));
 }
 
 #[test]
@@ -179,9 +183,8 @@ fn push_and_sync_bare_remote() {
     );
     git(&repo, &["update-ref", "refs/sturn/wal/ws1", &commit]);
 
-    let vcs = GitVcs;
-    assert!(vcs.push(&repo, "origin"));
-    assert!(vcs.sync(&repo, "origin"));
+    assert!(push(&repo, "origin"));
+    assert!(LasiusGit.sync(&repo, Some("origin")));
 
     // The remote now has both the branch and the WAL ref.
     let refs = git(&remote, &["for-each-ref", "--format=%(refname)"]);
@@ -195,13 +198,25 @@ fn push_and_sync_bare_remote() {
 fn vcs_failures_return_false() {
     let dir = scratch("vcs-false");
     git(&dir, &["init", "-q", "-b", "main"]);
-    git(&dir, &["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init", "--allow-empty"]);
-    let vcs = GitVcs;
+    git(
+        &dir,
+        &[
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-qm",
+            "init",
+            "--allow-empty",
+        ],
+    );
+
     // No remote configured → sync and push fail closed (false).
-    assert!(!vcs.sync(&dir, "origin"));
-    assert!(!vcs.push(&dir, "origin"));
+    assert!(!LasiusGit.sync(&dir, Some("origin")));
+    assert!(!push(&dir, "origin"));
     // Missing object → false.
-    assert!(!vcs.has_commit(&dir, &"0".repeat(40)));
+    assert!(!has_commit(&dir, &"0".repeat(40)));
 }
 
 #[test]
@@ -211,7 +226,19 @@ fn store_blob_and_snap_errors() {
     // snap_commit on a bogus base → read-tree error.
     let dir = scratch("snap-err");
     git(&dir, &["init", "-q", "-b", "main"]);
-    git(&dir, &["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init", "--allow-empty"]);
+    git(
+        &dir,
+        &[
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-qm",
+            "init",
+            "--allow-empty",
+        ],
+    );
     assert!(sturn_git::snap_commit(&dir, "bogus-base", &[], "m", "main").is_err());
 
     let dir = repo("snap-err2");
@@ -232,7 +259,19 @@ fn snap_commit_write_then_rename_uses_seen() {
     git(&dir, &["init", "-q", "-b", "main"]);
     git(&dir, &["config", "user.email", "t@t"]);
     git(&dir, &["config", "user.name", "t"]);
-    git(&dir, &["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init", "--allow-empty"]);
+    git(
+        &dir,
+        &[
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-qm",
+            "init",
+            "--allow-empty",
+        ],
+    );
     // Write then rename in the SAME batch — the rename's `from`
     // never existed in base; `seen` supplies the blob.
     let blob = sturn_git::store_blob(&dir, b"content\n").unwrap();
@@ -255,7 +294,13 @@ fn snap_commit_write_then_rename_uses_seen() {
             },
         ),
         // Non-tree ops are skipped by the overlay walk.
-        Event::new("w", "t", Op::Intent { text: "meta".into() }),
+        Event::new(
+            "w",
+            "t",
+            Op::Intent {
+                text: "meta".into(),
+            },
+        ),
         Event::new(
             "w",
             "t",

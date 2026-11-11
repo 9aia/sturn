@@ -48,7 +48,11 @@ fn unmount(mp: &Path) {
         // Plain -u: the kernel revokes and the session exits
         // deterministically (lazy -z can leave the session's own
         // mount reference alive and hang the scope join).
-        let o = Command::new("fusermount3").arg("-u").arg(mp).output().unwrap();
+        let o = Command::new("fusermount3")
+            .arg("-u")
+            .arg(mp)
+            .output()
+            .unwrap();
         if o.status.success() {
             return;
         }
@@ -110,7 +114,10 @@ impl Ws for MemWs {
         let mut n = self.n.lock().unwrap();
         *n += 1;
         let sha = format!("blob{n}");
-        self.blobs.lock().unwrap().insert(sha.clone(), content.to_vec());
+        self.blobs
+            .lock()
+            .unwrap()
+            .insert(sha.clone(), content.to_vec());
         Ok(sha)
     }
     fn tip(&self, _r: &Path, _n: &str) -> std::io::Result<String> {
@@ -142,7 +149,12 @@ impl Wal for MemWal {
         self.events.lock().unwrap().push(ev.clone());
         Ok(ev.id)
     }
-    fn events_since(&self, _r: &Path, _ws: &str, from: Option<&str>) -> std::io::Result<Vec<Event>> {
+    fn events_since(
+        &self,
+        _r: &Path,
+        _ws: &str,
+        from: Option<&str>,
+    ) -> std::io::Result<Vec<Event>> {
         let all = self.events.lock().unwrap().clone();
         Ok(match from {
             None => all,
@@ -176,7 +188,10 @@ fn read_only_mount_serves_tree() {
         wait_mounted(&mp);
 
         // lookup + getattr + read through the real kernel path.
-        assert_eq!(std::fs::read_to_string(mp.join("a.txt")).unwrap(), "alpha\n");
+        assert_eq!(
+            std::fs::read_to_string(mp.join("a.txt")).unwrap(),
+            "alpha\n"
+        );
         assert_eq!(
             std::fs::read_to_string(mp.join("dir/nested.txt")).unwrap(),
             "nested\n"

@@ -128,12 +128,7 @@ fn put_tree(repo: &Path, blob: &str, name: &str) -> io::Result<String> {
 /// `commit-tree` without the spawn — same object bytes, ident via
 /// `git var` (cached per repo). Plumbing fallback covers date envs
 /// and ident failures.
-fn put_commit(
-    repo: &Path,
-    tree: &str,
-    parent: Option<&str>,
-    msg: &str,
-) -> io::Result<String> {
+fn put_commit(repo: &Path, tree: &str, parent: Option<&str>, msg: &str) -> io::Result<String> {
     let parents: Vec<&str> = parent.into_iter().collect();
     sturn_odb::commit(repo, tree, &parents, msg).or_else(|_| {
         let mut args = vec!["commit-tree", tree];
@@ -153,10 +148,13 @@ impl Wal for GitWal {
         }
         let payload = serde_json::to_vec(&ev).map_err(io::Error::other)?;
         let blob = put_object(repo, "blob", &payload)?;
-        let msg = format!("sturn:{ws}:{}", serde_json::to_value(&ev.op)
-            .ok()
-            .and_then(|v| v.get("op").and_then(|k| k.as_str()).map(String::from))
-            .unwrap_or_else(|| "event".into()));
+        let msg = format!(
+            "sturn:{ws}:{}",
+            serde_json::to_value(&ev.op)
+                .ok()
+                .and_then(|v| v.get("op").and_then(|k| k.as_str()).map(String::from))
+                .unwrap_or_else(|| "event".into())
+        );
         let r = self.wal_ref(ws);
         // CAS loop: read parent, build commit on top, advance the ref
         // only if it still points where we read. Racing agents retry.
@@ -176,20 +174,21 @@ impl Wal for GitWal {
                 .map(|s| s.success())
                 .unwrap_or(false);
             attempt += 1;
-            if ok { return Ok(blob); }
+            if ok {
+                return Ok(blob);
+            }
             // 8 straight CAS losses — untestable contention, so the
             // bound itself is excluded under coverage.
             #[cfg(not(coverage))]
-            if attempt == 8 { return Err(io::Error::other(format!("wal append lost CAS race on {r} after 8 tries"))); }
+            if attempt == 8 {
+                return Err(io::Error::other(format!(
+                    "wal append lost CAS race on {r} after 8 tries"
+                )));
+            }
         }
     }
 
-    fn events_since(
-        &self,
-        repo: &Path,
-        ws: &str,
-        from: Option<&str>,
-    ) -> io::Result<Vec<Event>> {
+    fn events_since(&self, repo: &Path, ws: &str, from: Option<&str>) -> io::Result<Vec<Event>> {
         let r = self.wal_ref(ws);
         if self.head(repo, ws)?.is_none() {
             return Ok(vec![]);
@@ -249,10 +248,15 @@ impl Wal for GitWal {
         }
         // drop > 0 implies events exist, which implies a head —
         // ok_or_else is defensive.
-        let head = self.head(repo, ws)?.ok_or_else(|| io::Error::other("no wal ref"))?;
+        let head = self
+            .head(repo, ws)?
+            .ok_or_else(|| io::Error::other("no wal ref"))?;
         // Archive the full history ref before rewriting — compaction
         // shrinks the live log, not the audit trail.
-        git(repo, &["update-ref", &format!("refs/sturn/archive/{ws}"), &head])?;
+        git(
+            repo,
+            &["update-ref", &format!("refs/sturn/archive/{ws}"), &head],
+        )?;
         // Rebuild the chain from post-snapshot events. Blobs already
         // exist in the ODB — each surviving event re-commits cheaply.
         let mut parent: Option<String> = None;
@@ -270,18 +274,17 @@ impl Wal for GitWal {
         // events[drop..] always includes the snapshot marker itself
         // when drop > 0, so the rebuilt chain always has a tip —
         // the None arm (delete the whole ref) is defensive.
-        match parent { Some(tip) => git(repo, &["update-ref", &self.wal_ref(ws), &tip])?, None => git(repo, &["update-ref", "-d", &self.wal_ref(ws)])?, };
+        match parent {
+            Some(tip) => git(repo, &["update-ref", &self.wal_ref(ws), &tip])?,
+            None => git(repo, &["update-ref", "-d", &self.wal_ref(ws)])?,
+        };
         Ok(drop)
     }
 
     fn workspaces(&self, repo: &Path) -> io::Result<Vec<String>> {
         let out = git(
             repo,
-            &[
-                "for-each-ref",
-                "--format=%(refname)",
-                &self.ref_prefix,
-            ],
+            &["for-each-ref", "--format=%(refname)", &self.ref_prefix],
         )?;
         Ok(out
             .lines()

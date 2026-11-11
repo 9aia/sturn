@@ -24,7 +24,7 @@
 use clap::{Arg, ArgAction, Command};
 use pavo_protocol::wire::{QueryResult, Response};
 use serde_json::{json, Map, Value};
-use std::path::PathBuf;
+use std::path::Path;
 
 /// Unbounded surfaces — verbs that never return, so they can
 /// never be request/response ops.
@@ -177,7 +177,7 @@ fn values(v: &Value) -> Vec<String> {
 /// (`ws.new` → `ws new`). Declared params map by kind — positionals
 /// land last, in schema order.
 fn argv(
-    dir: &PathBuf,
+    dir: &Path,
     config: Option<&str>,
     name: &str,
     cmd: &Command,
@@ -280,6 +280,8 @@ pub fn run_verb(name: &str, params: &Map<String, Value>) -> Response {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)]
+    use std::path::PathBuf;
+
     use super::*;
     use serde_json::json;
 

@@ -364,10 +364,9 @@ fn config_defaults_fill_every_section() {
 #[test]
 fn op_serde_edges() {
     // Claim without ttl_secs → default_ttl().
-    let ev: Event = serde_json::from_str(
-        r#"{"ws":"w","actor":"a","ts":1,"op":{"op":"claim","glob":"x"}}"#,
-    )
-    .unwrap();
+    let ev: Event =
+        serde_json::from_str(r#"{"ws":"w","actor":"a","ts":1,"op":{"op":"claim","glob":"x"}}"#)
+            .unwrap();
     match ev.op {
         Op::Claim { ttl_secs, .. } => assert_eq!(ttl_secs, 3600),
         _ => panic!("expected claim"),
@@ -394,12 +393,19 @@ fn overlay_rename_resolution() {
         Event::new(
             "w",
             "a",
-            Op::Write { path: "x".into(), blob: "b1".into(), intent: None },
+            Op::Write {
+                path: "x".into(),
+                blob: "b1".into(),
+                intent: None,
+            },
         ),
         Event::new(
             "w",
             "a",
-            Op::Rename { from: "x".into(), to: "y".into() },
+            Op::Rename {
+                from: "x".into(),
+                to: "y".into(),
+            },
         ),
     ];
     let ov = sturn_core::overlay(&evs, |_| None);
@@ -409,7 +415,10 @@ fn overlay_rename_resolution() {
     let evs2 = vec![Event::new(
         "w",
         "a",
-        Op::Rename { from: "old".into(), to: "new".into() },
+        Op::Rename {
+            from: "old".into(),
+            to: "new".into(),
+        },
     )];
     let ov = sturn_core::overlay(&evs2, |p| (p == "old").then(|| "b9".to_string()));
     assert_eq!(ov.get("new"), Some(&Some("b9".to_string())));
@@ -417,7 +426,10 @@ fn overlay_rename_resolution() {
     let evs3 = vec![Event::new(
         "w",
         "a",
-        Op::Rename { from: "ghost".into(), to: "t".into() },
+        Op::Rename {
+            from: "ghost".into(),
+            to: "t".into(),
+        },
     )];
     let ov = sturn_core::overlay(&evs3, |_| None);
     assert_eq!(ov.get("t"), None);

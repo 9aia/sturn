@@ -4,7 +4,7 @@
 //! `run()` is the compat CLI's whole body; drivers (sturn bin,
 //! tamias-driver-sturn `run`) split it into [`parse`]/[`parse_from`]
 //! + [`dispatch`] — argv in, exit code out, ops callable as
-//! `dispatch(&cli)`.
+//!   `dispatch(&cli)`.
 //!
 //! sturn — evented coordination over the git object store.
 //!
@@ -26,7 +26,6 @@ use sturn_claim as claims;
 use sturn_config::ConfigSource;
 use sturn_core::{topic, Config, Event, Op, Verdict};
 use sturn_service::Service;
-use sturn_vcs::Vcs;
 use sturn_wal::Wal;
 use sturn_ws::Ws;
 
@@ -1074,7 +1073,7 @@ fn execute(cli: &Cli) -> Result<(), String> {
             Ok(())
         }
         Cmd::Push { remote } => {
-            if sturn_git::GitVcs.push(&repo, remote) {
+            if sturn_git::push(&repo, remote) {
                 println!("pushed heads + refs/sturn/* → {remote}");
                 Ok(())
             } else {
@@ -2042,9 +2041,8 @@ fn merge_snap(
     }
     // Base = current branch head, not any ws tip — merged ops apply
     // to where the branch is now.
-    let base = sturn_git::GitVcs
-        .resolve(repo, &format!("refs/heads/{branch}"))
-        .unwrap_or_else(|| "HEAD".into());
+    let base =
+        sturn_git::resolve(repo, &format!("refs/heads/{branch}")).unwrap_or_else(|| "HEAD".into());
     let merged = sturn_core::merge(&pending);
     for w in &merged.warnings {
         eprintln!("{w}");

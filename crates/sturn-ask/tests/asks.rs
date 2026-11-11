@@ -37,13 +37,7 @@ fn unknown_ask_is_none() {
     let events = vec![];
     assert_eq!(status(&events, 100, "nope"), None);
     // A non-ask event id is also not an ask.
-    let events = vec![ev(
-        "e1",
-        "w",
-        "a",
-        Op::Intent { text: "i".into() },
-        10,
-    )];
+    let events = vec![ev("e1", "w", "a", Op::Intent { text: "i".into() }, 10)];
     assert_eq!(status(&events, 100, "e1"), None);
 }
 
@@ -147,7 +141,15 @@ fn terminal_ops_for_unknown_asks_are_ignored() {
             },
             10,
         ),
-        ev("c1", "w", "x", Op::Cancel { ask: "ghost".into() }, 11),
+        ev(
+            "c1",
+            "w",
+            "x",
+            Op::Cancel {
+                ask: "ghost".into(),
+            },
+            11,
+        ),
     ];
     assert_eq!(status(&events, 20, "ghost"), None);
     assert!(open(&events, 20).is_empty());
@@ -200,10 +202,7 @@ fn open_lists_only_live_asks() {
         ),
         ev("c1", "w1", "x", Op::Cancel { ask: "a4".into() }, 21),
     ];
-    let ids: Vec<String> = open(&events, 30)
-        .iter()
-        .map(|o| o.id.clone())
-        .collect();
+    let ids: Vec<String> = open(&events, 30).iter().map(|o| o.id.clone()).collect();
     assert_eq!(ids, vec!["a1"]); // a2 answered, a3 expired, a4 cancelled
 }
 
@@ -248,10 +247,7 @@ fn all_reports_every_state_in_order() {
             20,
         ),
     ];
-    let states: Vec<Status> = all(&events, 30)
-        .into_iter()
-        .map(|(_, s)| s)
-        .collect();
+    let states: Vec<Status> = all(&events, 30).into_iter().map(|(_, s)| s).collect();
     assert_eq!(
         states,
         vec![
@@ -282,9 +278,6 @@ fn reask_same_log_order_stable() {
         ),
         ask("a2", "w2", 12, 100),
     ];
-    let ids: Vec<String> = open(&events, 20)
-        .iter()
-        .map(|o| o.id.clone())
-        .collect();
+    let ids: Vec<String> = open(&events, 20).iter().map(|o| o.id.clone()).collect();
     assert_eq!(ids, vec!["a1", "a2"]);
 }

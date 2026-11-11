@@ -63,7 +63,11 @@ fn sturn_fails(dir: &Path, args: &[&str]) -> String {
         .args(args)
         .output()
         .unwrap();
-    assert!(!o.status.success(), "sturn {} unexpectedly ok", args.join(" "));
+    assert!(
+        !o.status.success(),
+        "sturn {} unexpectedly ok",
+        args.join(" ")
+    );
     String::from_utf8_lossy(&o.stderr).trim().to_string()
 }
 
@@ -137,10 +141,7 @@ fn wal_roundtrip_and_replication() {
     // The WAL is plain git refs — a clone replays it verbatim.
     let clone = scratch("clone");
     git(&repo, &["clone", "-q", ".", clone.to_str().unwrap()]);
-    git(
-        &clone,
-        &["fetch", "origin", "refs/sturn/*:refs/sturn/*"],
-    );
+    git(&clone, &["fetch", "origin", "refs/sturn/*:refs/sturn/*"]);
     let log = sturn(&clone, &["log", "--ws", "agent-1"]);
     assert!(log.contains("\"write\"") && log.contains("b.txt"), "{log}");
     assert!(log.contains("\"snapshot\""), "{log}");
@@ -375,7 +376,10 @@ fn exec_runs_on_uncommitted_overlay() {
         &["write", "src/lib.rs", "--ws", "a"],
         b"pub fn ok() -> i32 { 2 }\n",
     );
-    sturn(&repo, &["exec", "--ws", "a", "--", "cargo", "check", "--offline"]);
+    sturn(
+        &repo,
+        &["exec", "--ws", "a", "--", "cargo", "check", "--offline"],
+    );
 }
 
 #[test]
@@ -383,7 +387,19 @@ fn leave_sweeps_claims_and_compact_shrinks_wal() {
     let repo = scratch("sweep");
     git(&repo, &["init", "-q", "-b", "main"]);
     ident(&repo);
-    git(&repo, &["-c","user.email=t@t","-c","user.name=t","commit","-qm","init","--allow-empty"]);
+    git(
+        &repo,
+        &[
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-qm",
+            "init",
+            "--allow-empty",
+        ],
+    );
     sturn(&repo, &["init"]);
     sturn(&repo, &["ws", "new", "a"]);
     sturn(&repo, &["join", "a"]);
@@ -411,7 +427,19 @@ fn review_gate_blocks_unreviewed_ops() {
     let repo = scratch("gate");
     git(&repo, &["init", "-q", "-b", "main"]);
     ident(&repo);
-    git(&repo, &["-c","user.email=t@t","-c","user.name=t","commit","-qm","init","--allow-empty"]);
+    git(
+        &repo,
+        &[
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-qm",
+            "init",
+            "--allow-empty",
+        ],
+    );
     sturn(&repo, &["init"]);
     // gate on
     std::fs::write(
@@ -447,7 +475,19 @@ fn merge_snap_folds_two_workspaces() {
     let repo = scratch("merge");
     git(&repo, &["init", "-q", "-b", "main"]);
     ident(&repo);
-    git(&repo, &["-c","user.email=t@t","-c","user.name=t","commit","-qm","init","--allow-empty"]);
+    git(
+        &repo,
+        &[
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-qm",
+            "init",
+            "--allow-empty",
+        ],
+    );
     sturn(&repo, &["init"]);
     sturn(&repo, &["ws", "new", "a"]);
     sturn(&repo, &["ws", "new", "b"]);
@@ -497,7 +537,10 @@ fn merge_snap_surfaces_semantic_conflicts() {
     let o = sturn_full(&repo, &["snap", "a", "b", "-m", "merged"], &[], &[]);
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
     let err = String::from_utf8_lossy(&o.stderr);
-    assert!(err.contains("conflict: delete f.txt (ws b) vs rename f.txt → g.txt (ws a)"), "{err}");
+    assert!(
+        err.contains("conflict: delete f.txt (ws b) vs rename f.txt → g.txt (ws a)"),
+        "{err}"
+    );
     // Conservative fold: the renamed file survives.
     assert_eq!(git(&repo, &["show", "HEAD:g.txt"]), "orig");
 }
@@ -527,7 +570,12 @@ fn git_in(dir: &Path, args: &[&str], input: &[u8]) -> String {
 
 /// Spawn sturn with extra env vars; HOME is redirected to a scratch
 /// dir so no real user config/env leaks in.
-fn sturn_full(dir: &Path, args: &[&str], envs: &[(&str, &str)], stdin: &[u8]) -> std::process::Output {
+fn sturn_full(
+    dir: &Path,
+    args: &[&str],
+    envs: &[(&str, &str)],
+    stdin: &[u8],
+) -> std::process::Output {
     let home = std::env::temp_dir().join(format!("sturn-home-{}", std::process::id()));
     std::fs::create_dir_all(&home).unwrap();
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_sturn"));
@@ -587,7 +635,13 @@ fn bare_repo(name: &str) -> PathBuf {
     git(
         &d,
         &[
-            "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init",
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-qm",
+            "init",
             "--allow-empty",
         ],
     );
@@ -637,7 +691,10 @@ fn config_driven_and_env_fallbacks() {
         b"x\n",
     );
     // WAL ref landed under the custom prefix, actor from config.
-    let refs = git(&repo, &["for-each-ref", "--format=%(refname)", "refs/custom"]);
+    let refs = git(
+        &repo,
+        &["for-each-ref", "--format=%(refname)", "refs/custom"],
+    );
     assert!(refs.contains("refs/custom/wal/a"), "{refs}");
     let log = sturn_ok(&repo, &["--config", cfgarg, "log"], &[]);
     assert!(log.contains("cfg-actor"));
@@ -654,7 +711,10 @@ fn config_driven_and_env_fallbacks() {
     let o = Command::new(env!("CARGO_BIN_EXE_sturn"))
         .current_dir(&bare)
         .args(["join", "a"])
-        .env("HOME", std::env::temp_dir().join(format!("sturn-home-{}", std::process::id())))
+        .env(
+            "HOME",
+            std::env::temp_dir().join(format!("sturn-home-{}", std::process::id())),
+        )
         .env_remove("STURN_ACTOR")
         .env_remove("USER")
         .output()
@@ -672,14 +732,23 @@ fn write_rename_delete_release_intent_ops() {
     let out = sturn_ok(
         &repo,
         &[
-            "write", "p.txt", "--ws", "a", "--file",
-            f.to_str().unwrap(), "--intent", "because",
+            "write",
+            "p.txt",
+            "--ws",
+            "a",
+            "--file",
+            f.to_str().unwrap(),
+            "--intent",
+            "because",
         ],
         &[],
     );
     assert!(out.contains("write p.txt"), "{out}");
     // Missing file → error.
-    let err = sturn_err(&repo, &["write", "p.txt", "--ws", "a", "--file", "/nope/nope"]);
+    let err = sturn_err(
+        &repo,
+        &["write", "p.txt", "--ws", "a", "--file", "/nope/nope"],
+    );
     assert!(!err.is_empty());
     sturn_ok(&repo, &["rename", "p.txt", "q.txt", "--ws", "a"], &[]);
     sturn_ok(&repo, &["delete", "q.txt", "--ws", "a"], &[]);
@@ -687,7 +756,14 @@ fn write_rename_delete_release_intent_ops() {
     sturn_ok(&repo, &["claim", "*.txt", "--ws", "a", "--ttl", "60"], &[]);
     sturn_ok(&repo, &["release", "*.txt", "--ws", "a"], &[]);
     let log = sturn_ok(&repo, &["log", "--ws", "a"], &[]);
-    for needle in ["\"write\"", "\"rename\"", "\"delete\"", "\"intent\"", "\"claim\"", "\"release\""] {
+    for needle in [
+        "\"write\"",
+        "\"rename\"",
+        "\"delete\"",
+        "\"intent\"",
+        "\"claim\"",
+        "\"release\"",
+    ] {
         assert!(log.contains(needle), "{needle} missing from {log}");
     }
     assert!(log.contains("because"));
@@ -707,7 +783,10 @@ fn claim_conflict_force_and_claims_listing() {
     // Same-ws overlap is fine — no conflict.
     sturn_ok(&repo, &["claim", "src/y.rs", "--ws", "a"], &[]);
     let claims = sturn_ok(&repo, &["claims"], &[]);
-    assert!(claims.contains("src/**") && claims.contains("src/x.rs"), "{claims}");
+    assert!(
+        claims.contains("src/**") && claims.contains("src/x.rs"),
+        "{claims}"
+    );
     // Expired-ttl claim doesn't list.
     sturn_ok(&repo, &["claim", "gone/**", "--ws", "a", "--ttl", "0"], &[]);
     assert!(!sturn_ok(&repo, &["claims"], &[]).contains("gone/**"));
@@ -740,7 +819,10 @@ fn typed_uri_claims_and_check() {
     let err = sturn_err(&repo, &["check", "src/x.rs"]);
     assert!(err.contains("conflicting"), "{err}");
     let claims = sturn_ok(&repo, &["claims"], &[]);
-    assert!(claims.contains("net:13000") && claims.contains("fs:src/**"), "{claims}");
+    assert!(
+        claims.contains("net:13000") && claims.contains("fs:src/**"),
+        "{claims}"
+    );
 
     // Release accepts the same URI form.
     sturn_ok(&repo, &["release", "net:13000", "--ws", "a"], &[]);
@@ -762,10 +844,17 @@ fn claim_fence_and_check_staleness() {
     assert!(out.contains("no conflicts"), "{out}");
 
     // A force-claim usurps — the epoch rises and `claims` shows it.
-    let out = sturn_ok(&repo, &["claim", "dev:display0", "--ws", "b", "--force"], &[]);
+    let out = sturn_ok(
+        &repo,
+        &["claim", "dev:display0", "--ws", "b", "--force"],
+        &[],
+    );
     assert!(out.contains("fence 2"), "{out}");
     let claims = sturn_ok(&repo, &["claims"], &[]);
-    assert!(claims.contains("fence 1") && claims.contains("fence 2"), "{claims}");
+    assert!(
+        claims.contains("fence 1") && claims.contains("fence 2"),
+        "{claims}"
+    );
 
     // The stale holder's probe sees the usurper — and exits 1.
     let err = sturn_err(&repo, &["check", "dev:display0", "--fence", "1"]);
@@ -809,7 +898,10 @@ fn check_watch_streams_conflict_changes() {
     let first = rx
         .recv_timeout(std::time::Duration::from_secs(30))
         .expect("check --watch emitted no initial state");
-    assert!(first.starts_with("+ ") && first.contains("net:13000"), "{first}");
+    assert!(
+        first.starts_with("+ ") && first.contains("net:13000"),
+        "{first}"
+    );
 
     // Under coverage the infinite driver is stubbed — the child
     // prints the initial state then exits. Streaming asserts only
@@ -882,16 +974,28 @@ fn snap_branch_flag_and_merge_fallback() {
     sturn_ok(&repo, &["ws", "new", "b"], &[]);
     sturn_ok_in(&repo, &["write", "x", "--ws", "a"], b"1\n");
     // Explicit --branch creates+updates that branch.
-    sturn_ok(&repo, &["snap", "a", "-m", "to-dev", "--branch", "dev"], &[]);
+    sturn_ok(
+        &repo,
+        &["snap", "a", "-m", "to-dev", "--branch", "dev"],
+        &[],
+    );
     assert_eq!(git(&repo, &["rev-parse", "refs/heads/dev"]).len(), 40);
     sturn_ok_in(&repo, &["write", "y", "--ws", "b"], b"2\n");
     // Merge on an existing branch resolves its head as base.
-    sturn_ok(&repo, &["snap", "a", "b", "-m", "merge", "--branch", "dev"], &[]);
+    sturn_ok(
+        &repo,
+        &["snap", "a", "b", "-m", "merge", "--branch", "dev"],
+        &[],
+    );
     assert_eq!(git(&repo, &["show", "dev:y"]), "2");
     // Merge onto a branch that doesn't exist → base falls back to HEAD.
     sturn_ok_in(&repo, &["write", "z", "--ws", "a"], b"3\n");
     sturn_ok_in(&repo, &["write", "w", "--ws", "b"], b"4\n");
-    sturn_ok(&repo, &["snap", "a", "b", "-m", "m2", "--branch", "fresh"], &[]);
+    sturn_ok(
+        &repo,
+        &["snap", "a", "b", "-m", "m2", "--branch", "fresh"],
+        &[],
+    );
     assert_eq!(git(&repo, &["show", "fresh:z"]), "3");
     // Missing ws → snap errors.
     sturn_err(&repo, &["snap", "ghost", "-m", "x"]);
@@ -970,7 +1074,11 @@ fn verify_signed_unsigned_and_bad() {
         .arg(&key)
         .output()
         .unwrap();
-    assert!(o.status.success(), "ssh-keygen: {}", String::from_utf8_lossy(&o.stderr));
+    assert!(
+        o.status.success(),
+        "ssh-keygen: {}",
+        String::from_utf8_lossy(&o.stderr)
+    );
     let pubkey = std::fs::read_to_string(key.with_extension("pub")).unwrap();
     std::fs::write(repo.join("signers"), format!("t {pubkey}")).unwrap();
     std::fs::write(
@@ -1015,7 +1123,10 @@ fn push_success_and_failure() {
     let repo = bare_repo("push-src");
     let remote = scratch("push-remote");
     git(&repo, &["init", "-q", "--bare", remote.to_str().unwrap()]);
-    git(&repo, &["remote", "add", "origin", remote.to_str().unwrap()]);
+    git(
+        &repo,
+        &["remote", "add", "origin", remote.to_str().unwrap()],
+    );
     sturn_ok(&repo, &["ws", "new", "a"], &[]);
     let out = sturn_ok(&repo, &["push"], &[]);
     assert!(out.contains("pushed"), "{out}");
@@ -1033,7 +1144,12 @@ fn exec_keep_writeback_and_failures() {
     sturn_ok(&repo, &["ws", "new", "a"], &[]);
 
     // Failing command → sturn exits with the command's code.
-    let o = sturn_full(&repo, &["exec", "--ws", "a", "--", "sh", "-c", "exit 7"], &[], &[]);
+    let o = sturn_full(
+        &repo,
+        &["exec", "--ws", "a", "--", "sh", "-c", "exit 7"],
+        &[],
+        &[],
+    );
     assert_eq!(o.status.code(), Some(7));
     // Missing command → spawn error.
     let err = sturn_err(&repo, &["exec", "--ws", "a", "--", "no-such-cmd-xyz"]);
@@ -1046,7 +1162,14 @@ fn exec_keep_writeback_and_failures() {
     sturn_ok(
         &repo,
         &[
-            "exec", "--ws", "a", "--writeback", "--keep", "--", "sh", "-c",
+            "exec",
+            "--ws",
+            "a",
+            "--writeback",
+            "--keep",
+            "--",
+            "sh",
+            "-c",
             "rm a.txt; echo n > n.txt; mkdir -p deep; echo d > deep/f.txt; ln -s n.txt link",
         ],
         &[],
@@ -1079,7 +1202,11 @@ fn ws_ls_read_hydrate_paths() {
     // a committed one, rename another (tip lookup resolves the source).
     sturn_ok_in(&repo, &["write", "pending.txt", "--ws", "a"], b"p\n");
     sturn_ok_in(&repo, &["write", "deep/new.txt", "--ws", "a"], b"n\n");
-    sturn_ok(&repo, &["rename", "sub/b.txt", "sub/c.txt", "--ws", "a"], &[]);
+    sturn_ok(
+        &repo,
+        &["rename", "sub/b.txt", "sub/c.txt", "--ws", "a"],
+        &[],
+    );
     sturn_ok(&repo, &["delete", "a.txt", "--ws", "a"], &[]);
     let d1 = scratch("hydra1");
     sturn_ok(&repo, &["ws", "hydrate", "a", d1.to_str().unwrap()], &[]);
@@ -1121,7 +1248,13 @@ fn bridge_requires_secret_env() {
     let repo = bare_repo("bridge");
     let o = sturn_full(
         &repo,
-        &["bridge", "--to", "http://127.0.0.1:1/", "--secret-env", "NO_SUCH_SECRET"],
+        &[
+            "bridge",
+            "--to",
+            "http://127.0.0.1:1/",
+            "--secret-env",
+            "NO_SUCH_SECRET",
+        ],
         &[],
         &[],
     );
@@ -1154,7 +1287,9 @@ fn service_deploy_destroy_with_stubbed_systemctl() {
     let envs: Vec<(&str, &str)> = vec![("PATH", &path), ("HOME", home.to_str().unwrap())];
 
     sturn_ok(&repo, &["deploy", "service"], &envs);
-    assert!(home.join(".config/systemd/user/sturn-daemon.service").exists());
+    assert!(home
+        .join(".config/systemd/user/sturn-daemon.service")
+        .exists());
     sturn_ok(&repo, &["deploy", "env"], &envs);
     assert!(home.join(".config/sturn/env").exists());
     sturn_ok(&repo, &["service", "enable"], &envs);
@@ -1169,7 +1304,9 @@ fn service_deploy_destroy_with_stubbed_systemctl() {
     assert_eq!(o.status.code(), Some(3));
     // destroy removes the unit file.
     sturn_ok(&repo, &["destroy", "service"], &envs);
-    assert!(!home.join(".config/systemd/user/sturn-daemon.service").exists());
+    assert!(!home
+        .join(".config/systemd/user/sturn-daemon.service")
+        .exists());
     // destroy again — no unit file, still succeeds.
     sturn_ok(&repo, &["destroy", "service"], &envs);
 }
@@ -1194,11 +1331,19 @@ fn mcp_protocol_edges() {
     use std::io::BufRead;
     // Notification (no id) → no response; empty line; garbage —
     // all skipped, server stays alive.
-    writeln!(stdin, r#"{{"jsonrpc":"2.0","method":"notifications/initialized"}}"#).unwrap();
+    writeln!(
+        stdin,
+        r#"{{"jsonrpc":"2.0","method":"notifications/initialized"}}"#
+    )
+    .unwrap();
     writeln!(stdin).unwrap();
     writeln!(stdin, "not json").unwrap();
     // Unknown method → JSON-RPC error.
-    writeln!(stdin, r#"{{"jsonrpc":"2.0","id":1,"method":"bogus/method"}}"#).unwrap();
+    writeln!(
+        stdin,
+        r#"{{"jsonrpc":"2.0","id":1,"method":"bogus/method"}}"#
+    )
+    .unwrap();
     stdin.flush().unwrap();
     let mut line = String::new();
     stdout.read_line(&mut line).unwrap();
@@ -1241,7 +1386,10 @@ fn mcp_broken_pipe_and_bad_utf8() {
     let mut child = Command::new(env!("CARGO_BIN_EXE_sturn"))
         .current_dir(&repo)
         .arg("mcp")
-        .env("HOME", std::env::temp_dir().join(format!("sturn-home-{}", std::process::id())))
+        .env(
+            "HOME",
+            std::env::temp_dir().join(format!("sturn-home-{}", std::process::id())),
+        )
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -1258,7 +1406,10 @@ fn mcp_broken_pipe_and_bad_utf8() {
     let mut child = Command::new(env!("CARGO_BIN_EXE_sturn"))
         .current_dir(&repo)
         .arg("mcp")
-        .env("HOME", std::env::temp_dir().join(format!("sturn-home-{}", std::process::id())))
+        .env(
+            "HOME",
+            std::env::temp_dir().join(format!("sturn-home-{}", std::process::id())),
+        )
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -1299,7 +1450,10 @@ fn mount_real_and_missing_ws() {
         .unwrap();
     let mut ok = false;
     for _ in 0..200 {
-        if std::fs::read_to_string(mp.join("a.txt")).map(|s| s == "one\n").unwrap_or(false) {
+        if std::fs::read_to_string(mp.join("a.txt"))
+            .map(|s| s == "one\n")
+            .unwrap_or(false)
+        {
             ok = true;
             break;
         }
@@ -1326,7 +1480,10 @@ fn mount_real_and_missing_ws() {
         .spawn()
         .unwrap();
     for _ in 0..200 {
-        if std::fs::read_dir(&mp2).map(|mut d| d.next().is_some()).unwrap_or(false) {
+        if std::fs::read_dir(&mp2)
+            .map(|mut d| d.next().is_some())
+            .unwrap_or(false)
+        {
             break;
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
@@ -1412,7 +1569,15 @@ fn mount_real_and_missing_ws() {
     let _ = Command::new("fusermount3").arg("-u").arg(&mp2).output();
     assert!(child.wait().unwrap().success());
     let log = sturn_ok(&repo, &["log", "--ws", "a"], &[]);
-    for needle in ["new.txt", "renamed.txt", "moved.txt", "a.txt", "\"delete\"", "\"rename\"", "\"write\""] {
+    for needle in [
+        "new.txt",
+        "renamed.txt",
+        "moved.txt",
+        "a.txt",
+        "\"delete\"",
+        "\"rename\"",
+        "\"write\"",
+    ] {
         assert!(log.contains(needle), "{needle} missing from {log}");
     }
 }
@@ -1427,8 +1592,16 @@ fn asks_lifecycle_and_wait_codes() {
     let out = sturn_ok(
         &repo,
         &[
-            "ask", "yield src/**?", "--ws", "a", "--target", "human:t",
-            "--option", "release", "--option", "deny",
+            "ask",
+            "yield src/**?",
+            "--ws",
+            "a",
+            "--target",
+            "human:t",
+            "--option",
+            "release",
+            "--option",
+            "deny",
         ],
         &[],
     );
@@ -1438,7 +1611,10 @@ fn asks_lifecycle_and_wait_codes() {
 
     // asks lists it; --json carries the full record.
     let open = sturn_ok(&repo, &["asks"], &[]);
-    assert!(open.contains(&ask_id) && open.contains("yield src/**?"), "{open}");
+    assert!(
+        open.contains(&ask_id) && open.contains("yield src/**?"),
+        "{open}"
+    );
     let j = sturn_ok(&repo, &["asks", "--json"], &[]);
     let arr: serde_json::Value = serde_json::from_str(&j).unwrap();
     let e = &arr.as_array().unwrap()[0];
@@ -1709,7 +1885,8 @@ fn diff_live_streams_new_ops() {
         sturn_ok_in(&repo, &["write", "b.txt", "--ws", "b"], b"b\n");
         let got = until("b.txt");
         assert!(
-            got.lines().any(|l| l.starts_with("b ") && l.contains("write b.txt")),
+            got.lines()
+                .any(|l| l.starts_with("b ") && l.contains("write b.txt")),
             "{got}"
         );
         let _ = child.kill();

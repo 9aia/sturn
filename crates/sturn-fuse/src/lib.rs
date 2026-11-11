@@ -4,8 +4,8 @@
 //! The mounted view is the ws tip at mount time.
 
 use fuser::{
-    FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyCreate, ReplyData,
-    ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyOpen, ReplyWrite, Request,
+    FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyCreate, ReplyData, ReplyDirectory,
+    ReplyEmpty, ReplyEntry, ReplyOpen, ReplyWrite, Request,
 };
 use std::collections::HashMap;
 use std::ffi::OsStr;
@@ -136,10 +136,17 @@ impl<'a> SturnFs<'a> {
                     next += 1;
                     e
                 });
-                fs.entries.entry(ino).or_insert_with(|| Entry { ino, dir: !last, path: cur.clone(), size: 0 });
+                fs.entries.entry(ino).or_insert_with(|| Entry {
+                    ino,
+                    dir: !last,
+                    path: cur.clone(),
+                    size: 0,
+                });
                 let parent_ino = fs.by_path[&parent];
                 let kids = fs.kids.entry(parent_ino).or_default();
-                if !kids.iter().any(|(_, k)| *k == ino) { kids.push((part.to_string(), ino)); }
+                if !kids.iter().any(|(_, k)| *k == ino) {
+                    kids.push((part.to_string(), ino));
+                }
             }
         }
         fs.next_ino = next;
@@ -157,7 +164,9 @@ impl<'a> SturnFs<'a> {
     }
 
     fn append(&self, op: Op) {
-        if let Some(wal) = self.wal { let _ = wal.append(self.repo, self.ws, &Event::new(self.ws, self.actor, op)); }
+        if let Some(wal) = self.wal {
+            let _ = wal.append(self.repo, self.ws, &Event::new(self.ws, self.actor, op));
+        }
     }
 
     fn add_entry(&mut self, path: &str, dir: bool) -> u64 {
@@ -175,15 +184,9 @@ impl<'a> SturnFs<'a> {
         self.by_path.insert(path.into(), ino);
         if let Some((parent, name)) = path.rsplit_once('/') {
             let pin = self.by_path[parent];
-            self.kids
-                .entry(pin)
-                .or_default()
-                .push((name.into(), ino));
+            self.kids.entry(pin).or_default().push((name.into(), ino));
         } else {
-            self.kids
-                .entry(ROOT)
-                .or_default()
-                .push((path.into(), ino));
+            self.kids.entry(ROOT).or_default().push((path.into(), ino));
         }
         ino
     }
@@ -193,14 +196,28 @@ impl<'a> SturnFs<'a> {
     /// the kernel clamps reads to i_size, so reporting 0 would serve
     /// an instant EOF for every read.
     fn file_size(&mut self, ino: u64) -> u64 {
-        if let Some(b) = self.rdbuf.get(&ino) { return b.len() as u64; }
-        if let Some((_, b)) = self.open.get(&ino) { return b.len() as u64; }
+        if let Some(b) = self.rdbuf.get(&ino) {
+            return b.len() as u64;
+        }
+        if let Some((_, b)) = self.open.get(&ino) {
+            return b.len() as u64;
+        }
         // Sizes are queried only for issued inos — the miss is defensive.
-        let Some((path, size, dir)) = self.entries.get(&ino).map(|e| (e.path.clone(), e.size, e.dir)) else { return 0; };
-        if dir || size != 0 { return size; }
+        let Some((path, size, dir)) = self
+            .entries
+            .get(&ino)
+            .map(|e| (e.path.clone(), e.size, e.dir))
+        else {
+            return 0;
+        };
+        if dir || size != 0 {
+            return size;
+        }
         if let Ok(b) = self.wsi.read(self.repo, &self.rev, &path) {
             let n = b.len() as u64;
-            if let Some(e) = self.entries.get_mut(&ino) { e.size = n; }
+            if let Some(e) = self.entries.get_mut(&ino) {
+                e.size = n;
+            }
             return n;
         }
         // Unreadable blob: report a byte so the kernel issues read()
@@ -214,7 +231,10 @@ impl Filesystem for SturnFs<'_> {
         let found = self
             .kids
             .get(&parent)
-            .and_then(|ks| ks.iter().find(|(n, _)| n.as_str() == name.to_string_lossy()))
+            .and_then(|ks| {
+                ks.iter()
+                    .find(|(n, _)| n.as_str() == name.to_string_lossy())
+            })
             .map(|(_, ino)| *ino);
         match found.and_then(|i| self.entries.get(&i).map(|e| (e.ino, e.dir))) {
             Some((i, dir)) => reply.entry(&TTL, &attr(i, self.file_size(i), dir), 0),
@@ -224,7 +244,10 @@ impl Filesystem for SturnFs<'_> {
 
     fn getattr(&mut self, _req: &Request, ino: u64, _fh: Option<u64>, reply: ReplyAttr) {
         // The kernel only asks about inos we issued — None is defensive.
-        let Some(dir) = self.entries.get(&ino).map(|e| e.dir) else { reply.error(libc::ENOENT); return; };
+        let Some(dir) = self.entries.get(&ino).map(|e| e.dir) else {
+            reply.error(libc::ENOENT);
+            return;
+        };
         reply.attr(&TTL, &attr(ino, self.file_size(ino), dir));
     }
 
@@ -237,8 +260,14 @@ impl Filesystem for SturnFs<'_> {
         mut reply: ReplyDirectory,
     ) {
         // Kernel sends readdir only for issued dir inos — defensive.
-        let Some(e) = self.entries.get(&ino) else { reply.error(libc::ENOENT); return; };
-        if !e.dir { reply.error(libc::ENOTDIR); return; }
+        let Some(e) = self.entries.get(&ino) else {
+            reply.error(libc::ENOENT);
+            return;
+        };
+        if !e.dir {
+            reply.error(libc::ENOTDIR);
+            return;
+        }
         let mut items: Vec<(u64, FileType, String)> = vec![
             (ino, FileType::Directory, ".".into()),
             (ino, FileType::Directory, "..".into()),
@@ -263,8 +292,14 @@ impl Filesystem for SturnFs<'_> {
 
     fn open(&mut self, _req: &Request, ino: u64, _flags: i32, reply: ReplyOpen) {
         // Kernel opens only issued file inos (dirs go through opendir).
-        let Some(e) = self.entries.get(&ino) else { reply.error(libc::ENOENT); return; };
-        if e.dir { reply.error(libc::EISDIR); return; }
+        let Some(e) = self.entries.get(&ino) else {
+            reply.error(libc::ENOENT);
+            return;
+        };
+        if e.dir {
+            reply.error(libc::EISDIR);
+            return;
+        }
         if self.wal.is_some() {
             // hydrate lazily — read current content into the write buf
             let bytes = self
@@ -294,7 +329,10 @@ impl Filesystem for SturnFs<'_> {
             return;
         }
         // Kernel reads only issued inos — defensive.
-        let Some(e) = self.entries.get(&ino) else { reply.error(libc::ENOENT); return; };
+        let Some(e) = self.entries.get(&ino) else {
+            reply.error(libc::ENOENT);
+            return;
+        };
         match self.wsi.read(self.repo, &self.rev, &e.path) {
             Ok(bytes) => {
                 let start = (offset as usize).min(bytes.len());
@@ -318,16 +356,27 @@ impl Filesystem for SturnFs<'_> {
         reply: ReplyWrite,
     ) {
         // RO mounts are enforced by the VFS (MS_RDONLY) — defensive.
-        if self.wal.is_none() { reply.error(libc::EROFS); return; }
+        if self.wal.is_none() {
+            reply.error(libc::EROFS);
+            return;
+        }
         if !self.open.contains_key(&ino) {
             // first write on this handle: seed buffer from rdbuf
-            let Some(path) = self.entries.get(&ino).map(|e| e.path.clone()) else { reply.error(libc::ENOENT); return; };
+            let Some(path) = self.entries.get(&ino).map(|e| e.path.clone()) else {
+                reply.error(libc::ENOENT);
+                return;
+            };
             let buf = self.rdbuf.remove(&ino).unwrap_or_default();
             self.open.insert(ino, (path, buf));
         }
-        let Some((_, buf)) = self.open.get_mut(&ino) else { reply.error(libc::ENOENT); return; };
+        let Some((_, buf)) = self.open.get_mut(&ino) else {
+            reply.error(libc::ENOENT);
+            return;
+        };
         let off = offset as usize;
-        if buf.len() < off + data.len() { buf.resize(off + data.len(), 0); }
+        if buf.len() < off + data.len() {
+            buf.resize(off + data.len(), 0);
+        }
         buf[off..off + data.len()].copy_from_slice(data);
         reply.written(data.len() as u32);
     }
@@ -343,7 +392,10 @@ impl Filesystem for SturnFs<'_> {
         reply: ReplyCreate,
     ) {
         // VFS refuses create on MS_RDONLY mounts — defensive.
-        if self.wal.is_none() { reply.error(libc::EROFS); return; }
+        if self.wal.is_none() {
+            reply.error(libc::EROFS);
+            return;
+        }
         let pname = name.to_string_lossy().into_owned();
         let path = {
             let pe = &self.entries[&parent];
@@ -377,7 +429,10 @@ impl Filesystem for SturnFs<'_> {
         reply: ReplyAttr,
     ) {
         // Kernel sets attrs only on issued inos — defensive.
-        let Some(e) = self.entries.get_mut(&ino) else { reply.error(libc::ENOENT); return; };
+        let Some(e) = self.entries.get_mut(&ino) else {
+            reply.error(libc::ENOENT);
+            return;
+        };
         if let Some(sz) = size {
             // truncate — O_TRUNC on open lands here before write()
             if let Some((_, buf)) = self.open.get_mut(&ino) {
@@ -408,23 +463,30 @@ impl Filesystem for SturnFs<'_> {
     ) {
         // The write-back: buffered content becomes a Write op.
         if let Some((path, buf)) = self.open.remove(&ino) {
-            if let Ok(blob) = self.wsi.store(self.repo, &buf) { self.append(Op::Write { path, blob, intent: Some("fuse".into()) }); }
+            if let Ok(blob) = self.wsi.store(self.repo, &buf) {
+                self.append(Op::Write {
+                    path,
+                    blob,
+                    intent: Some("fuse".into()),
+                });
+            }
         }
         self.rdbuf.remove(&ino);
         reply.ok();
     }
 
-    fn fsync(
-        &mut self,
-        _req: &Request,
-        ino: u64,
-        _fh: u64,
-        _datasync: bool,
-        reply: ReplyEmpty,
-    ) {
+    fn fsync(&mut self, _req: &Request, ino: u64, _fh: u64, _datasync: bool, reply: ReplyEmpty) {
         // durability point — emit the op NOW, not on release.
         // editors that fsync-per-save get their op immediately.
-        if let Some((path, buf)) = self.open.get(&ino) { if let Ok(blob) = self.wsi.store(self.repo, buf) { self.append(Op::Write { path: path.clone(), blob, intent: Some("fuse fsync".into()) }); } }
+        if let Some((path, buf)) = self.open.get(&ino) {
+            if let Ok(blob) = self.wsi.store(self.repo, buf) {
+                self.append(Op::Write {
+                    path: path.clone(),
+                    blob,
+                    intent: Some("fuse fsync".into()),
+                });
+            }
+        }
         reply.ok();
     }
 
@@ -443,7 +505,10 @@ impl Filesystem for SturnFs<'_> {
         reply: ReplyEntry,
     ) {
         // VFS refuses mkdir on MS_RDONLY mounts — defensive.
-        if self.wal.is_none() { reply.error(libc::EROFS); return; }
+        if self.wal.is_none() {
+            reply.error(libc::EROFS);
+            return;
+        }
         // dirs are implicit in git trees — local entry only,
         // no op until a file lands inside.
         let pname = name.to_string_lossy().into_owned();
@@ -459,7 +524,10 @@ impl Filesystem for SturnFs<'_> {
 
     fn rmdir(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEmpty) {
         // VFS refuses rmdir on MS_RDONLY mounts — defensive.
-        if self.wal.is_none() { reply.error(libc::EROFS); return; }
+        if self.wal.is_none() {
+            reply.error(libc::EROFS);
+            return;
+        }
         let pname = name.to_string_lossy().into_owned();
         let pe = &self.entries[&parent];
         let path = if pe.path.is_empty() {
@@ -477,13 +545,21 @@ impl Filesystem for SturnFs<'_> {
             reply.error(libc::ENOTEMPTY);
             return;
         }
-        if let Some(ino) = self.by_path.remove(&path) { self.entries.remove(&ino); if let Some(k) = self.kids.get_mut(&parent) { k.retain(|(_, i)| *i != ino); } }
+        if let Some(ino) = self.by_path.remove(&path) {
+            self.entries.remove(&ino);
+            if let Some(k) = self.kids.get_mut(&parent) {
+                k.retain(|(_, i)| *i != ino);
+            }
+        }
         reply.ok();
     }
 
     fn unlink(&mut self, _req: &Request, _parent: u64, name: &OsStr, reply: ReplyEmpty) {
         // VFS refuses unlink on MS_RDONLY mounts — defensive.
-        if self.wal.is_none() { reply.error(libc::EROFS); return; }
+        if self.wal.is_none() {
+            reply.error(libc::EROFS);
+            return;
+        }
         // resolve via children of parent
         let pname = name.to_string_lossy().into_owned();
         let path = {
@@ -495,10 +571,18 @@ impl Filesystem for SturnFs<'_> {
                 .map(|e| e.path.clone())
         };
         // The kernel resolves the name before unlink — else is defensive.
-        let Some(p) = path else { reply.error(libc::ENOENT); return; };
+        let Some(p) = path else {
+            reply.error(libc::ENOENT);
+            return;
+        };
         self.append(Op::Delete { path: p.clone() });
         // Drop the entry so later lookups/readdir agree.
-        if let Some(ino) = self.by_path.remove(&p) { self.entries.remove(&ino); if let Some(ks) = self.kids.get_mut(&_parent) { ks.retain(|(_, i)| *i != ino); } }
+        if let Some(ino) = self.by_path.remove(&p) {
+            self.entries.remove(&ino);
+            if let Some(ks) = self.kids.get_mut(&_parent) {
+                ks.retain(|(_, i)| *i != ino);
+            }
+        }
         reply.ok();
     }
 
@@ -513,14 +597,14 @@ impl Filesystem for SturnFs<'_> {
         reply: ReplyEmpty,
     ) {
         // VFS refuses rename on MS_RDONLY mounts — defensive.
-        if self.wal.is_none() { reply.error(libc::EROFS); return; }
+        if self.wal.is_none() {
+            reply.error(libc::EROFS);
+            return;
+        }
         let resolve = |parent: u64, n: &OsStr| -> Option<String> {
             self.kids
                 .get(&parent)
-                .and_then(|ks| {
-                    ks.iter()
-                        .find(|(k, _)| k.as_str() == n.to_string_lossy())
-                })
+                .and_then(|ks| ks.iter().find(|(k, _)| k.as_str() == n.to_string_lossy()))
                 .and_then(|(_, i)| self.entries.get(i))
                 .map(|e| e.path.clone())
         };
@@ -528,11 +612,18 @@ impl Filesystem for SturnFs<'_> {
             resolve(_parent, name),
             resolve(_newparent, newname).or_else(|| {
                 let np = &self.entries.get(&_newparent)?.path;
-                Some(if np.is_empty() { newname.to_string_lossy().into_owned() } else { format!("{np}/{}", newname.to_string_lossy()) })
+                Some(if np.is_empty() {
+                    newname.to_string_lossy().into_owned()
+                } else {
+                    format!("{np}/{}", newname.to_string_lossy())
+                })
             }),
         );
         // The kernel resolves the source before rename — else is defensive.
-        let (Some(from), Some(to)) = found else { reply.error(libc::ENOENT); return; };
+        let (Some(from), Some(to)) = found else {
+            reply.error(libc::ENOENT);
+            return;
+        };
         self.append(Op::Rename {
             from: from.clone(),
             to: to.clone(),
@@ -540,14 +631,23 @@ impl Filesystem for SturnFs<'_> {
         // Keep the tree view in sync — later ops resolve by
         // path, and a stale map returns ENOENT for the moved name.
         // A stale source mapping is defensive in the same way.
-        let Some(ino) = self.by_path.remove(&from) else { reply.ok(); return; };
-        if let Some(ks) = self.kids.get_mut(&_parent) { ks.retain(|(_, i)| *i != ino); }
+        let Some(ino) = self.by_path.remove(&from) else {
+            reply.ok();
+            return;
+        };
+        if let Some(ks) = self.kids.get_mut(&_parent) {
+            ks.retain(|(_, i)| *i != ino);
+        }
         self.kids
             .entry(_newparent)
             .or_default()
             .push((newname.to_string_lossy().into_owned(), ino));
-        if let Some(e) = self.entries.get_mut(&ino) { e.path = to.clone(); }
-        if let Some(o) = self.open.get_mut(&ino) { o.0 = to.clone(); }
+        if let Some(e) = self.entries.get_mut(&ino) {
+            e.path = to.clone();
+        }
+        if let Some(o) = self.open.get_mut(&ino) {
+            o.0 = to.clone();
+        }
         self.by_path.insert(to.clone(), ino);
         // A dir move drags its descendants' paths along.
         let prefix = format!("{from}/");
@@ -555,13 +655,23 @@ impl Filesystem for SturnFs<'_> {
             .entries
             .iter()
             .filter(|(_, e)| e.path.starts_with(&prefix))
-            .map(|(i, e)| (*i, e.path.clone(), format!("{to}/{}", &e.path[prefix.len()..])))
+            .map(|(i, e)| {
+                (
+                    *i,
+                    e.path.clone(),
+                    format!("{to}/{}", &e.path[prefix.len()..]),
+                )
+            })
             .collect();
         for (i, old, new) in rewrites {
             self.by_path.remove(&old);
             self.by_path.insert(new.clone(), i);
-            if let Some(e) = self.entries.get_mut(&i) { e.path = new.clone(); }
-            if let Some(o) = self.open.get_mut(&i) { o.0 = new; }
+            if let Some(e) = self.entries.get_mut(&i) {
+                e.path = new.clone();
+            }
+            if let Some(o) = self.open.get_mut(&i) {
+                o.0 = new;
+            }
         }
         reply.ok();
     }

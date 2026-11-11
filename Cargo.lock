@@ -343,6 +343,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
+name = "lasius-vcs"
+version = "0.3.0"
+source = "git+ssh://git@github.com/9aia/lasius.git?rev=782c10840149d9a62ac9aa2d0c3a440233ffc86b#782c10840149d9a62ac9aa2d0c3a440233ffc86b"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "lasius-vcs-git"
+version = "0.3.0"
+source = "git+ssh://git@github.com/9aia/lasius.git?rev=782c10840149d9a62ac9aa2d0c3a440233ffc86b#782c10840149d9a62ac9aa2d0c3a440233ffc86b"
+dependencies = [
+ "lasius-vcs",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.191"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -608,7 +624,6 @@ dependencies = [
  "sturn-mcp",
  "sturn-service",
  "sturn-systemd",
- "sturn-vcs",
  "sturn-wal",
  "sturn-wal-git",
  "sturn-ws",
@@ -709,9 +724,10 @@ dependencies = [
 name = "sturn-git"
 version = "0.1.0"
 dependencies = [
+ "lasius-vcs",
+ "lasius-vcs-git",
  "sturn-core",
  "sturn-odb",
- "sturn-vcs",
 ]
 
 [[package]]
@@ -757,16 +773,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "sturn-vcs"
-version = "0.1.0"
-
-[[package]]
 name = "sturn-wal"
 version = "0.1.0"
 dependencies = [
+ "lasius-vcs",
  "serde_json",
  "sturn-core",
- "sturn-vcs",
 ]
 
 [[package]]

@@ -61,13 +61,7 @@ impl Ws for GitWs {
         Ok(out.lines().map(String::from).collect())
     }
 
-    fn materialize(
-        &self,
-        repo: &Path,
-        rev: &str,
-        dir: &Path,
-        paths: &[String],
-    ) -> io::Result<()> {
+    fn materialize(&self, repo: &Path, rev: &str, dir: &Path, paths: &[String]) -> io::Result<()> {
         std::fs::create_dir_all(dir)?;
         let mut args = vec!["archive", rev];
         if !paths.is_empty() {

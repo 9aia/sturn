@@ -14,10 +14,10 @@
 //! - `append` returning the event id is generic — a content hash of
 //!   the event bytes works; it needn't be a *git* blob sha.
 
+use lasius_vcs::Vcs;
 use std::io;
 use std::path::{Path, PathBuf};
 use sturn_core::{Event, Op};
-use sturn_vcs::Vcs;
 use sturn_wal::Wal;
 
 fn scratch(name: &str) -> PathBuf {
@@ -120,7 +120,11 @@ impl Wal for FileWal {
         let mut out = vec![];
         if let Ok(rd) = std::fs::read_dir(&dir) {
             for e in rd.flatten() {
-                if let Some(n) = e.file_name().to_str().and_then(|s| s.strip_suffix(".jsonl")) {
+                if let Some(n) = e
+                    .file_name()
+                    .to_str()
+                    .and_then(|s| s.strip_suffix(".jsonl"))
+                {
                     out.push(n.to_string());
                 }
             }
@@ -156,7 +160,47 @@ impl Wal for FileWal {
 struct FlatVcs;
 
 impl Vcs for FlatVcs {
-    fn sync(&self, repo: &Path, _remote: &str) -> bool {
+    // The union port is wider than this spike needs — the
+    // git-flavored methods stay unimplemented; FlatVcs only backs
+    // the coordination ops the WAL layer calls.
+    fn head(&self, _repo: &Path) -> Option<String> {
+        unimplemented!()
+    }
+    fn commits(&self, _repo: &Path, _rev: &str, _limit: usize) -> Vec<lasius_vcs::CommitInfo> {
+        unimplemented!()
+    }
+    fn diff_stat(&self, _repo: &Path, _from: &str, _to: &str) -> Vec<lasius_vcs::DiffStat> {
+        unimplemented!()
+    }
+    fn tags(&self, _repo: &Path) -> Vec<String> {
+        unimplemented!()
+    }
+    fn describe(&self, _repo: &Path) -> Option<String> {
+        unimplemented!()
+    }
+    fn worktree_add(&self, _repo: &Path, _dir: &Path, _rev: &str) -> bool {
+        unimplemented!()
+    }
+    fn worktree_remove(&self, _repo: &Path, _dir: &Path) -> bool {
+        unimplemented!()
+    }
+    fn worktree_prune(&self, _repo: &Path) -> bool {
+        unimplemented!()
+    }
+    fn tag_exists(&self, _repo: &Path, _tag: &str) -> bool {
+        unimplemented!()
+    }
+    fn tag(&self, _repo: &Path, _tag: &str, _rev: Option<&str>) -> bool {
+        unimplemented!()
+    }
+    fn delete_tag(&self, _repo: &Path, _tag: &str) -> bool {
+        unimplemented!()
+    }
+    fn push_tag(&self, _repo: &Path, _remote: &str, _tag: &str) -> bool {
+        unimplemented!()
+    }
+
+    fn sync(&self, repo: &Path, _remote: Option<&str>) -> bool {
         let remote = repo.join("remote");
         copy_tree(&remote.join("wal"), &repo.join("wal"))
     }
@@ -170,7 +214,7 @@ impl Vcs for FlatVcs {
             .ok()
             .map(|s| s.trim().to_string())
     }
-    fn push(&self, repo: &Path, _remote: &str) -> bool {
+    fn push(&self, repo: &Path, _remote: &str, _refspecs: &[&str]) -> bool {
         let dst = repo.join("remote");
         copy_tree(&repo.join("wal"), &dst.join("wal"))
             && copy_tree(&repo.join("heads"), &dst.join("heads"))
@@ -202,10 +246,24 @@ fn wal_port_is_git_free() {
     assert!(wal.workspaces(&dir).unwrap().is_empty());
 
     let id1 = wal
-        .append(&dir, "w1", &Event::new("w1", "a", Op::Intent { text: "hi".into() }))
+        .append(
+            &dir,
+            "w1",
+            &Event::new("w1", "a", Op::Intent { text: "hi".into() }),
+        )
         .unwrap();
     let id2 = wal
-        .append(&dir, "w1", &Event::new("w1", "a", Op::Snapshot { message: "s".into() }))
+        .append(
+            &dir,
+            "w1",
+            &Event::new(
+                "w1",
+                "a",
+                Op::Snapshot {
+                    message: "s".into(),
+                },
+            ),
+        )
         .unwrap();
     assert_ne!(id1, id2);
     assert_eq!(id1.len(), 16); // fnv hex, not a git sha
@@ -214,7 +272,10 @@ fn wal_port_is_git_free() {
     let all = wal.events(&dir, "w1").unwrap();
     assert_eq!(all.len(), 2);
     assert_eq!(all[0].id, id1);
-    assert!(wal.events_since(&dir, "w1", Some(&head)).unwrap().is_empty());
+    assert!(wal
+        .events_since(&dir, "w1", Some(&head))
+        .unwrap()
+        .is_empty());
     assert_eq!(wal.events_since(&dir, "w1", Some("0")).unwrap().len(), 2);
     assert!(wal.events_since(&dir, "w1", Some("not-a-cursor")).is_err());
     assert_eq!(wal.workspaces(&dir).unwrap(), vec!["w1".to_string()]);
@@ -237,7 +298,13 @@ fn wal_append_is_atomic_under_contention() {
                         .append(
                             dir,
                             "w",
-                            &Event::new("w", format!("t{t}"), Op::Intent { text: i.to_string() }),
+                            &Event::new(
+                                "w",
+                                format!("t{t}"),
+                                Op::Intent {
+                                    text: i.to_string(),
+                                },
+                            ),
                         )
                         .unwrap();
                 }
@@ -253,15 +320,19 @@ fn vcs_port_is_git_free() {
     let dir = scratch("vcs");
     let vcs = FlatVcs;
     let wal = FileWal;
-    wal.append(&dir, "w", &Event::new("w", "a", Op::Intent { text: "x".into() }))
-        .unwrap();
+    wal.append(
+        &dir,
+        "w",
+        &Event::new("w", "a", Op::Intent { text: "x".into() }),
+    )
+    .unwrap();
 
     assert!(!vcs.has_commit(&dir, "deadbeef"));
     std::fs::create_dir_all(dir.join("objects")).unwrap();
     std::fs::write(dir.join("objects").join("deadbeef"), b"").unwrap();
     assert!(vcs.has_commit(&dir, "deadbeef"));
 
-    assert!(vcs.push(&dir, "origin"));
+    assert!(vcs.push(&dir, "origin", &[]));
     assert!(dir.join("remote").join("wal").join("w.jsonl").is_file());
-    assert!(vcs.sync(&dir, "origin"));
+    assert!(vcs.sync(&dir, Some("origin")));
 }

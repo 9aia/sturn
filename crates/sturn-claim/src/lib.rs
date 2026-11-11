@@ -128,9 +128,7 @@ pub fn glob_match(pat: &str, path: &str) -> bool {
     fn m(p: &[u8], s: &[u8]) -> bool {
         match p.first() {
             None => s.is_empty(),
-            Some(b'*') if p.get(1) == Some(&b'*') => {
-                (0..=s.len()).any(|i| m(&p[2..], &s[i..]))
-            }
+            Some(b'*') if p.get(1) == Some(&b'*') => (0..=s.len()).any(|i| m(&p[2..], &s[i..])),
             Some(b'*') => {
                 let end = s.iter().position(|&c| c == b'/').unwrap_or(s.len());
                 (0..=end).any(|i| m(&p[1..], &s[i..]))

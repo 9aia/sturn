@@ -26,12 +26,7 @@ pub trait Wal: Send + Sync {
     /// `head`, exclusive) — `None` reads the whole log. Delta reads
     /// are what the daemon and catch-up need; `events` is the full
     /// replay.
-    fn events_since(
-        &self,
-        repo: &Path,
-        ws: &str,
-        from: Option<&str>,
-    ) -> io::Result<Vec<Event>>;
+    fn events_since(&self, repo: &Path, ws: &str, from: Option<&str>) -> io::Result<Vec<Event>>;
     /// Opaque tip cursor for the ws log — cheap change detection.
     /// Callers must not interpret the value; feed it back to
     /// `events_since`.

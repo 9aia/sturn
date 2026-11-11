@@ -45,15 +45,14 @@ fn secret_tool_stub_paths() {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut p = std::fs::metadata(d.join("secret-tool")).unwrap().permissions();
+        let mut p = std::fs::metadata(d.join("secret-tool"))
+            .unwrap()
+            .permissions();
         p.set_mode(0o755);
         std::fs::set_permissions(d.join("secret-tool"), p).unwrap();
     }
     let old_path = std::env::var("PATH").unwrap_or_default();
-    std::env::set_var(
-        "PATH",
-        format!("{}:{old_path}", d.display()),
-    );
+    std::env::set_var("PATH", format!("{}:{old_path}", d.display()));
     std::env::set_var("SECRET_LOG", &log);
     let s = KeyringSecrets {
         service: "svc".into(),

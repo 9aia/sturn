@@ -152,10 +152,7 @@ fn systemctl_and_journalctl_stubs() {
     // fails through the `?`.
     let home3 = scratch("home3");
     std::env::set_var("HOME", &home3);
-    std::fs::create_dir_all(
-        home3.join(".config/systemd/user/sturn-daemon.service"),
-    )
-    .unwrap();
+    std::fs::create_dir_all(home3.join(".config/systemd/user/sturn-daemon.service")).unwrap();
     assert!(write_service_unit(
         PathBuf::from("/bin/sturn").as_path(),
         PathBuf::from("/env").as_path(),

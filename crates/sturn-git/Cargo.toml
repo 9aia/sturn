@@ -9,6 +9,7 @@ keywords = ["vcs", "sturn", "agents"]
 categories = ["development-tools"]
 
 [dependencies]
-sturn-vcs.workspace = true
+lasius-vcs.workspace = true
+lasius-vcs-git.workspace = true
 sturn-core.workspace = true
 sturn-odb.workspace = true

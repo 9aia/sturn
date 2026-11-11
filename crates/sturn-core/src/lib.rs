@@ -82,13 +82,22 @@ pub enum Op {
         glob: String,
     },
     /// Why the work exists — recorded as data, not a commit message.
-    Intent { text: String },
+    Intent {
+        text: String,
+    },
     /// Marker — squash prior ops into a real commit.
-    Snapshot { message: String },
+    Snapshot {
+        message: String,
+    },
     /// Approve/reject an earlier event — continuous review.
-    Review { event: String, verdict: Verdict },
+    Review {
+        event: String,
+        verdict: Verdict,
+    },
     /// Actor joined/left the swarm.
-    Presence { status: String },
+    Presence {
+        status: String,
+    },
     /// A question awaiting a verdict — pending *response* in the
     /// WAL. The ask id is this event's own id (the blob sha), the
     /// same handle `review` uses.
@@ -208,10 +217,7 @@ pub fn merge(events: &[Event]) -> Merge {
             Op::Rename { from, to } => {
                 renames.entry(from).or_default().push((&ev.ws, to));
                 dests.entry(to).or_default().push((&ev.ws, from));
-                ws_renames
-                    .entry(&ev.ws)
-                    .or_default()
-                    .push((from, to));
+                ws_renames.entry(&ev.ws).or_default().push((from, to));
             }
             _ => {}
         }
@@ -220,11 +226,7 @@ pub fn merge(events: &[Event]) -> Merge {
     /// Final resting place of `path` under `ws`'s own ops — replay
     /// its renames in order tracking the file's current name, so
     /// f→g→h lands h and a cycle landing back on f means f.
-    fn final_to(
-        ws_renames: &BTreeMap<&str, Vec<(&str, &str)>>,
-        ws: &str,
-        path: &str,
-    ) -> String {
+    fn final_to(ws_renames: &BTreeMap<&str, Vec<(&str, &str)>>, ws: &str, path: &str) -> String {
         let mut cur = path.to_string();
         for (f, t) in ws_renames.get(ws).into_iter().flatten() {
             if *f == cur {
@@ -394,10 +396,16 @@ pub fn merge(events: &[Event]) -> Merge {
             } => format!(" \"{i}\""),
             _ => String::new(),
         };
-        m.warnings
-            .push(format!("note: write {path} (ws {}{i}) → {to} — follows rename", ev.ws));
+        m.warnings.push(format!(
+            "note: write {path} (ws {}{i}) → {to} — follows rename",
+            ev.ws
+        ));
         // What the retargeted write lands on:
-        for (w, _) in rs.into_iter().flatten().filter(|(w, _)| *w != ev.ws.as_str()) {
+        for (w, _) in rs
+            .into_iter()
+            .flatten()
+            .filter(|(w, _)| *w != ev.ws.as_str())
+        {
             // The renaming ws rewrote the source first — its
             // version at `to` loses to the retarget.
             if writes

@@ -11,7 +11,6 @@ members = [
     "crates/sturn-bus-redb",
     "crates/sturn-ws",
     "crates/sturn-ws-git",
-    "crates/sturn-vcs",
     "crates/sturn-git",
     "crates/sturn-claim",
     "crates/sturn-ask",
@@ -48,8 +47,9 @@ sturn-bus = { path = "crates/sturn-bus", version = "0.1.0" }
 sturn-bus-redb = { path = "crates/sturn-bus-redb", version = "0.1.0" }
 sturn-ws = { path = "crates/sturn-ws", version = "0.1.0" }
 sturn-ws-git = { path = "crates/sturn-ws-git", version = "0.1.0" }
-sturn-vcs = { path = "crates/sturn-vcs", version = "0.1.0" }
 sturn-git = { path = "crates/sturn-git", version = "0.1.0" }
+lasius-vcs = { git = "ssh://git@github.com/9aia/lasius.git", rev = "782c10840149d9a62ac9aa2d0c3a440233ffc86b" }
+lasius-vcs-git = { git = "ssh://git@github.com/9aia/lasius.git", rev = "782c10840149d9a62ac9aa2d0c3a440233ffc86b" }
 sturn-claim = { path = "crates/sturn-claim", version = "0.1.0" }
 sturn-ask = { path = "crates/sturn-ask", version = "0.1.0" }
 sturn-mcp = { path = "crates/sturn-mcp", version = "0.1.0" }

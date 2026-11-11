@@ -258,7 +258,8 @@ fn ws_grep(ctx: &Ctx, a: &Value) -> Value {
             let bytes = match ov.get(&p) {
                 // ws_paths already dropped pending deletes — the
                 // Some(None) arm only fires if the lists disagree.
-                Some(Some(sha)) => ctx.wsi.blob(ctx.repo, sha)?, Some(None) => continue,
+                Some(Some(sha)) => ctx.wsi.blob(ctx.repo, sha)?,
+                Some(None) => continue,
                 None => ctx.wsi.read(ctx.repo, &tip, &p)?,
             };
             for (n, line) in String::from_utf8_lossy(&bytes).lines().enumerate() {
@@ -454,10 +455,7 @@ fn ask(ctx: &Ctx, a: &Value) -> Value {
         (Ok(w), Ok(s)) => (w, s),
         _ => return tool_err("missing ws/subject"),
     };
-    let target = a
-        .get("target")
-        .and_then(|v| v.as_str())
-        .unwrap_or("any");
+    let target = a.get("target").and_then(|v| v.as_str()).unwrap_or("any");
     let options: Vec<String> = a
         .get("options")
         .and_then(|v| v.as_array())
@@ -522,11 +520,7 @@ fn asks(ctx: &Ctx, a: &Value) -> Value {
 /// Shared gate for `answer`/`cancel_ask`: the ask must exist and
 /// still be open.
 fn must_be_open(ctx: &Ctx, ask: &str) -> Result<(), String> {
-    match asks_fold::status(
-        &all_events(ctx).map_err(|e| e.to_string())?,
-        now(),
-        ask,
-    ) {
+    match asks_fold::status(&all_events(ctx).map_err(|e| e.to_string())?, now(), ask) {
         None => Err(format!("no such ask: {ask}")),
         Some(sturn_ask::Status::Open) => Ok(()),
         Some(s) => Err(format!("ask {ask} is {s:?} — closed")),
@@ -534,11 +528,10 @@ fn must_be_open(ctx: &Ctx, ask: &str) -> Result<(), String> {
 }
 
 fn answer(ctx: &Ctx, a: &Value) -> Value {
-    let (ws, ask_id, verdict) =
-        match (arg(a, "ws"), arg(a, "ask"), arg(a, "verdict")) {
-            (Ok(w), Ok(k), Ok(v)) => (w, k, v),
-            _ => return tool_err("missing ws/ask/verdict"),
-        };
+    let (ws, ask_id, verdict) = match (arg(a, "ws"), arg(a, "ask"), arg(a, "verdict")) {
+        (Ok(w), Ok(k), Ok(v)) => (w, k, v),
+        _ => return tool_err("missing ws/ask/verdict"),
+    };
     let r = must_be_open(ctx, ask_id).and_then(|()| {
         ctx.wal
             .append(
@@ -569,13 +562,7 @@ fn cancel_ask(ctx: &Ctx, a: &Value) -> Value {
             .append(
                 ctx.repo,
                 ws,
-                &Event::new(
-                    ws,
-                    ctx.actor,
-                    Op::Cancel {
-                        ask: ask_id.into(),
-                    },
-                ),
+                &Event::new(ws, ctx.actor, Op::Cancel { ask: ask_id.into() }),
             )
             .map_err(|e| e.to_string())
             .map(|_| format!("cancelled ask {ask_id}"))
@@ -639,7 +626,10 @@ fn subs(ctx: &Ctx, a: &Value) -> Value {
             t if t == topic::REVIEW => matches!(ev.op, Op::Review { .. }),
             t if t == topic::PRESENCE => matches!(ev.op, Op::Presence { .. }),
             t if t == topic::ASKS => {
-                matches!(ev.op, Op::Ask { .. } | Op::Answer { .. } | Op::Cancel { .. })
+                matches!(
+                    ev.op,
+                    Op::Ask { .. } | Op::Answer { .. } | Op::Cancel { .. }
+                )
             }
             _ => false,
         };
@@ -1031,7 +1021,9 @@ mod tests {
         assert!(!is_err(&v));
         assert!(text(&v).starts_with("event e"));
         let events = wal.events(Path::new("/repo"), "w1").unwrap();
-        let Op::Write { path, intent, .. } = &events.last().unwrap().op else { panic!("expected Write") };
+        let Op::Write { path, intent, .. } = &events.last().unwrap().op else {
+            panic!("expected Write")
+        };
         assert_eq!(path, "p.rs");
         assert_eq!(intent.as_deref(), Some("why"));
         assert!(is_err(&call(&c, "ws_write", &json!({"ws": "w1"}))));
@@ -1324,8 +1316,17 @@ mod tests {
         let wsi = FakeWs::new();
         let c = ctx(&wal, &wsi, &ok_snap);
         for tool in [
-            "ws_read", "ws_write", "ws_glob", "ws_grep", "ws_rename", "ws_delete",
-            "claim", "release", "snap", "intent", "review",
+            "ws_read",
+            "ws_write",
+            "ws_glob",
+            "ws_grep",
+            "ws_rename",
+            "ws_delete",
+            "claim",
+            "release",
+            "snap",
+            "intent",
+            "review",
         ] {
             let v = call(&c, tool, &json!({}));
             assert!(is_err(&v), "{tool} should fail without args: {v}");
@@ -1337,17 +1338,18 @@ mod tests {
         let wal = ErrWal;
         let wsi = ErrWs;
         let c = ctx(&wal, &wsi, &bad_snap);
-        for tool in [
-            "ws_read", "ws_glob", "ws_grep", "subs",
-        ] {
-            let v = call(
-                &c,
-                tool,
-                &json!({"ws": "w1", "path": "p", "pattern": "x"}),
-            );
+        for tool in ["ws_read", "ws_glob", "ws_grep", "subs"] {
+            let v = call(&c, tool, &json!({"ws": "w1", "path": "p", "pattern": "x"}));
             assert!(is_err(&v), "{tool} should fail with dead backend: {v}");
         }
-        for tool in ["ws_write", "ws_rename", "ws_delete", "release", "intent", "review"] {
+        for tool in [
+            "ws_write",
+            "ws_rename",
+            "ws_delete",
+            "release",
+            "intent",
+            "review",
+        ] {
             let v = call(
                 &c,
                 tool,
@@ -1399,9 +1401,11 @@ mod tests {
         assert!(is_err(&call(&c, "release", &json!({"ws": "w1"}))));
         assert!(is_err(&call(&c, "ws_glob", &json!({}))));
         // review: verdict present, event missing.
-        assert!(is_err(
-            &call(&c, "review", &json!({"ws": "w1", "verdict": "approve"}))
-        ));
+        assert!(is_err(&call(
+            &c,
+            "review",
+            &json!({"ws": "w1", "verdict": "approve"})
+        )));
     }
 
     #[test]
@@ -1417,7 +1421,13 @@ mod tests {
                 wal.append(
                     &repo,
                     "w1",
-                    &Event::new("w1", "a", Op::Intent { text: "late".into() }),
+                    &Event::new(
+                        "w1",
+                        "a",
+                        Op::Intent {
+                            text: "late".into(),
+                        },
+                    ),
                 )
                 .unwrap();
             });
@@ -1462,8 +1472,12 @@ mod tests {
         let wal = FakeWal::new();
         let wsi = FakeWs::new();
         let r = Path::new("/repo");
-        wal.append(r, "w1", &Event::new("w1", "a", Op::Intent { text: "t".into() }))
-            .unwrap();
+        wal.append(
+            r,
+            "w1",
+            &Event::new("w1", "a", Op::Intent { text: "t".into() }),
+        )
+        .unwrap();
         // events_since with a cursor — found and missed ids.
         assert!(wal.events_since(r, "w1", Some("e1")).unwrap().is_empty());
         assert_eq!(wal.events_since(r, "w1", Some("ghost")).unwrap().len(), 1);
@@ -1590,7 +1604,11 @@ mod tests {
         let v = call(&c, "asks", &json!({"all": true}));
         assert!(text(&v).contains("expired"), "{}", text(&v));
         let v = call(&c, "subs", &json!({"topic": "asks"}));
-        assert!(text(&v).contains("\"ask\"") && text(&v).contains(&ask2), "{}", text(&v));
+        assert!(
+            text(&v).contains("\"ask\"") && text(&v).contains(&ask2),
+            "{}",
+            text(&v)
+        );
     }
 
     #[test]

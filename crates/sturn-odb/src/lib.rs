@@ -72,7 +72,9 @@ fn sha1_repo(repo: &Path) -> io::Result<bool> {
     for line in cfg.lines() {
         let l = line.trim();
         if l.starts_with('[') {
-            ext = l.trim_matches(|c| c == '[' || c == ']').eq_ignore_ascii_case("extensions");
+            ext = l
+                .trim_matches(|c| c == '[' || c == ']')
+                .eq_ignore_ascii_case("extensions");
             continue;
         }
         if ext {
@@ -357,7 +359,9 @@ fn idents(repo: &Path) -> io::Result<Option<(Ident, Ident)>> {
     }
     let out = String::from_utf8_lossy(&o.stdout);
     let parse = |key: &str| -> Option<(String, String)> {
-        let line = out.lines().find_map(|l| l.strip_prefix(key)?.strip_prefix('='))?;
+        let line = out
+            .lines()
+            .find_map(|l| l.strip_prefix(key)?.strip_prefix('='))?;
         // "Name <email> <ts> <tz>" → ("Name <email>", "<tz>")
         let (head, tz) = line.rsplit_once(' ')?;
         let (ident, _ts) = head.rsplit_once(' ')?;

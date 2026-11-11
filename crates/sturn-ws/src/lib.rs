@@ -20,13 +20,7 @@ pub trait Ws: Send + Sync {
     fn list(&self, repo: &Path, rev: &str) -> io::Result<Vec<String>>;
     /// Materialize `rev` into `dir` — for compilers that need files.
     /// `paths` filters to a subset (pathspec); empty = whole tree.
-    fn materialize(
-        &self,
-        repo: &Path,
-        rev: &str,
-        dir: &Path,
-        paths: &[String],
-    ) -> io::Result<()>;
+    fn materialize(&self, repo: &Path, rev: &str, dir: &Path, paths: &[String]) -> io::Result<()>;
     /// Create a workspace namespace pointing at `base` (git impl:
     /// `refs/sturn/ws/<name>` = `base`).
     fn create(&self, repo: &Path, name: &str, base: &str) -> io::Result<()>;
