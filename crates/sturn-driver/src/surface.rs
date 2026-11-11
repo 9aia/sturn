@@ -7,7 +7,7 @@
 //! `op` reuses the same `cli.*` path wire queries take
 //! (`ops::run_verb` re-execs `run` in the request's repo — output
 //! stays captured off the serve stream). `surface` dispatches
-//! `daemon`/`sub`/`bridge`/`mcp`/`mount` in-process: those verbs are
+//! `daemon`/`sub`/`bridge`/`mount` in-process: those verbs are
 //! unbounded by design, so argv goes straight to `sturn::dispatch`
 //! with stdio streaming.
 

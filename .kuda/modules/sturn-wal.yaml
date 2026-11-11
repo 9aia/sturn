@@ -1,6 +1,6 @@
 name: sturn-wal
 path: crates/sturn-wal/Cargo.toml
-purpose: 'Wal port: append-only op log inside git refs'
+purpose: sturn coordination WAL — claims, writes, snaps, review events in refs/sturn/*
 api:
 - name: FileWal
   kind: type
@@ -10,7 +10,7 @@ api:
 - name: FlatVcs
   kind: type
   file: crates/sturn-wal/tests/non_git_backend.rs
-  line: 156
+  line: 160
   module: sturn-wal
 - name: Wal
   kind: trait
@@ -22,10 +22,15 @@ api:
   file: crates/sturn-wal/tests/non_git_backend.rs
   line: 65
   module: sturn-wal
+- name: commits
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 169
+  module: sturn-wal
 - name: compact
   kind: function
   file: crates/sturn-wal/tests/non_git_backend.rs
-  line: 132
+  line: 136
   module: sturn-wal
 - name: content_id
   kind: function
@@ -35,7 +40,27 @@ api:
 - name: copy_tree
   kind: function
   file: crates/sturn-wal/tests/non_git_backend.rs
-  line: 180
+  line: 224
+  module: sturn-wal
+- name: delete_tag
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 196
+  module: sturn-wal
+- name: describe
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 178
+  module: sturn-wal
+- name: devin:intent@devin#0fbfcb50
+  kind: record
+  file: refs/sturn/wal/devin
+  line: 20
+  module: sturn-wal
+- name: diff_stat
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 172
   module: sturn-wal
 - name: events
   kind: function
@@ -50,12 +75,17 @@ api:
 - name: has_commit
   kind: function
   file: crates/sturn-wal/tests/non_git_backend.rs
-  line: 163
+  line: 207
   module: sturn-wal
 - name: head
   kind: function
   file: crates/sturn-wal/tests/non_git_backend.rs
   line: 113
+  module: sturn-wal
+- name: head
+  kind: function
+  file: crates/sturn-wal/tests/non_git_backend.rs
+  line: 166
   module: sturn-wal
 - name: lines
   kind: function
@@ -67,71 +97,187 @@ api:
   file: crates/sturn-wal/tests/non_git_backend.rs
   line: 47
   module: sturn-wal
-- name: push
-  kind: function
-  file: crates/sturn-wal/tests/non_git_backend.rs
-  line: 173
+- name: luis:claim@devin#08fb9fce
+  kind: record
+  file: refs/sturn/wal/devin
+  line: 44
   module: sturn-wal
-- name: resolve
-  kind: function
-  file: crates/sturn-wal/tests/non_git_backend.rs
-  line: 167
+- name: luis:claim@devin#13caffaf
+  kind: record
+  file: refs/sturn/wal/devin
+  line: 41
   module: sturn-wal
-- name: scratch
-  kind: function
-  file: crates/sturn-wal/tests/non_git_backend.rs
-  line: 23
+- name: luis:claim@devin#195e57f0
+  kind: record
+  file: refs/sturn/wal/devin
+  line: 46
   module: sturn-wal
-- name: sturn-wal
-  kind: module
-  file: crates/sturn-wal/Cargo.toml
+- name: luis:claim@devin#1ab47ddf
+  kind: record
+  file: refs/sturn/wal/devin
+  line: 47
+  module: sturn-wal
+- name: luis:claim@devin#371a3e12
+  kind: record
+  file: refs/sturn/wal/devin
+  line: 40
+  module: sturn-wal
+- name: luis:claim@devin#4731eac0
+  kind: record
+  file: refs/sturn/wal/devin
+  line: 37
+  module: sturn-wal
+- name: luis:claim@devin#5703d007
+  kind: record
+  file: refs/sturn/wal/devin
+  line: 48
+  module: sturn-wal
+- name: luis:claim@devin#7deeb5ff
+  kind: record
+  file: refs/sturn/wal/devin
+  line: 38
+  module: sturn-wal
+- name: luis:claim@devin#87f42bc2
+  kind: record
+  file: refs/sturn/wal/devin
+  line: 36
+  module: sturn-wal
+- name: luis:claim@devin#a845c4a4
+  kind: record
+  file: refs/sturn/wal/devin
+  line: 16
+  module: sturn-wal
+- name: luis:claim@devin#cd825db2
+  kind: record
+  file: refs/sturn/wal/devin
+  line: 43
+  module: sturn-wal
+- name: luis:claim@devin#d2fee8e2
+  kind: record
+  file: refs/sturn/wal/devin
+  line: 7
+  module: sturn-wal
+- name: luis:claim@devin#d89aacbd
+  kind: record
+  file: refs/sturn/wal/devin
+  line: 18
+  module: sturn-wal
+- name: luis:claim@devin#da617897
+  kind: record
+  file: refs/sturn/wal/devin
+  line: 42
+  module: sturn-wal
+- name: luis:claim@devin#e568509e
+  kind: record
+  file: refs/sturn/wal/devin
+  line: 14
+  module: sturn-wal
+- name: luis:claim@devin#f09f0f1a
+  kind: record
+  file: refs/sturn/wal/devin
+  line: 45
+  module: sturn-wal
+- name: luis:claim@devin#fbc0a146
+  kind: record
+  file: refs/sturn/wal/devin
+  line: 39
+  module: sturn-wal
+- name: luis:claim@devin-ci-bupha#2f9c1636
+  kind: record
+  file: refs/sturn/wal/devin-ci-bupha
   line: 1
   module: sturn-wal
-- name: sync
-  kind: function
-  file: crates/sturn-wal/tests/non_git_backend.rs
-  line: 159
+- name: luis:claim@devin-docs#fcb53299
+  kind: record
+  file: refs/sturn/wal/devin-docs
+  line: 1
   module: sturn-wal
-- name: vcs_port_is_git_free
-  kind: function
-  file: crates/sturn-wal/tests/non_git_backend.rs
-  line: 252
+- name: luis:claim@devin-driver-conformance#16ba4824
+  kind: record
+  file: refs/sturn/wal/devin-driver-conformance
+  line: 1
   module: sturn-wal
-- name: wal_append_is_atomic_under_contention
-  kind: function
-  file: crates/sturn-wal/tests/non_git_backend.rs
-  line: 229
+- name: luis:claim@devin-driver-kit#395b8847
+  kind: record
+  file: refs/sturn/wal/devin-driver-kit
+  line: 1
   module: sturn-wal
-- name: wal_port_is_git_free
-  kind: function
-  file: crates/sturn-wal/tests/non_git_backend.rs
-  line: 196
-  module: sturn-wal
-- name: workspaces
-  kind: function
-  file: crates/sturn-wal/tests/non_git_backend.rs
-  line: 118
-  module: sturn-wal
+api_omitted: 112
 deps:
 - sturn-core
+- lasius-vcs
 - serde_json
-- sturn-vcs
+- lasius_vcs
 - sturn-core
-- sturn-vcs
 notes: ''
 verify:
 - crates/sturn-wal/Cargo.toml
 - crates/sturn-wal/src/lib.rs
 - crates/sturn-wal/tests/non_git_backend.rs
+- refs/sturn/wal/devin
+- refs/sturn/wal/devin-ci-bupha
+- refs/sturn/wal/devin-docs
+- refs/sturn/wal/devin-driver-conformance
+- refs/sturn/wal/devin-driver-kit
+- refs/sturn/wal/devin-engine-lib
+- refs/sturn/wal/devin-p001
 provenance:
   files:
   - crates/sturn-wal/Cargo.toml
   - crates/sturn-wal/src/lib.rs
   - crates/sturn-wal/tests/non_git_backend.rs
+  - refs/sturn/wal/devin
+  - refs/sturn/wal/devin-ci-bupha
+  - refs/sturn/wal/devin-docs
+  - refs/sturn/wal/devin-driver-conformance
+  - refs/sturn/wal/devin-driver-kit
+  - refs/sturn/wal/devin-engine-lib
+  - refs/sturn/wal/devin-p001
+  - refs/sturn/wal/devin-refactor
+  - refs/sturn/wal/devin-t003
+  - refs/sturn/wal/devin-t007
+  - refs/sturn/wal/devin-t036
+  - refs/sturn/wal/dogfood
+  - refs/sturn/wal/gate
+  - refs/sturn/wal/r2
+  - refs/sturn/wal/sturn
+  - refs/sturn/ws/devin
+  - refs/sturn/ws/devin-docs
+  - refs/sturn/ws/devin-driver-kit
+  - refs/sturn/ws/devin-engine-lib
+  - refs/sturn/ws/devin-p001
+  - refs/sturn/ws/devin-t007
+  - refs/sturn/ws/dogfood
+  - refs/sturn/ws/gate
+  - refs/sturn/ws/r2
   hashes:
-  - 584780a4590a94619103a507fdb64e4a60a1c28f
-  - 55f3b32306343ddef1db86e4356ce08e824795db
-  - b41d7c7809fa2a648e045db0c644f420703923e1
-  commit_sha: c517fa874a34bd5531e285f20d874d6a8ad081a3
-  generated_at: '1793752064'
-  generator: kuda-template/0.1.2
+  - 76230d89b9f4ca046ae704a2a38704fcd56c8397
+  - 262f3b88cae3b541be570e2ebe6f9a29f6a5d558
+  - 4d7edfe235b9b7049937f1e40c5540a84ff31581
+  - 5703d007b8b03e7fd2925c3038745321aa9a9c4c
+  - 121de782ee827c7e5981220cf2d7cc8d25efe438
+  - e9febb33251b4e3a29db1c7c699ec28563659fe2
+  - 36e4a40f923d9acaf436f3ffa5ede1014517ccfe
+  - b240e1b115ca5141c07ba6cfd04c50238ee6460b
+  - 34311ae0cf1abed72344d36578c54836f88290c0
+  - 1397408886e75b484f29c93e4157b2c25f1966d6
+  - 976c4344e03f24b342f70ef18f8f77a3ba648703
+  - d9c74cb37cc1d2be714f8834fa2de8cfec107317
+  - 174b024faaacfe931ab47f79f002f36a4e650ffe
+  - 8a43855e699b429691b04c9123e4cdc6ba80e492
+  - a64a1f57d1e954839d1a82b759e636720c865241
+  - 21109635d14c2700c435ea94396bbf5499b231be
+  - aa48bcf3f021ac012a98c7577facb82421aa2a56
+  - 2d75ccaefc15d6d7f742a2630997b38c178df63c
+  - ce7921e219861d5b09a47222061cd1f00fced71d
+  - c8e1146d28df610b6b7121fae7f53d0139b02930
+  - 97f15d879100b406708c00c742fac646ed3bf3f0
+  - 5859dfe61488ba8f52662c03fb6bf2c07aecdd31
+  - c517fa874a34bd5531e285f20d874d6a8ad081a3
+  - c97ff196e576f7a62d035f1610e7fbae246aea77
+  - e5a49c5486f860acc785c137fb9eb70d38149d41
+  - 6d1a7c6d3feea4c33419c637408a59914de1df29
+  - 6a5c95ab05cd9a7b9185e11973f9edc8cfb5febe
+  commit_sha: adae1d7e7c927216006da972608cc345929607ea
+  generated_at: '1794437265'
+  generator: kuda-template/0.1.4

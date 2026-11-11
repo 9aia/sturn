@@ -15,12 +15,12 @@ api:
 - name: ActorCfg
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 570
+  line: 624
   module: sturn-core
 - name: BusCfg
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 554
+  line: 608
   module: sturn-core
 - name: CLAIMS
   kind: const
@@ -30,22 +30,32 @@ api:
 - name: Config
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 477
+  line: 485
   module: sturn-core
 - name: Event
   kind: type
   file: crates/sturn-core/src/lib.rs
   line: 33
   module: sturn-core
+- name: HooksCfg
+  kind: type
+  file: crates/sturn-core/src/lib.rs
+  line: 507
+  module: sturn-core
 - name: Merge
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 177
+  line: 186
   module: sturn-core
 - name: OPS
   kind: const
   file: crates/sturn-core/src/lib.rs
   line: 15
+  module: sturn-core
+- name: OneOrMany
+  kind: type
+  file: crates/sturn-core/src/lib.rs
+  line: 536
   module: sturn-core
 - name: Op
   kind: type
@@ -65,27 +75,27 @@ api:
 - name: RepoCfg
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 519
+  line: 573
   module: sturn-core
 - name: ReviewCfg
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 496
+  line: 550
   module: sturn-core
 - name: SigningCfg
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 507
+  line: 561
   module: sturn-core
 - name: Verdict
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 129
+  line: 138
   module: sturn-core
 - name: WalCfg
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 545
+  line: 599
   module: sturn-core
 - name: actor_name_prefers_explicit_then_env
   kind: function
@@ -110,37 +120,37 @@ api:
 - name: default
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 604
+  line: 658
   module: sturn-core
 - name: default
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 612
+  line: 666
   module: sturn-core
 - name: default_branch
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 587
+  line: 641
   module: sturn-core
 - name: default_bus_store
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 596
+  line: 650
   module: sturn-core
 - name: default_poll_ms
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 593
+  line: 647
   module: sturn-core
 - name: default_ref_prefix
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 590
+  line: 644
   module: sturn-core
 - name: default_ttl
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 122
+  line: 131
   module: sturn-core
 - name: delete
   kind: function
@@ -160,49 +170,39 @@ api:
 - name: final_to
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 223
+  line: 229
   module: sturn-core
 - name: id
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 532
+  line: 586
   module: sturn-core
 - name: merge
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 195
+  line: 204
   module: sturn-core
 - name: merge_clean_streams_passthrough
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 430
+  line: 442
   module: sturn-core
 - name: merge_converged_renames_are_quiet
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 503
+  line: 515
   module: sturn-core
 - name: merge_delete_vs_rename_source_warns
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 529
+  line: 541
   module: sturn-core
 - name: merge_diverged_renames_warn_and_stay
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 488
+  line: 500
   module: sturn-core
-- name: merge_own_rename_blocks_retarget
-  kind: function
-  file: crates/sturn-core/tests/core.rs
-  line: 517
-  module: sturn-core
-- name: merge_rename_cycle_has_no_final_dest
-  kind: function
-  file: crates/sturn-core/tests/core.rs
-  line: 476
-  module: sturn-core
-api_omitted: 35
+api_omitted: 39
 deps:
 - serde
 - serde_json
@@ -219,8 +219,8 @@ provenance:
   - crates/sturn-core/tests/core.rs
   hashes:
   - 8882be00ff91823f5d18b19eaca492be7e9a5ef5
-  - 82d2ab9fd5773662b3a941f5635d510a2837e1fc
-  - 4812534f7d89692ef9054819253e990c8c4c8f19
-  commit_sha: c97ff196e576f7a62d035f1610e7fbae246aea77
-  generated_at: '1793761203'
-  generator: kuda-template/0.1.2
+  - 7127cbdfd480938c703454d0fd39fc04856c3863
+  - 34378d8ae8fe124a08eec32f15ac360c78c31041
+  commit_sha: adae1d7e7c927216006da972608cc345929607ea
+  generated_at: '1794437265'
+  generator: kuda-template/0.1.4

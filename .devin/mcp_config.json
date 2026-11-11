@@ -1,11 +1,9 @@
 {
   "mcpServers": {
     "sturn": {
-      "command": "sturn",
+      "command": "tamias-driver-mcp",
       "args": [
-        "mcp",
-        "--ws",
-        "devin"
+        "sturn"
       ]
     }
   }

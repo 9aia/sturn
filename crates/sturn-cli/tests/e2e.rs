@@ -178,162 +178,167 @@ fn second_snap_applies_only_new_ops() {
     assert_eq!(git(&repo, &["rev-parse", "HEAD^"]), first);
 }
 
-/// One JSON-RPC exchange with `sturn mcp` — newline-delimited, per
-/// the MCP stdio transport.
-struct Mcp {
-    stdin: Option<std::process::ChildStdin>,
-    stdout: std::io::BufReader<std::process::ChildStdout>,
-    child: std::process::Child,
-    n: u64,
-}
+#[test]
+fn ws_live_view_read_paths_grep() {
+    // The ws's effective view = tip + pending ops — the fold the
+    // retired MCP ws_* tools used, now engine verbs.
+    let repo = bare_repo("liveview");
+    std::fs::create_dir_all(repo.join("src")).unwrap();
+    std::fs::write(repo.join("src/a.rs"), b"fn a() {}\n// needle\n").unwrap();
+    std::fs::write(repo.join("b.txt"), b"beta\n").unwrap();
+    git(&repo, &["add", "."]);
+    commit(&repo, "files");
+    sturn_ok(&repo, &["ws", "new", "a"], &[]);
 
-impl Mcp {
-    fn spawn(dir: &Path) -> Self {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_sturn"))
-            .current_dir(dir)
-            .arg("mcp")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        Mcp {
-            stdin: Some(child.stdin.take().unwrap()),
-            stdout: std::io::BufReader::new(child.stdout.take().unwrap()),
-            child,
-            n: 0,
-        }
-    }
-
-    fn rpc(&mut self, method: &str, params: serde_json::Value) -> serde_json::Value {
-        use std::io::BufRead;
-        self.n += 1;
-        let req = serde_json::json!({
-            "jsonrpc": "2.0", "id": self.n, "method": method, "params": params,
-        });
-        let stdin = self.stdin.as_mut().unwrap();
-        writeln!(stdin, "{req}").unwrap();
-        stdin.flush().unwrap();
-        let mut line = String::new();
-        self.stdout.read_line(&mut line).unwrap();
-        serde_json::from_str(&line).unwrap()
-    }
-}
-
-impl Drop for Mcp {
-    fn drop(&mut self) {
-        // Close stdin → serve() sees EOF and exits cleanly. A bare
-        // SIGKILL drops the child's profraw (coverage) entirely.
-        drop(self.stdin.take());
-        if self.child.wait().is_err() {
-            let _ = self.child.kill();
-        }
-    }
-}
-
-fn call(m: &mut Mcp, tool: &str, args: serde_json::Value) -> String {
-    let r = m.rpc(
-        "tools/call",
-        serde_json::json!({"name": tool, "arguments": args}),
+    // Inline-content write lands as an op — no stdin, no --file.
+    let out = sturn_ok(
+        &repo,
+        &[
+            "write",
+            "src/new.rs",
+            "--ws",
+            "a",
+            "--content",
+            "fn n() {}\n// needle\n",
+        ],
+        &[],
     );
-    let content = &r["result"]["content"][0]["text"];
-    assert!(
-        r["result"]["isError"].as_bool() != Some(true),
-        "{tool} failed: {content}"
+    assert!(out.contains("write src/new.rs"), "{out}");
+
+    // ws read sees the pending write before any commit.
+    let got = sturn_ok(&repo, &["ws", "read", "a", "src/new.rs"], &[]);
+    assert_eq!(got, "fn n() {}\n// needle");
+    // …and committed content still reads through the tip.
+    let got = sturn_ok(&repo, &["ws", "read", "a", "b.txt"], &[]);
+    assert_eq!(got, "beta");
+
+    // Pending rename/delete fold into the view too.
+    sturn_ok(&repo, &["rename", "b.txt", "c.txt", "--ws", "a"], &[]);
+    sturn_ok(&repo, &["delete", "src/a.rs", "--ws", "a"], &[]);
+    let got = sturn_ok(&repo, &["ws", "read", "a", "c.txt"], &[]);
+    assert_eq!(got, "beta");
+    sturn_err(&repo, &["ws", "read", "a", "src/a.rs"]);
+    sturn_err(&repo, &["ws", "read", "a", "b.txt"]);
+
+    // ws paths: effective set, glob-filtered.
+    let all = sturn_ok(&repo, &["ws", "paths", "a"], &[]);
+    for p in ["src/new.rs", "c.txt"] {
+        assert!(all.lines().any(|l| l == p), "{p} missing from {all}");
+    }
+    for p in ["src/a.rs", "b.txt"] {
+        assert!(!all.lines().any(|l| l == p), "{p} leaked into {all}");
+    }
+    let src = sturn_ok(&repo, &["ws", "paths", "a", "src/**"], &[]);
+    assert_eq!(src.lines().collect::<Vec<_>>(), ["src/new.rs"]);
+
+    // ws grep: substring hits as path:line: text across the view.
+    let hits = sturn_ok(&repo, &["ws", "grep", "a", "needle"], &[]);
+    assert!(hits.contains("src/new.rs:2: // needle"), "{hits}");
+    assert!(!hits.contains("src/a.rs"), "{hits}"); // deleted in overlay
+    let scoped = sturn_ok(
+        &repo,
+        &["ws", "grep", "a", "needle", "--path", "src/**"],
+        &[],
     );
-    content.as_str().unwrap().to_string()
+    assert_eq!(scoped, hits);
+    let none = sturn_ok(&repo, &["ws", "grep", "a", "zzz-no-match"], &[]);
+    assert_eq!(none, "");
 }
 
 #[test]
-fn mcp_agent_surface() {
-    let repo = scratch("mcp");
-    git(&repo, &["init", "-q", "-b", "main"]);
-    ident(&repo);
-    git(
+fn write_content_flag_and_file_conflict() {
+    let repo = bare_repo("wcontent");
+    sturn_ok(&repo, &["ws", "new", "a"], &[]);
+    // --content and --file are mutually exclusive.
+    let f = repo.join("in.txt");
+    std::fs::write(&f, b"from file\n").unwrap();
+    sturn_err(
         &repo,
         &[
-            "-c",
-            "user.email=t@t",
-            "-c",
-            "user.name=t",
-            "commit",
-            "-qm",
-            "init",
-            "--allow-empty",
+            "write",
+            "x.txt",
+            "--ws",
+            "a",
+            "--content",
+            "c",
+            "--file",
+            f.to_str().unwrap(),
         ],
     );
-    std::fs::write(repo.join("a.txt"), b"one\n").unwrap();
-    git(&repo, &["add", "a.txt"]);
-    commit(&repo, "add a");
-    sturn(&repo, &["init"]);
-    sturn(&repo, &["ws", "new", "a"]);
-    sturn(&repo, &["ws", "new", "b"]);
+    // --file still works; --content still works; stdin still works.
+    sturn_ok(
+        &repo,
+        &["write", "f.txt", "--ws", "a", "--file", f.to_str().unwrap()],
+        &[],
+    );
+    sturn_ok(
+        &repo,
+        &["write", "c.txt", "--ws", "a", "--content", "inline"],
+        &[],
+    );
+    sturn_ok_in(&repo, &["write", "s.txt", "--ws", "a"], b"stdin\n");
+    let log = sturn_ok(&repo, &["log", "--ws", "a"], &[]);
+    for p in ["f.txt", "c.txt", "s.txt"] {
+        assert!(log.contains(p), "{p} missing from {log}");
+    }
+}
 
-    let mut m = Mcp::spawn(&repo);
-    let init = m.rpc(
-        "initialize",
-        serde_json::json!({"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name":"t","version":"0"}}),
-    );
-    assert_eq!(init["result"]["serverInfo"]["name"], "sturn");
-    let tools = m.rpc("tools/list", serde_json::json!({}));
-    assert_eq!(
-        tools["result"]["tools"].as_array().unwrap().len(),
-        16,
-        "expected the tool surface"
-    );
+#[test]
+fn log_topic_limit_and_wait() {
+    let repo = bare_repo("logf");
+    sturn_ok(&repo, &["ws", "new", "a"], &[]);
+    sturn_ok(&repo, &["ws", "new", "b"], &[]);
+    sturn_ok(&repo, &["claim", "x/**", "--ws", "a"], &[]);
+    sturn_ok_in(&repo, &["write", "f.txt", "--ws", "b"], b"1\n");
+    sturn_ok(&repo, &["intent", "why", "--ws", "a"], &[]);
 
-    // Overlay read: ws_write makes the file visible before any commit.
-    call(
-        &mut m,
-        "ws_write",
-        serde_json::json!({"ws":"a","path":"src/x.rs","content":"fn x(){}\n","intent":"t"}),
+    // --topic filters to the op-kind subset, swarm-wide.
+    let claims = sturn_ok(&repo, &["log", "--topic", "claims"], &[]);
+    assert!(claims.contains("\"claim\""), "{claims}");
+    assert!(
+        !claims.contains("\"write\"") && !claims.contains("\"intent\""),
+        "{claims}"
     );
-    let got = call(
-        &mut m,
-        "ws_read",
-        serde_json::json!({"ws":"a","path":"src/x.rs"}),
-    );
-    assert_eq!(got, "fn x(){}\n");
-    // …and it shows up in glob listing too.
-    let glob = call(
-        &mut m,
-        "ws_glob",
-        serde_json::json!({"ws":"a","pattern":"src/**"}),
-    );
-    assert!(glob.contains("src/x.rs"), "{glob}");
+    // Unknown topic is a hard error, not an empty stream.
+    sturn_err(&repo, &["log", "--topic", "bogus"]);
 
-    // rename lands in the overlay before any commit
-    call(
-        &mut m,
-        "ws_rename",
-        serde_json::json!({"ws":"a","from":"src/x.rs","to":"src/y.rs"}),
-    );
-    let got = call(
-        &mut m,
-        "ws_read",
-        serde_json::json!({"ws":"a","path":"src/y.rs"}),
-    );
-    assert_eq!(got, "fn x(){}\n");
+    // --limit keeps the tail.
+    let tail = sturn_ok(&repo, &["log", "--limit", "1"], &[]);
+    assert_eq!(tail.lines().count(), 1, "{tail}");
+    assert!(tail.contains("\"intent\""), "{tail}");
+    // --ws scopes the filtered stream too.
+    let scoped = sturn_ok(&repo, &["log", "--ws", "b", "--topic", "ops"], &[]);
+    assert!(scoped.contains("\"write\""), "{scoped}");
+    assert!(!scoped.contains("\"claim\""), "{scoped}");
 
-    // Claims across ws boundary: a holds src/**, b is denied.
-    call(
-        &mut m,
-        "claim",
-        serde_json::json!({"ws":"a","glob":"src/**","ttl_secs":60}),
+    // --wait-ms long-polls: returns early when a new event lands.
+    let home = std::env::temp_dir().join(format!("sturn-home-{}", std::process::id()));
+    std::fs::create_dir_all(&home).unwrap();
+    let child = Command::new(env!("CARGO_BIN_EXE_sturn"))
+        .current_dir(&repo)
+        .args(["log", "--wait-ms", "30000"])
+        .env("HOME", &home)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    let start = std::time::Instant::now();
+    sturn_ok(&repo, &["intent", "wake", "--ws", "a"], &[]);
+    let out = child.wait_with_output().unwrap();
+    assert!(out.status.success());
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(10),
+        "wait-ms didn't wake on the new event"
     );
-    let denied = m.rpc(
-        "tools/call",
-        serde_json::json!({"name":"claim","arguments":{"ws":"b","glob":"src/x.rs"}}),
-    );
-    assert_eq!(denied["result"]["isError"].as_bool(), Some(true));
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("wake"), "{text}");
 
-    // Snap via MCP produces a real commit.
-    call(
-        &mut m,
-        "snap",
-        serde_json::json!({"ws":"a","message":"mcp work"}),
-    );
-    assert_eq!(git(&repo, &["show", "HEAD:src/y.rs"]), "fn x(){}");
+    // No new events → returns at the deadline, empty is fine.
+    let start = std::time::Instant::now();
+    sturn_ok(&repo, &["log", "--wait-ms", "200"], &[]);
+    assert!(start.elapsed() >= std::time::Duration::from_millis(150));
 }
 
 #[test]
@@ -1309,116 +1314,6 @@ fn service_deploy_destroy_with_stubbed_systemctl() {
         .exists());
     // destroy again — no unit file, still succeeds.
     sturn_ok(&repo, &["destroy", "service"], &envs);
-}
-
-#[test]
-fn mcp_protocol_edges() {
-    let repo = bare_repo("mcp2");
-    sturn_ok(&repo, &["ws", "new", "a"], &[]);
-    let home = std::env::temp_dir().join(format!("sturn-home-{}", std::process::id()));
-    std::fs::create_dir_all(&home).unwrap();
-    let mut child = Command::new(env!("CARGO_BIN_EXE_sturn"))
-        .current_dir(&repo)
-        .args(["mcp", "--ws", "a"])
-        .env("HOME", &home)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
-    let mut stdin = child.stdin.take().unwrap();
-    let mut stdout = std::io::BufReader::new(child.stdout.take().unwrap());
-    use std::io::BufRead;
-    // Notification (no id) → no response; empty line; garbage —
-    // all skipped, server stays alive.
-    writeln!(
-        stdin,
-        r#"{{"jsonrpc":"2.0","method":"notifications/initialized"}}"#
-    )
-    .unwrap();
-    writeln!(stdin).unwrap();
-    writeln!(stdin, "not json").unwrap();
-    // Unknown method → JSON-RPC error.
-    writeln!(
-        stdin,
-        r#"{{"jsonrpc":"2.0","id":1,"method":"bogus/method"}}"#
-    )
-    .unwrap();
-    stdin.flush().unwrap();
-    let mut line = String::new();
-    stdout.read_line(&mut line).unwrap();
-    let v: serde_json::Value = serde_json::from_str(&line).unwrap();
-    assert_eq!(v["error"]["code"], -32601, "{v}");
-    // initialize without params → default protocol version.
-    writeln!(stdin, r#"{{"jsonrpc":"2.0","id":2,"method":"initialize"}}"#).unwrap();
-    stdin.flush().unwrap();
-    line.clear();
-    stdout.read_line(&mut line).unwrap();
-    let v: serde_json::Value = serde_json::from_str(&line).unwrap();
-    assert_eq!(v["result"]["protocolVersion"], "2024-11-05", "{v}");
-    // ping → {}.
-    writeln!(stdin, r#"{{"jsonrpc":"2.0","id":3,"method":"ping"}}"#).unwrap();
-    stdin.flush().unwrap();
-    line.clear();
-    stdout.read_line(&mut line).unwrap();
-    let v: serde_json::Value = serde_json::from_str(&line).unwrap();
-    assert_eq!(v["result"], serde_json::json!({}));
-    // tools/call without params → unknown tool error inside result.
-    writeln!(stdin, r#"{{"jsonrpc":"2.0","id":4,"method":"tools/call"}}"#).unwrap();
-    stdin.flush().unwrap();
-    line.clear();
-    stdout.read_line(&mut line).unwrap();
-    let v: serde_json::Value = serde_json::from_str(&line).unwrap();
-    assert_eq!(v["result"]["isError"], true, "{v}");
-    // Close stdin → presence "left" op lands, process exits.
-    drop(stdin);
-    drop(stdout);
-    assert!(child.wait().unwrap().success());
-    let log = sturn_ok(&repo, &["log", "--ws", "a"], &[]);
-    assert!(log.contains("joined") && log.contains("left"), "{log}");
-}
-
-#[test]
-fn mcp_broken_pipe_and_bad_utf8() {
-    let repo = bare_repo("mcp3");
-    sturn_ok(&repo, &["ws", "new", "a"], &[]);
-    // stdout closed → write fails → serve errors → exit 1.
-    let mut child = Command::new(env!("CARGO_BIN_EXE_sturn"))
-        .current_dir(&repo)
-        .arg("mcp")
-        .env(
-            "HOME",
-            std::env::temp_dir().join(format!("sturn-home-{}", std::process::id())),
-        )
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
-    drop(child.stdout.take().unwrap());
-    let mut stdin = child.stdin.take().unwrap();
-    let _ = writeln!(stdin, r#"{{"jsonrpc":"2.0","id":1,"method":"ping"}}"#);
-    let _ = stdin.flush();
-    drop(stdin);
-    assert!(!child.wait().unwrap().success());
-
-    // Invalid UTF-8 on stdin → read error → serve errors.
-    let mut child = Command::new(env!("CARGO_BIN_EXE_sturn"))
-        .current_dir(&repo)
-        .arg("mcp")
-        .env(
-            "HOME",
-            std::env::temp_dir().join(format!("sturn-home-{}", std::process::id())),
-        )
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
-    let mut stdin = child.stdin.take().unwrap();
-    stdin.write_all(&[0xff, 0xfe, b'\n']).unwrap();
-    drop(stdin);
-    assert!(!child.wait().unwrap().success());
 }
 
 #[test]

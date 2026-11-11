@@ -621,7 +621,6 @@ dependencies = [
  "sturn-core",
  "sturn-fuse",
  "sturn-git",
- "sturn-mcp",
  "sturn-service",
  "sturn-systemd",
  "sturn-wal",
@@ -735,18 +734,6 @@ name = "sturn-keyring"
 version = "0.1.0"
 dependencies = [
  "sturn-secret",
-]
-
-[[package]]
-name = "sturn-mcp"
-version = "0.1.0"
-dependencies = [
- "serde_json",
- "sturn-ask",
- "sturn-claim",
- "sturn-core",
- "sturn-wal",
- "sturn-ws",
 ]
 
 [[package]]

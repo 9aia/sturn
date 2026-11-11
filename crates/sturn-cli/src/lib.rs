@@ -1,6 +1,6 @@
 //! sturn — the engine as a library. Everything that used to live
 //! in the binary lives here: Cli/Cmd, the WAL/bus/ws plumbing,
-//! claims/asks, snap/push, daemon/sub/mcp/mount surfaces.
+//! claims/asks, snap/push, daemon/sub/mount surfaces.
 //! `run()` is the compat CLI's whole body; drivers (sturn bin,
 //! tamias-driver-sturn `run`) split it into [`parse`]/[`parse_from`]
 //! + [`dispatch`] — argv in, exit code out, ops callable as
@@ -15,7 +15,7 @@
 mod agentmd;
 
 use clap::{Parser, Subcommand};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
@@ -76,7 +76,8 @@ enum Cmd {
         #[arg(long)]
         ws: String,
     },
-    /// Append a write op — stdin or --file becomes an ODB blob.
+    /// Append a write op — --content, --file, or stdin becomes an
+    /// ODB blob.
     Write {
         /// Path inside the tree.
         path: String,
@@ -84,6 +85,10 @@ enum Cmd {
         ws: String,
         #[arg(long)]
         file: Option<PathBuf>,
+        /// Inline content — the wire-friendly form (ops pass it as
+        /// a param; no stdin needed).
+        #[arg(long, conflicts_with = "file")]
+        content: Option<String>,
         /// Why this edit exists — attached to the op.
         #[arg(long)]
         intent: Option<String>,
@@ -113,11 +118,23 @@ enum Cmd {
         #[arg(long)]
         ws: Option<String>,
     },
-    /// Replay the WAL — ops in order, JSONL.
+    /// Replay the WAL — ops in order, JSONL. `--topic`/`--limit`
+    /// filter the stream; `--wait-ms` long-polls (bounded) for new
+    /// events before printing — the daemon-free `subs` pull.
     Log {
         /// One workspace, or all when omitted.
         #[arg(long)]
         ws: Option<String>,
+        /// Restrict to one topic: ops|claims|review|presence|asks.
+        #[arg(long)]
+        topic: Option<String>,
+        /// Keep only the last N matching events.
+        #[arg(long)]
+        limit: Option<usize>,
+        /// Wait up to N ms for new events before printing
+        /// (0/omitted = snapshot now).
+        #[arg(long)]
+        wait_ms: Option<u64>,
     },
     /// In-flight ops per workspace — logged since the last snap,
     /// not yet landed. `--live` keeps streaming as new ops arrive.
@@ -258,12 +275,6 @@ enum Cmd {
         #[arg(long, default_value = "BUPHA_WEBHOOK_SECRET")]
         secret_env: String,
     },
-    /// MCP stdio server — the 9-tool agent surface on JSON-RPC.
-    /// --ws makes it the agent's ws: presence ops emit on connect.
-    Mcp {
-        #[arg(long)]
-        ws: Option<String>,
-    },
     /// Hydrate a ws to tmpfs and run a command inside — compilers
     /// need POSIX; agents don't. Exits with the command's status.
     Exec {
@@ -317,8 +328,26 @@ enum WsCmd {
     },
     /// List workspaces.
     Ls,
-    /// Read a file from a ws tree — no checkout.
+    /// Read a file from a ws — the live view: tip + uncommitted
+    /// ops, same fold `hydrate` materializes.
     Read { name: String, path: String },
+    /// List paths in a ws tree (tip + pending ops), optionally
+    /// glob-filtered — `**` lists everything.
+    Paths {
+        name: String,
+        /// Glob filter — same grammar claims use.
+        pattern: Option<String>,
+    },
+    /// Substring search across a ws tree (tip + pending ops) —
+    /// `path:line: text` per hit. `--path` restricts to a glob.
+    Grep {
+        name: String,
+        /// Substring to find.
+        pattern: String,
+        /// Only search paths matching this glob.
+        #[arg(long)]
+        path: Option<String>,
+    },
     /// Materialize a ws tree into a dir — tip + uncommitted ops.
     /// --path filters to a subset (repeatable); empty = whole tree.
     Hydrate {
@@ -409,7 +438,7 @@ pub fn dispatch(cli: &Cli) -> i32 {
 /// "Moved" includes appends (WAL events are commits under
 /// refs/sturn/wal/*), ref creates/moves (ws new, snap), pushes
 /// (remote-tracking refs move), and surfaces that write through
-/// a ws (mcp, hydrate/exec --writeback, mount --rw).
+/// a ws (hydrate/exec --writeback, mount --rw).
 fn mutates(cmd: &Cmd) -> bool {
     match cmd {
         Cmd::Claim { .. }
@@ -426,8 +455,7 @@ fn mutates(cmd: &Cmd) -> bool {
         | Cmd::Review { .. }
         | Cmd::Compact { .. }
         | Cmd::Snap { .. }
-        | Cmd::Push { .. }
-        | Cmd::Mcp { .. } => true,
+        | Cmd::Push { .. } => true,
         Cmd::Ws { cmd } => matches!(
             cmd,
             WsCmd::New { .. }
@@ -600,9 +628,59 @@ fn execute(cli: &Cli) -> Result<(), String> {
                 Ok(())
             }
             WsCmd::Read { name, path } => {
-                let tip = ws_impl.tip(&repo, name).map_err(|e| e.to_string())?;
-                let bytes = ws_impl.read(&repo, &tip, path).map_err(|e| e.to_string())?;
-                print!("{}", String::from_utf8_lossy(&bytes));
+                let (tip, pending) = ws_view(&repo, &wal, &ws_impl, name)?;
+                let ov = ws_overlay(&repo, &ws_impl, &tip, &pending);
+                match ov.get(path) {
+                    // Pending op wins — the ws's live view, same
+                    // fold `hydrate` materializes.
+                    Some(Some(sha)) => {
+                        let bytes = ws_impl.blob(&repo, sha).map_err(|e| e.to_string())?;
+                        print!("{}", String::from_utf8_lossy(&bytes));
+                    }
+                    Some(None) => return Err(format!("{path} deleted in ws overlay")),
+                    None => {
+                        let bytes = ws_impl.read(&repo, &tip, path).map_err(|e| e.to_string())?;
+                        print!("{}", String::from_utf8_lossy(&bytes));
+                    }
+                }
+                Ok(())
+            }
+            WsCmd::Paths { name, pattern } => {
+                let (tip, pending) = ws_view(&repo, &wal, &ws_impl, name)?;
+                let ov = ws_overlay(&repo, &ws_impl, &tip, &pending);
+                let paths = ws_paths(&repo, &ws_impl, &tip, &ov)?;
+                let pat = pattern.as_deref().unwrap_or("**");
+                for p in paths.iter().filter(|p| claims::glob_match(pat, p)) {
+                    println!("{p}");
+                }
+                Ok(())
+            }
+            WsCmd::Grep {
+                name,
+                pattern,
+                path,
+            } => {
+                let (tip, pending) = ws_view(&repo, &wal, &ws_impl, name)?;
+                let ov = ws_overlay(&repo, &ws_impl, &tip, &pending);
+                let paths = ws_paths(&repo, &ws_impl, &tip, &ov)?;
+                for p in &paths {
+                    if let Some(f) = path {
+                        if !claims::glob_match(f, p) {
+                            continue;
+                        }
+                    }
+                    let bytes = match ov.get(p) {
+                        Some(Some(sha)) => ws_impl.blob(&repo, sha).map_err(|e| e.to_string())?,
+                        // ws_paths already dropped pending deletes.
+                        Some(None) => continue,
+                        None => ws_impl.read(&repo, &tip, p).map_err(|e| e.to_string())?,
+                    };
+                    for (n, line) in String::from_utf8_lossy(&bytes).lines().enumerate() {
+                        if line.contains(pattern.as_str()) {
+                            println!("{p}:{}: {line}", n + 1);
+                        }
+                    }
+                }
                 Ok(())
             }
             WsCmd::Hydrate {
@@ -888,11 +966,13 @@ fn execute(cli: &Cli) -> Result<(), String> {
             path,
             ws,
             file,
+            content,
             intent,
         } => {
-            let content = match file {
-                Some(f) => std::fs::read(f).map_err(|e| e.to_string())?,
-                None => {
+            let bytes = match (file, content) {
+                (Some(f), _) => std::fs::read(f).map_err(|e| e.to_string())?,
+                (None, Some(c)) => c.as_bytes().to_vec(),
+                (None, None) => {
                     let mut b = Vec::new();
                     std::io::stdin()
                         .read_to_end(&mut b)
@@ -900,7 +980,7 @@ fn execute(cli: &Cli) -> Result<(), String> {
                     b
                 }
             };
-            let blob = sturn_git::store_blob(&repo, &content).map_err(|e| e.to_string())?;
+            let blob = sturn_git::store_blob(&repo, &bytes).map_err(|e| e.to_string())?;
             let id = append(
                 &wal,
                 &repo,
@@ -949,15 +1029,71 @@ fn execute(cli: &Cli) -> Result<(), String> {
             }
             Ok(())
         }
-        Cmd::Log { ws } => {
+        Cmd::Log {
+            ws,
+            topic: topic_name,
+            limit,
+            wait_ms,
+        } => {
+            let filtered = topic_name.is_some() || limit.is_some() || wait_ms.is_some();
+            if !filtered {
+                let names = match ws {
+                    Some(w) => vec![w.clone()],
+                    None => wal.workspaces(&repo).map_err(|e| e.to_string())?,
+                };
+                for n in names {
+                    for ev in wal.events(&repo, &n).map_err(|e| e.to_string())? {
+                        println!("{}", serde_json::to_string(&ev).map_err(|e| e.to_string())?);
+                    }
+                }
+                return Ok(());
+            }
+            // Filtered form: collect the scope, optionally long-poll
+            // for a new event, then topic-filter and tail-limit —
+            // the daemon-free `subs` pull the MCP surface had.
             let names = match ws {
                 Some(w) => vec![w.clone()],
                 None => wal.workspaces(&repo).map_err(|e| e.to_string())?,
             };
-            for n in names {
-                for ev in wal.events(&repo, &n).map_err(|e| e.to_string())? {
-                    println!("{}", serde_json::to_string(&ev).map_err(|e| e.to_string())?);
+            let scope_events = || -> Result<Vec<Event>, String> {
+                let mut all = Vec::new();
+                for n in &names {
+                    all.extend(wal.events(&repo, n).map_err(|e| e.to_string())?);
                 }
+                Ok(all)
+            };
+            if let Some(ms) = wait_ms {
+                if *ms > 0 {
+                    let base: std::collections::HashSet<String> =
+                        scope_events()?.into_iter().map(|e| e.id).collect();
+                    let deadline = std::time::Instant::now() + Duration::from_millis(*ms);
+                    while std::time::Instant::now() < deadline {
+                        let fresh = scope_events()?.iter().any(|e| !base.contains(&e.id));
+                        if fresh {
+                            break;
+                        }
+                        std::thread::sleep(Duration::from_millis(50));
+                    }
+                }
+            }
+            let t = topic_name.as_deref();
+            if let Some(t) = t {
+                if !topic::ALL.contains(&t) {
+                    return Err(format!(
+                        "unknown topic `{t}` — ops|claims|review|presence|asks"
+                    ));
+                }
+            }
+            let mut events = scope_events()?;
+            if let Some(t) = t {
+                events.retain(|e| topic_keep(t, e));
+            }
+            if let Some(n) = limit {
+                let start = events.len().saturating_sub(*n);
+                events = events.split_off(start);
+            }
+            for ev in &events {
+                println!("{}", serde_json::to_string(ev).map_err(|e| e.to_string())?);
             }
             Ok(())
         }
@@ -1000,31 +1136,6 @@ fn execute(cli: &Cli) -> Result<(), String> {
             run_bridge(
                 &repo, &wal, &ws_impl, to, &secret, &repo_id, &branch, poll_ms,
             )
-        }
-        Cmd::Mcp { ws: mws } => {
-            let snap = |ws: &str, msg: &str, branch: &str| {
-                do_snap(
-                    &repo,
-                    &wal,
-                    &ws_impl,
-                    ws,
-                    msg,
-                    branch,
-                    &actor,
-                    cfg.as_ref().map(|c| c.review.require).unwrap_or(false),
-                )
-            };
-            sturn_mcp::serve(&sturn_mcp::Ctx {
-                repo: &repo,
-                repo_id: &repo_id,
-                wal: &wal,
-                wsi: &ws_impl,
-                actor: &actor,
-                branch: &branch,
-                snap: &snap,
-                ws: mws.as_deref(),
-            })
-            .map_err(|e| e.to_string())
         }
         Cmd::Exec {
             ws,
@@ -1188,7 +1299,7 @@ fn append(wal: &dyn Wal, repo: &Path, ws: &str, actor: &str, op: Op) -> Result<S
 
 /// Fold a ws's pending ops (since last Snapshot) into a real commit
 /// on `branch`, move the ws ref, append the Snapshot marker.
-/// Shared by `sturn snap` and the MCP `snap` tool.
+/// Shared by `sturn snap` and the generated agent surface's snap op.
 #[allow(clippy::too_many_arguments)]
 fn do_snap(
     repo: &Path,
@@ -1644,9 +1755,71 @@ fn subscribe(sock_path: &Path, repo_id: &str, topic: &str) -> Result<(), String>
     Ok(())
 }
 
+/// A ws's live-view inputs: tip commit + pending events since the
+/// last Snapshot — the same fold `hydrate`/`diff` use, so `ws read`/
+/// `paths`/`grep` see uncommitted ops exactly like materialized dirs.
+fn ws_view(
+    repo: &Path,
+    wal: &dyn Wal,
+    wsi: &dyn Ws,
+    name: &str,
+) -> Result<(String, Vec<Event>), String> {
+    let tip = wsi.tip(repo, name).map_err(|e| e.to_string())?;
+    let events = wal.events(repo, name).map_err(|e| e.to_string())?;
+    let since = sturn_core::since_last_snapshot(&events);
+    Ok((tip, events[since..].to_vec()))
+}
+
+/// Path → blob-sha overlay for a ws's pending ops (None = deleted).
+fn ws_overlay(
+    repo: &Path,
+    wsi: &dyn Ws,
+    tip: &str,
+    pending: &[Event],
+) -> BTreeMap<String, Option<String>> {
+    sturn_core::overlay(pending, |p| wsi.entry(repo, tip, p).ok().flatten())
+}
+
+/// The ws's effective path set — tip listing folded through the
+/// pending overlay (writes add, deletes remove, renames move) —
+/// sorted and deduped, ready for glob filters.
+fn ws_paths(
+    repo: &Path,
+    wsi: &dyn Ws,
+    tip: &str,
+    ov: &BTreeMap<String, Option<String>>,
+) -> Result<Vec<String>, String> {
+    let mut paths = wsi.list(repo, tip).map_err(|e| e.to_string())?;
+    for (p, v) in ov {
+        match v {
+            Some(_) => paths.push(p.clone()),
+            None => paths.retain(|x| x != p),
+        }
+    }
+    paths.sort();
+    paths.dedup();
+    Ok(paths)
+}
+
+/// Does `ev` belong on bus `topic` — the same op-kind split the
+/// daemon fans out (ops = firehose; the rest are subsets).
+fn topic_keep(t: &str, ev: &Event) -> bool {
+    match t {
+        t if t == topic::OPS => true,
+        t if t == topic::CLAIMS => matches!(ev.op, Op::Claim { .. } | Op::Release { .. }),
+        t if t == topic::REVIEW => matches!(ev.op, Op::Review { .. }),
+        t if t == topic::PRESENCE => matches!(ev.op, Op::Presence { .. }),
+        t if t == topic::ASKS => matches!(
+            ev.op,
+            Op::Ask { .. } | Op::Answer { .. } | Op::Cancel { .. }
+        ),
+        _ => false,
+    }
+}
+
 /// Hydrate a ws into `dir`: tip commit via `git archive` (+ optional
 /// path filter), then the WAL overlay since the last snapshot —
-/// hydrated dirs see uncommitted ops, matching `ws_read`.
+/// hydrated dirs see uncommitted ops, matching `ws read`.
 fn hydrate_ws(
     repo: &Path,
     wal: &dyn Wal,
@@ -2820,6 +2993,7 @@ mod tests {
             path: "f".into(),
             ws: "a".into(),
             file: None,
+            content: None,
             intent: None
         }));
         assert!(mutates(&Cmd::Rename {
@@ -2861,7 +3035,6 @@ mod tests {
             ws: "a".into()
         }));
         assert!(mutates(&Cmd::Compact { ws: None }));
-        assert!(mutates(&Cmd::Mcp { ws: None }));
         // Ws verbs split — only writers.
         assert!(mutates(&Cmd::Ws {
             cmd: WsCmd::New {
@@ -2911,7 +3084,12 @@ mod tests {
         }));
         // Readers never fire.
         assert!(!mutates(&Cmd::Claims));
-        assert!(!mutates(&Cmd::Log { ws: None }));
+        assert!(!mutates(&Cmd::Log {
+            ws: None,
+            topic: None,
+            limit: None,
+            wait_ms: None
+        }));
         assert!(!mutates(&Cmd::Diff {
             ws: None,
             json: false,

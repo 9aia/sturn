@@ -15,7 +15,7 @@ api:
 - name: append
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 149
+  line: 144
   module: sturn-wal-git
 - name: append_and_read_back
   kind: function
@@ -35,7 +35,7 @@ api:
 - name: compact
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 241
+  line: 240
   module: sturn-wal-git
 - name: compact_drops_pre_snapshot_history
   kind: function
@@ -75,7 +75,7 @@ api:
 - name: events_since
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 187
+  line: 191
   module: sturn-wal-git
 - name: events_since_handles_bad_json_and_backfills_id
   kind: function
@@ -110,7 +110,7 @@ api:
 - name: head
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 224
+  line: 223
   module: sturn-wal-git
 - name: head_and_events_on_unknown_ws
   kind: function
@@ -170,7 +170,7 @@ api:
 - name: workspaces
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 277
+  line: 284
   module: sturn-wal-git
 - name: workspaces_lists_ws_refs
   kind: function
@@ -196,8 +196,8 @@ provenance:
   - crates/sturn-wal-git/tests/wal.rs
   hashes:
   - 920e3060a2a096d2c39647c722b94768629605d2
-  - 64efc372ae2b33d9cf4d5dde77bbeada21792e2d
+  - f0a543ce7ab0a63dc64b8e3d3ba14e47c7c21767
   - 931a4db47a68f45a57a21519984ebcdba97b174e
-  commit_sha: c517fa874a34bd5531e285f20d874d6a8ad081a3
-  generated_at: '1793752064'
-  generator: kuda-template/0.1.2
+  commit_sha: adae1d7e7c927216006da972608cc345929607ea
+  generated_at: '1794437265'
+  generator: kuda-template/0.1.4

@@ -13,7 +13,7 @@
 //! become typed params (`arg`/`opt`/`flag`), and doc strings ride
 //! along unchanged.
 //!
-//! Unbounded verbs (`daemon`, `sub`, `bridge`, `mcp`, `mount`) are
+//! Unbounded verbs (`daemon`, `sub`, `bridge`, `mount`) are
 //! deliberately *not* ops — they never return, so they live in
 //! `surfaces` instead: surface drivers (`tamias-driver-cli`/`-mcp`,
 //! the pavo-driver-kit `surface` layer) stream them via `run`.
@@ -28,7 +28,7 @@ use std::path::Path;
 
 /// Unbounded surfaces — verbs that never return, so they can
 /// never be request/response ops.
-const SURFACES: &[&str] = &["daemon", "sub", "bridge", "mcp", "mount"];
+const SURFACES: &[&str] = &["daemon", "sub", "bridge", "mount"];
 
 /// Params excluded from ops — flags that turn a bounded verb into
 /// a stream. The bounded form rides the wire; the stream rides
@@ -291,7 +291,7 @@ mod tests {
         assert_eq!(op_of("cli.ws.new").unwrap(), "ws.new");
         assert_eq!(op_of("cli.service.logs").unwrap(), "service.logs");
         assert!(op_of("cli.daemon").is_none()); // surface, not an op
-        assert!(op_of("cli.mcp").is_none());
+        assert!(op_of("cli.mcp").is_none()); // the verb is gone — ops→MCP tools replaced it
         assert!(op_of("claims").is_none()); // view query, not an op
         assert!(op_of("cli.bogus").is_none());
         assert!(op_of("cli.ws").is_none()); // group, not a leaf

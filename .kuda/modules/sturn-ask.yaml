@@ -25,22 +25,22 @@ api:
 - name: all_reports_every_state_in_order
   kind: function
   file: crates/sturn-ask/tests/asks.rs
-  line: 235
+  line: 234
   module: sturn-ask
 - name: answer_closes_and_first_wins
   kind: function
   file: crates/sturn-ask/tests/asks.rs
-  line: 57
+  line: 51
   module: sturn-ask
 - name: answered_ask_does_not_expire
   kind: function
   file: crates/sturn-ask/tests/asks.rs
-  line: 114
+  line: 108
   module: sturn-ask
 - name: answers_from_other_workspaces_close_the_ask
   kind: function
   file: crates/sturn-ask/tests/asks.rs
-  line: 157
+  line: 159
   module: sturn-ask
 - name: ask
   kind: function
@@ -50,7 +50,7 @@ api:
 - name: cancel_closes
   kind: function
   file: crates/sturn-ask/tests/asks.rs
-  line: 92
+  line: 86
   module: sturn-ask
 - name: ev
   kind: function
@@ -60,7 +60,7 @@ api:
 - name: expiry_is_derived
   kind: function
   file: crates/sturn-ask/tests/asks.rs
-  line: 101
+  line: 95
   module: sturn-ask
 - name: fold
   kind: function
@@ -70,7 +70,7 @@ api:
 - name: fresh_ask_is_open
   kind: function
   file: crates/sturn-ask/tests/asks.rs
-  line: 51
+  line: 45
   module: sturn-ask
 - name: open
   kind: function
@@ -80,17 +80,17 @@ api:
 - name: open_carries_metadata
   kind: function
   file: crates/sturn-ask/tests/asks.rs
-  line: 211
+  line: 210
   module: sturn-ask
 - name: open_lists_only_live_asks
   kind: function
   file: crates/sturn-ask/tests/asks.rs
-  line: 185
+  line: 187
   module: sturn-ask
 - name: reask_same_log_order_stable
   kind: function
   file: crates/sturn-ask/tests/asks.rs
-  line: 269
+  line: 265
   module: sturn-ask
 - name: status
   kind: function
@@ -105,7 +105,7 @@ api:
 - name: terminal_ops_for_unknown_asks_are_ignored
   kind: function
   file: crates/sturn-ask/tests/asks.rs
-  line: 138
+  line: 132
   module: sturn-ask
 - name: unknown_ask_is_none
   kind: function
@@ -115,7 +115,7 @@ api:
 - name: zero_ttl_never_expires
   kind: function
   file: crates/sturn-ask/tests/asks.rs
-  line: 108
+  line: 102
   module: sturn-ask
 deps:
 - sturn-core
@@ -133,7 +133,7 @@ provenance:
   hashes:
   - 4dafecd121808bfabe6de0b6fd362c82eae4c268
   - 5066b8c22b870470a782924a33e0bfe77d1d6e5f
-  - 840388cd0207bd9c8029dc4c2adf6a0e20456808
-  commit_sha: c517fa874a34bd5531e285f20d874d6a8ad081a3
-  generated_at: '1793752064'
-  generator: kuda-template/0.1.2
+  - d9f7c72d1ffba1c635d13b1f13639829a69ba5a3
+  commit_sha: adae1d7e7c927216006da972608cc345929607ea
+  generated_at: '1794437265'
+  generator: kuda-template/0.1.4

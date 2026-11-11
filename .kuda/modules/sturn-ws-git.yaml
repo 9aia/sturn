@@ -10,12 +10,12 @@ api:
 - name: blob
   kind: function
   file: crates/sturn-ws-git/src/lib.rs
-  line: 122
+  line: 116
   module: sturn-ws-git
 - name: create
   kind: function
   file: crates/sturn-ws-git/src/lib.rs
-  line: 102
+  line: 96
   module: sturn-ws-git
 - name: create_tip_and_workspaces
   kind: function
@@ -25,7 +25,7 @@ api:
 - name: entry
   kind: function
   file: crates/sturn-ws-git/src/lib.rs
-  line: 107
+  line: 101
   module: sturn-ws-git
 - name: git
   kind: function
@@ -75,7 +75,7 @@ api:
 - name: store
   kind: function
   file: crates/sturn-ws-git/src/lib.rs
-  line: 140
+  line: 134
   module: sturn-ws-git
 - name: store_and_blob_roundtrip
   kind: function
@@ -90,7 +90,7 @@ api:
 - name: tip
   kind: function
   file: crates/sturn-ws-git/src/lib.rs
-  line: 161
+  line: 155
   module: sturn-ws-git
 - name: tip_missing_ws_errors
   kind: function
@@ -100,7 +100,7 @@ api:
 - name: workspaces
   kind: function
   file: crates/sturn-ws-git/src/lib.rs
-  line: 168
+  line: 162
   module: sturn-ws-git
 - name: workspaces_ignores_other_ref_namespaces
   kind: function
@@ -128,8 +128,8 @@ provenance:
   - crates/sturn-ws-git/tests/ws.rs
   hashes:
   - 74885c8dbd6264f0bc6da2657aeab82fc54a0c70
-  - 54c619fbf0b1a765fa3a15cfefbadd1f8c8a9da9
+  - b53a4ce236665478037df78c71a061ec3658e990
   - 5a046fd6510b27f3ed0a0c110ddbd5272a00f7b9
-  commit_sha: c517fa874a34bd5531e285f20d874d6a8ad081a3
-  generated_at: '1793752064'
-  generator: kuda-template/0.1.2
+  commit_sha: adae1d7e7c927216006da972608cc345929607ea
+  generated_at: '1794437265'
+  generator: kuda-template/0.1.4

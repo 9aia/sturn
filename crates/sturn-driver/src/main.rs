@@ -23,7 +23,7 @@
 //! Optional surfaces: features `cli`/`mcp` embed
 //! pavo-driver-kit's surface layer — `cli <op> [args]` is a
 //! generated CLI over the ops manifest (`daemon`/`sub`/`bridge`/
-//! `mcp`/`mount` ride as streaming subcommands), `mcp` serves the
+//! `mount` ride as streaming subcommands), `mcp` serves the
 //! ops as MCP tools on stdio. Both are equivalent to the standalone
 //! `tamias-driver-cli`/`tamias-driver-mcp` surface drivers, minus
 //! the PATH/discovery hop.

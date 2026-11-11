@@ -10,7 +10,7 @@ api:
 - name: FailWs
   kind: type
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 231
+  line: 246
   module: sturn-fuse
 - name: MOUNT_LOCK
   kind: const
@@ -20,12 +20,12 @@ api:
 - name: MemWal
   kind: type
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 125
+  line: 132
   module: sturn-fuse
 - name: MemWs
   kind: type
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 63
+  line: 67
   module: sturn-fuse
 - name: ROOT
   kind: const
@@ -45,17 +45,17 @@ api:
 - name: add_entry
   kind: function
   file: crates/sturn-fuse/src/lib.rs
-  line: 163
+  line: 172
   module: sturn-fuse
 - name: append
   kind: function
   file: crates/sturn-fuse/src/lib.rs
-  line: 159
+  line: 166
   module: sturn-fuse
 - name: append
   kind: function
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 138
+  line: 145
   module: sturn-fuse
 - name: attr
   kind: function
@@ -65,12 +65,12 @@ api:
 - name: blob
   kind: function
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 101
+  line: 105
   module: sturn-fuse
 - name: blob
   kind: function
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 248
+  line: 263
   module: sturn-fuse
 - name: build
   kind: function
@@ -80,102 +80,102 @@ api:
 - name: build_runs_over_tree_without_mounting
   kind: function
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 217
+  line: 232
   module: sturn-fuse
 - name: compact
   kind: function
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 161
+  line: 173
   module: sturn-fuse
 - name: create
   kind: function
   file: crates/sturn-fuse/src/lib.rs
-  line: 335
+  line: 384
   module: sturn-fuse
 - name: create
   kind: function
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 95
+  line: 99
   module: sturn-fuse
 - name: create
   kind: function
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 242
+  line: 257
   module: sturn-fuse
 - name: entry
   kind: function
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 98
+  line: 102
   module: sturn-fuse
 - name: entry
   kind: function
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 245
+  line: 260
   module: sturn-fuse
 - name: events_since
   kind: function
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 145
+  line: 152
   module: sturn-fuse
 - name: file_size
   kind: function
   file: crates/sturn-fuse/src/lib.rs
-  line: 195
+  line: 198
   module: sturn-fuse
 - name: flush
   kind: function
   file: crates/sturn-fuse/src/lib.rs
-  line: 431
+  line: 493
   module: sturn-fuse
 - name: fsync
   kind: function
   file: crates/sturn-fuse/src/lib.rs
-  line: 417
+  line: 478
   module: sturn-fuse
 - name: getattr
   kind: function
   file: crates/sturn-fuse/src/lib.rs
-  line: 225
+  line: 245
   module: sturn-fuse
 - name: head
   kind: function
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 155
+  line: 167
   module: sturn-fuse
 - name: list
   kind: function
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 89
+  line: 93
   module: sturn-fuse
 - name: list
   kind: function
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 236
+  line: 251
   module: sturn-fuse
 - name: lookup
   kind: function
   file: crates/sturn-fuse/src/lib.rs
-  line: 213
+  line: 230
   module: sturn-fuse
 - name: materialize
   kind: function
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 92
+  line: 96
   module: sturn-fuse
 - name: materialize
   kind: function
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 239
+  line: 254
   module: sturn-fuse
 - name: mkdir
   kind: function
   file: crates/sturn-fuse/src/lib.rs
-  line: 436
+  line: 498
   module: sturn-fuse
 - name: mount
   kind: function
   file: crates/sturn-fuse/src/lib.rs
-  line: 150
+  line: 157
   module: sturn-fuse
 - name: mount_lock
   kind: function
@@ -190,12 +190,12 @@ api:
 - name: new
   kind: function
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 70
+  line: 74
   module: sturn-fuse
 - name: new
   kind: function
   file: crates/sturn-fuse/tests/fuse.rs
-  line: 130
+  line: 137
   module: sturn-fuse
 - name: new_rw
   kind: function
@@ -225,8 +225,8 @@ provenance:
   - crates/sturn-fuse/tests/fuse.rs
   hashes:
   - 6c132812f2fc147db0df216bc92eb260e01b2491
-  - f9e3ed9aa08b84ae2a0ba1e2f18a54eedc1b92b7
-  - 4869a24e8d2ce13ec47a07b0125cf081af634d23
-  commit_sha: c517fa874a34bd5531e285f20d874d6a8ad081a3
-  generated_at: '1793752064'
-  generator: kuda-template/0.1.2
+  - 3a1c2db9e86e7e519b2145b0d4e123787dae60ea
+  - 7c13e9b075144548d26ca543beef69b5cb218c45
+  commit_sha: adae1d7e7c927216006da972608cc345929607ea
+  generated_at: '1794437265'
+  generator: kuda-template/0.1.4

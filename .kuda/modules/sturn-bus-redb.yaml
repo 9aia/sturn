@@ -104,8 +104,8 @@ provenance:
   - crates/sturn-bus-redb/tests/bus.rs
   hashes:
   - 400e9db9ac5978965f038a926e04e4ef1dbb2f4e
-  - eb2fecfdafadb29f31884ae902ed8850f5ef77d2
+  - 455267138c1dd7ae4fcd3f103e66efbebf0c30bb
   - 1f7c88a90047c4092513e69d08b6ab1904a168b6
-  commit_sha: c517fa874a34bd5531e285f20d874d6a8ad081a3
-  generated_at: '1793752064'
-  generator: kuda-template/0.1.2
+  commit_sha: adae1d7e7c927216006da972608cc345929607ea
+  generated_at: '1794437265'
+  generator: kuda-template/0.1.4

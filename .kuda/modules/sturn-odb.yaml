@@ -5,27 +5,27 @@ api:
 - name: CACHE
   kind: const
   file: crates/sturn-odb/src/lib.rs
-  line: 339
+  line: 341
   module: sturn-odb
 - name: Ident
   kind: type
   file: crates/sturn-odb/src/lib.rs
-  line: 324
+  line: 326
   module: sturn-odb
 - name: N
   kind: const
   file: crates/sturn-odb/src/lib.rs
-  line: 158
+  line: 160
   module: sturn-odb
 - name: commit
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 381
+  line: 385
   module: sturn-odb
 - name: commit_tree
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 403
+  line: 407
   module: sturn-odb
 - name: common_dir
   kind: function
@@ -35,17 +35,17 @@ api:
 - name: deflate
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 120
+  line: 122
   module: sturn-odb
 - name: entry_at
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 425
+  line: 429
   module: sturn-odb
 - name: entry_oid
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 486
+  line: 490
   module: sturn-odb
 - name: git_dir
   kind: function
@@ -55,42 +55,42 @@ api:
 - name: hex
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 89
+  line: 91
   module: sturn-odb
 - name: idents
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 330
+  line: 332
   module: sturn-odb
 - name: inflate
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 126
+  line: 128
   module: sturn-odb
 - name: list_tree
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 492
+  line: 496
   module: sturn-odb
 - name: loose_ref
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 218
+  line: 220
   module: sturn-odb
 - name: object_exists
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 180
+  line: 182
   module: sturn-odb
 - name: object_id
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 109
+  line: 111
   module: sturn-odb
 - name: object_id_matches_git_sha1
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 545
+  line: 549
   module: sturn-odb
 - name: objects_dir
   kind: function
@@ -100,27 +100,27 @@ api:
 - name: packed_ref
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 235
+  line: 237
   module: sturn-odb
 - name: read_at
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 474
+  line: 478
   module: sturn-odb
 - name: read_object
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 195
+  line: 197
   module: sturn-odb
 - name: read_ref
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 256
+  line: 258
   module: sturn-odb
 - name: resolve
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 273
+  line: 275
   module: sturn-odb
 - name: sha1_repo
   kind: function
@@ -130,7 +130,7 @@ api:
 - name: sha256_repo_defers_to_plumbing
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 559
+  line: 563
   module: sturn-odb
 - name: sturn-odb
   kind: module
@@ -140,37 +140,37 @@ api:
 - name: tests
   kind: module
   file: crates/sturn-odb/src/lib.rs
-  line: 541
+  line: 545
   module: sturn-odb
 - name: tree_entry
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 410
+  line: 414
   module: sturn-odb
 - name: tree_object
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 295
+  line: 297
   module: sturn-odb
 - name: tree_object_sorts_like_git
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 580
+  line: 584
   module: sturn-odb
 - name: unhex
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 97
+  line: 99
   module: sturn-odb
 - name: walk
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 516
+  line: 520
   module: sturn-odb
 - name: write_object
   kind: function
   file: crates/sturn-odb/src/lib.rs
-  line: 135
+  line: 137
   module: sturn-odb
 deps:
 - flate2
@@ -186,7 +186,7 @@ provenance:
   - crates/sturn-odb/src/lib.rs
   hashes:
   - a6f0dd2a666115766eb2dca59a93ee7760eaf244
-  - 61ac4bbc2ed8facbe51427f7ac1043747e12c84d
-  commit_sha: c517fa874a34bd5531e285f20d874d6a8ad081a3
-  generated_at: '1793752064'
-  generator: kuda-template/0.1.2
+  - 8e11e277cdfd981cf294e97016ec60a8bdb27ad4
+  commit_sha: adae1d7e7c927216006da972608cc345929607ea
+  generated_at: '1794437265'
+  generator: kuda-template/0.1.4

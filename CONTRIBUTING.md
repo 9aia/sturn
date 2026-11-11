@@ -11,10 +11,11 @@ config). Ports are crates: `sturn-wal`, `sturn-bus`, `sturn-ws`,
 `sturn-vcs`, `sturn-config`, `sturn-secret`, `sturn-service`. Impls:
 `sturn-wal-git`/`sturn-git`/`sturn-ws-git` (git plumbing),
 `sturn-bus-redb`, `sturn-config-toml`, `sturn-keyring`/`sturn-dotenv`,
-`sturn-systemd`. `sturn-claim` is pure claim logic. `sturn-mcp` is
-the agent tool contract. `sturn-cli` (package `sturn` — engine lib
-+ compat bin `sturn`) is the composition root; `sturn-driver` (bin
-`tamias-driver-sturn`) is the pavo view/ops driver over it.
+`sturn-systemd`. `sturn-claim` is pure claim logic. `sturn-cli`
+(package `sturn` — engine lib + compat bin `sturn`) is the
+composition root; `sturn-driver` (bin
+`tamias-driver-sturn`) is the pavo view/ops driver over it — its
+ops manifest is also the agent surface (generated MCP/CLI tools).
 
 ## Rules of thumb
 

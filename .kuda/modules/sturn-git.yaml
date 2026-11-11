@@ -2,127 +2,118 @@ name: sturn-git
 path: crates/sturn-git/Cargo.toml
 purpose: Vcs impl via the git binary + WAL->commit snap
 api:
-- name: GitVcs
-  kind: type
-  file: crates/sturn-git/src/lib.rs
-  line: 12
-  module: sturn-git
 - name: SNAP_IDX
   kind: const
   file: crates/sturn-git/src/lib.rs
-  line: 132
+  line: 96
   module: sturn-git
 - name: ev
   kind: function
   file: crates/sturn-git/tests/vcs.rs
-  line: 58
+  line: 59
   module: sturn-git
 - name: git
   kind: function
   file: crates/sturn-git/src/lib.rs
-  line: 14
+  line: 16
   module: sturn-git
 - name: git
   kind: function
   file: crates/sturn-git/tests/vcs.rs
-  line: 11
+  line: 12
   module: sturn-git
 - name: has_commit
   kind: function
   file: crates/sturn-git/src/lib.rs
-  line: 59
+  line: 46
   module: sturn-git
 - name: has_commit_checks_objects
   kind: function
   file: crates/sturn-git/tests/vcs.rs
-  line: 71
+  line: 72
   module: sturn-git
 - name: push
   kind: function
   file: crates/sturn-git/src/lib.rs
-  line: 74
+  line: 52
   module: sturn-git
 - name: push_and_sync_bare_remote
   kind: function
   file: crates/sturn-git/tests/vcs.rs
-  line: 157
+  line: 161
   module: sturn-git
 - name: repo
   kind: function
   file: crates/sturn-git/tests/vcs.rs
-  line: 34
+  line: 35
   module: sturn-git
 - name: resolve
   kind: function
   file: crates/sturn-git/src/lib.rs
-  line: 44
+  line: 37
   module: sturn-git
 - name: scratch
   kind: function
   file: crates/sturn-git/tests/vcs.rs
-  line: 27
+  line: 28
   module: sturn-git
 - name: snap_commit
   kind: function
   file: crates/sturn-git/src/lib.rs
-  line: 122
+  line: 86
   module: sturn-git
 - name: snap_commit_deletes_paths
   kind: function
   file: crates/sturn-git/tests/vcs.rs
-  line: 125
+  line: 129
   module: sturn-git
 - name: snap_commit_folds_tree_ops
   kind: function
   file: crates/sturn-git/tests/vcs.rs
-  line: 80
+  line: 84
   module: sturn-git
 - name: snap_commit_rename_resolves_from_base
   kind: function
   file: crates/sturn-git/tests/vcs.rs
-  line: 142
+  line: 146
   module: sturn-git
 - name: snap_commit_write_then_rename_uses_seen
   kind: function
   file: crates/sturn-git/tests/vcs.rs
-  line: 230
+  line: 257
   module: sturn-git
 - name: store_blob
   kind: function
   file: crates/sturn-git/src/lib.rs
-  line: 94
+  line: 58
   module: sturn-git
 - name: store_blob_and_snap_errors
   kind: function
   file: crates/sturn-git/tests/vcs.rs
-  line: 208
+  line: 223
   module: sturn-git
 - name: store_blob_writes_object
   kind: function
   file: crates/sturn-git/tests/vcs.rs
-  line: 63
+  line: 64
   module: sturn-git
 - name: sturn-git
   kind: module
   file: crates/sturn-git/Cargo.toml
   line: 1
   module: sturn-git
-- name: sync
-  kind: function
-  file: crates/sturn-git/src/lib.rs
-  line: 34
-  module: sturn-git
 - name: vcs_failures_return_false
   kind: function
   file: crates/sturn-git/tests/vcs.rs
-  line: 195
+  line: 198
   module: sturn-git
 deps:
+- lasius-vcs
+- lasius-vcs-git
 - sturn-core
 - sturn-odb
-- sturn-vcs
+- lasius_vcs
 - sturn-core
-- sturn-vcs
 notes: ''
 verify:
 - crates/sturn-git/Cargo.toml
@@ -134,9 +125,9 @@ provenance:
   - crates/sturn-git/src/lib.rs
   - crates/sturn-git/tests/vcs.rs
   hashes:
-  - a759c72fbde15626823a28c6534cfa8025706dd3
-  - 584d8a0cd722e258da2ad30be5bd1f94c0b40876
-  - ffe69a9b106bdfe9da240d7ff5730bb9fa62b27d
-  commit_sha: c97ff196e576f7a62d035f1610e7fbae246aea77
-  generated_at: '1793761203'
-  generator: kuda-template/0.1.2
+  - 83daaba3458beaee0247769cca93f3ac6f427a74
+  - 57216de2cf4d81f805974bdb6e57cdf1d9bdc717
+  - 3aa8aa612c6353e9e05e327cb5b7151680d4f50a
+  commit_sha: adae1d7e7c927216006da972608cc345929607ea
+  generated_at: '1794437265'
+  generator: kuda-template/0.1.4

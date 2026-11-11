@@ -30,7 +30,7 @@ api:
 - name: conflicts
   kind: function
   file: crates/sturn-claim/src/lib.rs
-  line: 221
+  line: 219
   module: sturn-claim
 - name: conflicts_reports_opaque_holders
   kind: function
@@ -45,7 +45,7 @@ api:
 - name: covers
   kind: function
   file: crates/sturn-claim/src/lib.rs
-  line: 157
+  line: 155
   module: sturn-claim
 - name: covers_is_symmetric_overlap
   kind: function
@@ -135,12 +135,12 @@ api:
 - name: opaque_covers
   kind: function
   file: crates/sturn-claim/src/lib.rs
-  line: 184
+  line: 182
   module: sturn-claim
 - name: overlaps
   kind: function
   file: crates/sturn-claim/src/lib.rs
-  line: 200
+  line: 198
   module: sturn-claim
 - name: overlaps_fs_uses_glob_intersection
   kind: function
@@ -160,7 +160,7 @@ api:
 - name: port_range
   kind: function
   file: crates/sturn-claim/src/lib.rs
-  line: 169
+  line: 167
   module: sturn-claim
 - name: presence_joined_keeps_claims
   kind: function
@@ -218,8 +218,8 @@ provenance:
   - crates/sturn-claim/tests/claims.rs
   hashes:
   - 93abd736bec8e72671fe408e4acbc61526f03d7e
-  - 5acbd1be98dbbfc2690e273b427536af957d92eb
+  - 216e470d0facd8b3415a354d57ac0461c86d8fdd
   - a9f7594ca8e97d85d51adb38cc1a05853c03359e
-  commit_sha: c517fa874a34bd5531e285f20d874d6a8ad081a3
-  generated_at: '1793752064'
-  generator: kuda-template/0.1.2
+  commit_sha: adae1d7e7c927216006da972608cc345929607ea
+  generated_at: '1794437265'
+  generator: kuda-template/0.1.4

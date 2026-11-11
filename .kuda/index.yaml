@@ -17,12 +17,10 @@ modules:
 - sturn-fuse
 - sturn-git
 - sturn-keyring
-- sturn-mcp
 - sturn-odb
 - sturn-secret
 - sturn-service
 - sturn-systemd
-- sturn-vcs
 - sturn-wal
 - sturn-wal-git
 - sturn-ws
@@ -30,8 +28,8 @@ modules:
 commands:
 - cargo check
 - cargo test --workspace
-tree_digest: 0a5f28cb8b388de0a6574d48ee13d12318330aa3
-files_total: 95
+tree_digest: f70226d4e66ce71c8c99623581661a31266927e6
+files_total: 117
 provenance:
   files:
   - Cargo.toml
@@ -49,42 +47,38 @@ provenance:
   - crates/sturn-fuse/Cargo.toml
   - crates/sturn-git/Cargo.toml
   - crates/sturn-keyring/Cargo.toml
-  - crates/sturn-mcp/Cargo.toml
   - crates/sturn-odb/Cargo.toml
   - crates/sturn-secret/Cargo.toml
   - crates/sturn-service/Cargo.toml
   - crates/sturn-systemd/Cargo.toml
-  - crates/sturn-vcs/Cargo.toml
   - crates/sturn-wal/Cargo.toml
   - crates/sturn-wal-git/Cargo.toml
   - crates/sturn-ws/Cargo.toml
   - crates/sturn-ws-git/Cargo.toml
   hashes:
-  - 5348a47286c7d74dda18c03e4b59d3ee4da81b36
-  - 5b4f58aeb00e9ab5ac9ef4e5edbb14d052939d30
+  - af1dab93132ffde6e66916eae9bdb079406c51a1
+  - 1bf278f98b4ae01a4114ca185c9d9db04fd22714
   - 4dafecd121808bfabe6de0b6fd362c82eae4c268
   - d2bdd41da6f91a3199ae6ce1759d4dcdeda1590c
   - 400e9db9ac5978965f038a926e04e4ef1dbb2f4e
   - 93abd736bec8e72671fe408e4acbc61526f03d7e
-  - 8a1965963ca67fbc963b0e276b890fb15e79b32f
+  - 504861e4abcd2d20798368eeec810cd577cc8ad6
   - 7f88a0b211dbc52225268ab69886c2d1efb59f67
   - 6c4e9170c6f1b07daf372307e3d7e89e3427c28f
   - 8882be00ff91823f5d18b19eaca492be7e9a5ef5
   - 1034b2491bf076039224a52253fddb5330eaa0bf
   - ed8639621781e0497bce755fad7b430a7972dd32
   - 6c132812f2fc147db0df216bc92eb260e01b2491
-  - a759c72fbde15626823a28c6534cfa8025706dd3
+  - 83daaba3458beaee0247769cca93f3ac6f427a74
   - b880dc8f26d37f2be3f51c066a251ed062f93a0a
-  - 411c858909f39652d29643dda253615898f09c25
   - a6f0dd2a666115766eb2dca59a93ee7760eaf244
   - 5f478381674020056dbe038135cd774a2bce7882
   - 3413fa357f481c897fdae1e74b20a16055646341
   - fc98064852bf86a66f76cb4a8fd4da68c5dd17ec
-  - 8f6f6413720e4aae40291674c780cec299171613
-  - 584780a4590a94619103a507fdb64e4a60a1c28f
+  - 76230d89b9f4ca046ae704a2a38704fcd56c8397
   - 920e3060a2a096d2c39647c722b94768629605d2
   - baa5ab79e9ba5d08dbaffbee0a0961c003dc8a4f
   - 74885c8dbd6264f0bc6da2657aeab82fc54a0c70
-  commit_sha: 5859dfe61488ba8f52662c03fb6bf2c07aecdd31
-  generated_at: '1794290482'
+  commit_sha: adae1d7e7c927216006da972608cc345929607ea
+  generated_at: '1794437265'
   generator: kuda/0.1.0

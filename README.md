@@ -64,12 +64,15 @@ sturn deploy service    # systemd user unit
 
 ## Commands
 
-`init` · `ws new/ls/read/hydrate` · `claim/release/claims` ·
+`init` · `ws new/ls/read/paths/grep/hydrate` · `claim/release/claims` ·
 `write`/`rename`/`delete`/`intent` · `log`/`compact` ·
 `snap` (multi-ws merge) · `review`/`verify` ·
 `ask`/`asks`/`answer`/`cancel`/`wait` · `push` ·
-`daemon`/`sub`/`bridge` · `mcp` · `mount` · `exec` · `join`/`leave` ·
+`daemon`/`sub`/`bridge` · `mount` · `exec` · `join`/`leave` ·
 `deploy` — full table in [docs](https://9aia.com/sturn/reference/cli.html).
+The agent surface is generated, not hand-rolled: `tamias-driver-sturn`
+exposes every bounded verb as a `cli.<verb>` op (and MCP tool via the
+pavo surface drivers) — `sturn mcp` is gone.
 
 ## vs git / jj / AVCS
 
