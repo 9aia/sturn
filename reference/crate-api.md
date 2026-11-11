@@ -11,7 +11,7 @@ never core changes.
 | `sturn-ws` → `sturn-ws-git` | virtual workspaces over the ODB |
 | `sturn-vcs` → `sturn-git` | remote sync/push; `snap_commit` bridge |
 | `sturn-claim` | pure claim logic: fold → live locks → conflicts |
-| `sturn-mcp` | the agent tool contract (M3 wires the server) |
+| `sturn-driver` (`tamias-driver-sturn`) | pavo view/ops driver — engine verbs as `cli.<verb>` wire ops; the generated ops manifest is the agent surface (MCP/CLI tools via pavo surface drivers) |
 | `sturn-config` → `sturn-config-toml` | config source |
 | `sturn-secret` → `sturn-keyring`/`sturn-dotenv` | secret resolution |
 | `sturn-service` → `sturn-systemd` | daemon lifecycle |
