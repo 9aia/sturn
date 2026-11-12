@@ -1,6 +1,6 @@
 [package]
 name = "sturn-config"
-description = "ConfigSource port: where sturn.toml comes from"
+description = "ConfigSource port + scarab-config-file impl: sturn.{yaml,yml,toml} discovery"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,3 +10,4 @@ categories = ["development-tools"]
 
 [dependencies]
 sturn-core.workspace = true
+scarab-config-file.workspace = true

@@ -149,37 +149,27 @@ fn overrides(
 }
 
 /// Which config file the source chain would read — same candidate
-/// order as `TomlSource`, reported for the status view.
+/// order as `sturn_config::FileSource`, reported for the status view.
 fn config_path_hint(explicit: Option<&str>) -> Option<String> {
-    let candidates: Vec<PathBuf> = match explicit
-        .map(str::to_string)
-        .or_else(|| std::env::var("STURN_CONFIG").ok().filter(|s| !s.is_empty()))
-    {
-        Some(p) => vec![PathBuf::from(p)],
-        None => vec![
-            PathBuf::from("sturn.toml"),
-            std::env::var("HOME")
-                .map(PathBuf::from)
-                .unwrap_or_else(|_| ".".into())
-                .join(".config/sturn/sturn.toml"),
-        ],
-    };
-    candidates
-        .into_iter()
-        .find(|p| p.exists())
-        .map(|p| p.display().to_string())
+    sturn_config::FileSource {
+        path: explicit.map(str::to_string),
+    }
+    .candidates()
+    .into_iter()
+    .find(|p| p.is_file())
+    .map(|p| p.display().to_string())
 }
 
 /// Load config via the same source chain the CLI uses. Failure is
-/// a warning, not fatal — sturn works flag-driven with no toml.
+/// a warning, not fatal — sturn works flag-driven with no config.
 fn load_config(path: Option<String>) -> (Option<Config>, Vec<String>) {
     let mut warnings = Vec::new();
-    match (sturn_config_toml::TomlSource { path }).load() {
+    match (sturn_config::FileSource { path }).load() {
         Ok(cfg) => (Some(cfg), warnings),
         Err(e) => {
-            // "no sturn.toml found" is the normal case outside a
+            // "no sturn.* found" is the normal case outside a
             // wired repo — only surface real parse/read errors.
-            if !e.contains("no sturn.toml found") {
+            if !e.contains("no sturn.") {
                 warnings.push(format!("config: {e}"));
             }
             (None, warnings)

@@ -25,7 +25,6 @@ sturn-claim.workspace = true
 sturn-ask.workspace = true
 sturn-fuse.workspace = true
 sturn-config.workspace = true
-sturn-config-toml.workspace = true
 sturn-service.workspace = true
 sturn-systemd.workspace = true
 serde_json.workspace = true

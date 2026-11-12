@@ -33,7 +33,6 @@ sturn-odb.workspace = true
 sturn-claim.workspace = true
 sturn-ask.workspace = true
 sturn-config.workspace = true
-sturn-config-toml.workspace = true
 clap.workspace = true
 serde_json.workspace = true
 # Git deps, not path: a fresh sturn clone has no sibling ../pavo

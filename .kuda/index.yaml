@@ -10,7 +10,6 @@ modules:
 - sturn-bus-redb
 - sturn-claim
 - sturn-config
-- sturn-config-toml
 - sturn-core
 - sturn-dotenv
 - sturn-driver
@@ -28,8 +27,8 @@ modules:
 commands:
 - cargo check
 - cargo test --workspace
-tree_digest: f70226d4e66ce71c8c99623581661a31266927e6
-files_total: 117
+tree_digest: 4b797622e42a4054923ed9b4ac9e27912894e986
+files_total: 115
 provenance:
   files:
   - Cargo.toml
@@ -40,7 +39,6 @@ provenance:
   - crates/sturn-claim/Cargo.toml
   - crates/sturn-cli/Cargo.toml
   - crates/sturn-config/Cargo.toml
-  - crates/sturn-config-toml/Cargo.toml
   - crates/sturn-core/Cargo.toml
   - crates/sturn-dotenv/Cargo.toml
   - crates/sturn-driver/Cargo.toml
@@ -56,18 +54,17 @@ provenance:
   - crates/sturn-ws/Cargo.toml
   - crates/sturn-ws-git/Cargo.toml
   hashes:
-  - af1dab93132ffde6e66916eae9bdb079406c51a1
+  - 730e0ede4880b57180e891b175ca289ea3df7d21
   - 1bf278f98b4ae01a4114ca185c9d9db04fd22714
   - 4dafecd121808bfabe6de0b6fd362c82eae4c268
   - d2bdd41da6f91a3199ae6ce1759d4dcdeda1590c
   - 400e9db9ac5978965f038a926e04e4ef1dbb2f4e
   - 93abd736bec8e72671fe408e4acbc61526f03d7e
-  - 504861e4abcd2d20798368eeec810cd577cc8ad6
-  - 7f88a0b211dbc52225268ab69886c2d1efb59f67
-  - 6c4e9170c6f1b07daf372307e3d7e89e3427c28f
+  - 4f542389d1258479db46aecaf557252795dd24c1
+  - 9e27ee95465ebe3ada1d6e77033a9fa9714a7c44
   - 8882be00ff91823f5d18b19eaca492be7e9a5ef5
   - 1034b2491bf076039224a52253fddb5330eaa0bf
-  - ed8639621781e0497bce755fad7b430a7972dd32
+  - cc11ad5889716eb17a83776d56cafe4c576ba293
   - 6c132812f2fc147db0df216bc92eb260e01b2491
   - 83daaba3458beaee0247769cca93f3ac6f427a74
   - b880dc8f26d37f2be3f51c066a251ed062f93a0a
@@ -79,6 +76,6 @@ provenance:
   - 920e3060a2a096d2c39647c722b94768629605d2
   - baa5ab79e9ba5d08dbaffbee0a0961c003dc8a4f
   - 74885c8dbd6264f0bc6da2657aeab82fc54a0c70
-  commit_sha: adae1d7e7c927216006da972608cc345929607ea
-  generated_at: '1794437265'
+  commit_sha: 9e1e3b78a31a2f94778f74b386d75262aa05da22
+  generated_at: '1794489836'
   generator: kuda/0.1.0

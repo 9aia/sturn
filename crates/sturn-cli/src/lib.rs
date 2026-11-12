@@ -482,7 +482,7 @@ fn post_op(cli: &Cli) {
     if !mutates(&cli.cmd) {
         return;
     }
-    let cfg: Option<Config> = sturn_config_toml::TomlSource {
+    let cfg: Option<Config> = sturn_config::FileSource {
         path: cli.config.clone(),
     }
     .load()
@@ -534,7 +534,7 @@ where
 
 fn execute(cli: &Cli) -> Result<(), String> {
     // Config is optional — everything works flag-driven too.
-    let cfg: Option<Config> = sturn_config_toml::TomlSource {
+    let cfg: Option<Config> = sturn_config::FileSource {
         path: cli.config.clone(),
     }
     .load()

@@ -25,12 +25,12 @@ api:
 - name: DeployCmd
   kind: type
   file: crates/sturn-cli/src/lib.rs
-  line: 365
+  line: 368
   module: sturn
 - name: DestroySub
   kind: type
   file: crates/sturn-cli/src/lib.rs
-  line: 373
+  line: 376
   module: sturn
 - name: END
   kind: const
@@ -45,17 +45,17 @@ api:
 - name: ServiceCmd
   kind: type
   file: crates/sturn-cli/src/lib.rs
-  line: 379
+  line: 382
   module: sturn
 - name: Subs
   kind: type
   file: crates/sturn-cli/src/lib.rs
-  line: 2037
+  line: 2034
   module: sturn
 - name: WsCmd
   kind: type
   file: crates/sturn-cli/src/lib.rs
-  line: 321
+  line: 324
   module: sturn
 - name: agentmd
   kind: module
@@ -65,12 +65,12 @@ api:
 - name: all_events
   kind: function
   file: crates/sturn-cli/src/lib.rs
-  line: 1940
+  line: 1937
   module: sturn
 - name: append
   kind: function
   file: crates/sturn-cli/src/lib.rs
-  line: 1301
+  line: 1298
   module: sturn
 - name: appends_to_existing_prose
   kind: function
@@ -80,42 +80,42 @@ api:
 - name: ask_json
   kind: function
   file: crates/sturn-cli/src/lib.rs
-  line: 1873
+  line: 1870
   module: sturn
 - name: asks_cancel_expire_and_wait_timeout
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
-  line: 1538
+  line: 1552
   module: sturn
 - name: asks_lifecycle_and_wait_codes
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
-  line: 1467
+  line: 1481
   module: sturn
 - name: bare_repo
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
-  line: 622
+  line: 636
   module: sturn
 - name: bridge
   kind: function
   file: crates/sturn-cli/src/lib.rs
-  line: 1539
+  line: 1536
   module: sturn
 - name: bridge_requires_secret_env
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
-  line: 1238
+  line: 1252
   module: sturn
 - name: bridge_tick
   kind: function
   file: crates/sturn-cli/src/lib.rs
-  line: 1419
+  line: 1416
   module: sturn
 - name: bridge_tick_posts_for_snapshot_events
   kind: function
   file: crates/sturn-cli/src/lib.rs
-  line: 2647
+  line: 2644
   module: sturn
 - name: canonical
   kind: function
@@ -125,52 +125,52 @@ api:
 - name: check_hits
   kind: function
   file: crates/sturn-cli/src/lib.rs
-  line: 1960
+  line: 1957
   module: sturn
 - name: check_hits_filters_by_fence
   kind: function
   file: crates/sturn-cli/src/lib.rs
-  line: 2343
+  line: 2340
   module: sturn
 - name: check_watch
   kind: function
   file: crates/sturn-cli/src/lib.rs
-  line: 2003
+  line: 2000
   module: sturn
 - name: check_watch
   kind: function
   file: crates/sturn-cli/src/lib.rs
-  line: 2024
+  line: 2021
   module: sturn
 - name: check_watch_streams_conflict_changes
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
-  line: 859
+  line: 873
   module: sturn
 - name: claim_conflict_force_and_claims_listing
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
-  line: 764
+  line: 778
   module: sturn
 - name: claim_fence_and_check_staleness
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
-  line: 825
+  line: 839
   module: sturn
 - name: claim_line
   kind: function
   file: crates/sturn-cli/src/lib.rs
-  line: 1950
+  line: 1947
   module: sturn
 - name: collect
   kind: function
   file: crates/sturn-cli/src/lib.rs
-  line: 2697
+  line: 2694
   module: sturn
 - name: command
   kind: function
   file: crates/sturn-cli/src/lib.rs
-  line: 417
+  line: 420
   module: sturn
 - name: commit
   kind: function
@@ -180,27 +180,27 @@ api:
 - name: config_driven_and_env_fallbacks
   kind: function
   file: crates/sturn-cli/tests/e2e.rs
-  line: 664
+  line: 678
   module: sturn
 - name: coverage_stubs_run
   kind: function
   file: crates/sturn-cli/src/lib.rs
-  line: 3247
+  line: 3250
   module: sturn
 - name: daemon
   kind: function
   file: crates/sturn-cli/src/lib.rs
-  line: 1453
+  line: 1450
   module: sturn
 - name: daemon_tick
   kind: function
   file: crates/sturn-cli/src/lib.rs
-  line: 1559
+  line: 1556
   module: sturn
 - name: daemon_tick_fans_deltas_to_topics
   kind: function
   file: crates/sturn-cli/src/lib.rs
-  line: 2389
+  line: 2386
   module: sturn
 api_omitted: 109
 deps:
@@ -214,7 +214,6 @@ deps:
 - sturn-bus-redb
 - sturn-claim
 - sturn-config
-- sturn-config-toml
 - sturn-core
 - sturn-fuse
 - sturn-git
@@ -250,12 +249,12 @@ provenance:
   - crates/sturn-cli/src/main.rs
   - crates/sturn-cli/tests/e2e.rs
   hashes:
-  - af1dab93132ffde6e66916eae9bdb079406c51a1
-  - 504861e4abcd2d20798368eeec810cd577cc8ad6
+  - 730e0ede4880b57180e891b175ca289ea3df7d21
+  - 4f542389d1258479db46aecaf557252795dd24c1
   - 001a3de911915e7c8c49003d5f8937adceb53c69
-  - 0f5e537a3af633e64305df0b7fed0c8152b84845
+  - f8bc151c0d0f1c8c820962c9a49b35eed72ced1c
   - 357aee45a3503b2675f2a56bf577e04e32b3e0c9
-  - a59771d5bd83ece7ed731cec93e0ab5070151454
-  commit_sha: adae1d7e7c927216006da972608cc345929607ea
-  generated_at: '1794437265'
+  - cfdbb0bf502fb90d4ad396dfce5360ca572eb02f
+  commit_sha: 9e1e3b78a31a2f94778f74b386d75262aa05da22
+  generated_at: '1794489836'
   generator: kuda-template/0.1.4

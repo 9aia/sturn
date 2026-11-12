@@ -10,17 +10,17 @@ api:
 - name: READ_ONLY
   kind: const
   file: crates/sturn-driver/src/ops.rs
-  line: 41
+  line: 44
   module: sturn-driver
 - name: SKIP_PARAMS
   kind: const
   file: crates/sturn-driver/src/ops.rs
-  line: 36
+  line: 39
   module: sturn-driver
 - name: SURFACES
   kind: const
   file: crates/sturn-driver/src/ops.rs
-  line: 31
+  line: 34
   module: sturn-driver
 - name: Serve
   kind: type
@@ -40,17 +40,17 @@ api:
 - name: argv
   kind: function
   file: crates/sturn-driver/src/ops.rs
-  line: 179
+  line: 182
   module: sturn-driver
 - name: argv_maps_params_to_sturn_flags
   kind: function
   file: crates/sturn-driver/src/ops.rs
-  line: 324
+  line: 327
   module: sturn-driver
 - name: argv_splits_dotted_names_and_repeatables
   kind: function
   file: crates/sturn-driver/src/ops.rs
-  line: 349
+  line: 352
   module: sturn-driver
 - name: ask_row
   kind: function
@@ -165,7 +165,7 @@ api:
 - name: kind
   kind: function
   file: crates/sturn-driver/src/ops.rs
-  line: 90
+  line: 93
   module: sturn-driver
 - name: known_query
   kind: function
@@ -180,12 +180,12 @@ api:
 - name: load
   kind: function
   file: crates/sturn-driver/src/data.rs
-  line: 221
+  line: 211
   module: sturn-driver
 - name: load_config
   kind: function
   file: crates/sturn-driver/src/data.rs
-  line: 175
+  line: 165
   module: sturn-driver
 - name: main
   kind: function
@@ -195,7 +195,7 @@ api:
 - name: manifest
   kind: function
   file: crates/sturn-driver/src/ops.rs
-  line: 122
+  line: 125
   module: sturn-driver
 - name: manifest
   kind: function
@@ -212,7 +212,6 @@ deps:
 - sturn-ask
 - sturn-claim
 - sturn-config
-- sturn-config-toml
 - sturn-core
 - sturn-odb
 - sturn-wal
@@ -250,14 +249,14 @@ provenance:
   - crates/sturn-driver/tests/conformance.rs
   - crates/sturn-driver/tests/ops_wire.rs
   hashes:
-  - ed8639621781e0497bce755fad7b430a7972dd32
-  - 415183a66f71115deb0450055833009f44490e48
+  - cc11ad5889716eb17a83776d56cafe4c576ba293
+  - 5ed4f744f7b78efee3e4da788fa66c48ec5b911c
   - ce4934c15c651a7a9174d084d4aee6a4ba39f2da
-  - e4635c142a0ecb1fbdaa61577c0770f266872c00
+  - 8f0d6ede809982034f3d94c72d93e068f170f562
   - 4428bc21a7cd420c5d74b1582e94dde30fc6c676
   - a6c14e6ad89e6b9de14d17c1142924e9b2149ed4
   - 4f731fec636db60e4ae90d45e355a861b238128f
-  - fa5ad0a8249d0da9c8e0e93b27f7d2ada3bdf302
-  commit_sha: adae1d7e7c927216006da972608cc345929607ea
-  generated_at: '1794437265'
+  - e47dc5a19698bdb071e5ffdb3c6ba0ae3c5e19b5
+  commit_sha: 9e1e3b78a31a2f94778f74b386d75262aa05da22
+  generated_at: '1794489836'
   generator: kuda-template/0.1.4

@@ -480,7 +480,7 @@ impl Event {
 
 /// sturn.toml — one per coordinated repo. Secrets never live here;
 /// secret material resolves through the `Secrets` chain.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
     /// The coordinated repo.
@@ -502,7 +502,7 @@ pub struct Config {
 /// `[hooks]` — external commands the CLI runs around ops. Off by
 /// default; every hook is best-effort and detached — a failing
 /// hook can never fail the op that triggered it.
-#[derive(Debug, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(deny_unknown_fields)]
 pub struct HooksCfg {
     /// Shell commands spawned (`sh -c`, detached, cwd = repo dir)
@@ -545,7 +545,7 @@ where
 
 /// `[review]` — turn continuous review into a gate: snap refuses
 /// unreviewed tree ops.
-#[derive(Debug, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(deny_unknown_fields)]
 pub struct ReviewCfg {
     /// Every Write/Rename/Delete since last snap must hold an
@@ -556,7 +556,7 @@ pub struct ReviewCfg {
 
 /// `[signing]` — sign ops with an SSH key (`ssh-keygen -Y sign`,
 /// namespace `sturn-event`).
-#[derive(Debug, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(deny_unknown_fields)]
 pub struct SigningCfg {
     /// Private key path (ed25519). ~ expands.
@@ -568,7 +568,7 @@ pub struct SigningCfg {
 }
 
 /// `[repo]` — which git repo this config coordinates.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct RepoCfg {
     /// Repo dir (the ODB lives at `<dir>/.git`).
@@ -594,7 +594,7 @@ impl RepoCfg {
 }
 
 /// `[wal]` — where the op log lives inside git refs.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct WalCfg {
     /// WAL ref prefix — one ref per workspace beneath it.
@@ -603,7 +603,7 @@ pub struct WalCfg {
 }
 
 /// `[bus]` — the local pub/sub cache over the WAL.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct BusCfg {
     /// Embedded store path for the local bus impl.
@@ -619,7 +619,7 @@ pub struct BusCfg {
 }
 
 /// `[actor]` — this process's identity on ops it appends.
-#[derive(Debug, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(deny_unknown_fields)]
 pub struct ActorCfg {
     /// Actor name. Defaults to `$STURN_ACTOR`, then `$USER`.

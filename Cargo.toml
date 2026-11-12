@@ -15,7 +15,6 @@ members = [
     "crates/sturn-claim",
     "crates/sturn-ask",
     "crates/sturn-config",
-    "crates/sturn-config-toml",
     "crates/sturn-secret",
     "crates/sturn-keyring",
     "crates/sturn-dotenv",
@@ -53,7 +52,6 @@ sturn-claim = { path = "crates/sturn-claim", version = "0.1.0" }
 sturn-ask = { path = "crates/sturn-ask", version = "0.1.0" }
 sturn-fuse = { path = "crates/sturn-fuse", version = "0.1.0" }
 sturn-config = { path = "crates/sturn-config", version = "0.1.0" }
-sturn-config-toml = { path = "crates/sturn-config-toml", version = "0.1.0" }
 sturn-secret = { path = "crates/sturn-secret", version = "0.1.0" }
 sturn-keyring = { path = "crates/sturn-keyring", version = "0.1.0" }
 sturn-dotenv = { path = "crates/sturn-dotenv", version = "0.1.0" }
@@ -62,6 +60,6 @@ sturn-systemd = { path = "crates/sturn-systemd", version = "0.1.0" }
 sturn-driver = { path = "crates/sturn-driver", version = "0.1.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-toml = "0.8"
+scarab-config-file = { git = "ssh://git@github.com/9aia/scarab.git", rev = "9364df88fad0ca46bd838467717a823893f47438", version = "0.1" }
 clap = { version = "4", features = ["derive"] }
 redb = "3"

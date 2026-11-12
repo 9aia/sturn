@@ -219,8 +219,8 @@ provenance:
   - crates/sturn-core/tests/core.rs
   hashes:
   - 8882be00ff91823f5d18b19eaca492be7e9a5ef5
-  - 7127cbdfd480938c703454d0fd39fc04856c3863
-  - 34378d8ae8fe124a08eec32f15ac360c78c31041
-  commit_sha: adae1d7e7c927216006da972608cc345929607ea
-  generated_at: '1794437265'
+  - 299e30b93733f77ccfca6dd897f16da5f94ba693
+  - c210ab3e192c35c2a686f987173b6d6c2286c4df
+  commit_sha: 9e1e3b78a31a2f94778f74b386d75262aa05da22
+  generated_at: '1794489836'
   generator: kuda-template/0.1.4

@@ -1,18 +1,104 @@
 name: sturn-config
 path: crates/sturn-config/Cargo.toml
-purpose: 'ConfigSource port: where sturn.toml comes from'
+purpose: 'ConfigSource port + scarab-config-file impl: sturn.{yaml,yml,toml} discovery'
 api:
 - name: ConfigSource
   kind: trait
   file: crates/sturn-config/src/lib.rs
-  line: 5
+  line: 14
+  module: sturn-config
+- name: ENV_LOCK
+  kind: const
+  file: crates/sturn-config/src/lib.rs
+  line: 232
+  module: sturn-config
+- name: FileSource
+  kind: type
+  file: crates/sturn-config/src/lib.rs
+  line: 21
+  module: sturn-config
+- name: candidates
+  kind: function
+  file: crates/sturn-config/src/lib.rs
+  line: 41
+  module: sturn-config
+- name: cwd_dotfile_and_candidates
+  kind: function
+  file: crates/sturn-config/src/lib.rs
+  line: 200
+  module: sturn-config
+- name: env_var_drives_search
+  kind: function
+  file: crates/sturn-config/src/lib.rs
+  line: 179
+  module: sturn-config
+- name: explicit_path_is_a_file_check
+  kind: function
+  file: crates/sturn-config/src/lib.rs
+  line: 252
+  module: sturn-config
+- name: explicit_path_loads
+  kind: function
+  file: crates/sturn-config/src/lib.rs
+  line: 65
+  module: sturn-config
+- name: full_config_parses
+  kind: function
+  file: crates/sturn-config/src/lib.rs
+  line: 82
+  module: sturn-config
+- name: load
+  kind: function
+  file: crates/sturn-config/src/lib.rs
+  line: 47
+  module: sturn-config
+- name: malformed_toml_errors
+  kind: function
+  file: crates/sturn-config/src/lib.rs
+  line: 166
+  module: sturn-config
+- name: minimal_config_uses_core_defaults
+  kind: function
+  file: crates/sturn-config/src/lib.rs
+  line: 235
+  module: sturn-config
+- name: missing_everywhere_errors
+  kind: function
+  file: crates/sturn-config/src/lib.rs
+  line: 154
+  module: sturn-config
+- name: scratch
+  kind: function
+  file: crates/sturn-config/src/lib.rs
+  line: 57
+  module: sturn-config
+- name: source
+  kind: function
+  file: crates/sturn-config/src/lib.rs
+  line: 30
   module: sturn-config
 - name: sturn-config
   kind: module
   file: crates/sturn-config/Cargo.toml
   line: 1
   module: sturn-config
+- name: tests
+  kind: module
+  file: crates/sturn-config/src/lib.rs
+  line: 54
+  module: sturn-config
+- name: unknown_field_rejected
+  kind: function
+  file: crates/sturn-config/src/lib.rs
+  line: 142
+  module: sturn-config
+- name: yaml_config_loads
+  kind: function
+  file: crates/sturn-config/src/lib.rs
+  line: 129
+  module: sturn-config
 deps:
+- scarab-config-file
 - sturn-core
 notes: ''
 verify:
@@ -23,8 +109,8 @@ provenance:
   - crates/sturn-config/Cargo.toml
   - crates/sturn-config/src/lib.rs
   hashes:
-  - 7f88a0b211dbc52225268ab69886c2d1efb59f67
-  - c927f114aff11a18ce82a846ad1ec18caad8f72c
-  commit_sha: adae1d7e7c927216006da972608cc345929607ea
-  generated_at: '1794437265'
+  - 9e27ee95465ebe3ada1d6e77033a9fa9714a7c44
+  - 04e4f57d8cbd0d3c305c62d854ec705ddd524e6b
+  commit_sha: 9e1e3b78a31a2f94778f74b386d75262aa05da22
+  generated_at: '1794489836'
   generator: kuda-template/0.1.4

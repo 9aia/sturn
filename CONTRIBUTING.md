@@ -10,7 +10,8 @@ maintained without PRs.)
 config). Ports are crates: `sturn-wal`, `sturn-bus`, `sturn-ws`,
 `sturn-vcs`, `sturn-config`, `sturn-secret`, `sturn-service`. Impls:
 `sturn-wal-git`/`sturn-git`/`sturn-ws-git` (git plumbing),
-`sturn-bus-redb`, `sturn-config-toml`, `sturn-keyring`/`sturn-dotenv`,
+`sturn-bus-redb`, `sturn-config` (scarab-config-file impl),
+`sturn-keyring`/`sturn-dotenv`,
 `sturn-systemd`. `sturn-claim` is pure claim logic. `sturn-cli`
 (package `sturn` — engine lib + compat bin `sturn`) is the
 composition root; `sturn-driver` (bin

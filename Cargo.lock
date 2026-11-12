@@ -248,6 +248,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "foldhash"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+
+[[package]]
 name = "fuser"
 version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -512,6 +518,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "ryu"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
+
+[[package]]
+name = "scarab-config"
+version = "0.1.0"
+source = "git+ssh://git@github.com/9aia/scarab.git?rev=9364df88fad0ca46bd838467717a823893f47438#9364df88fad0ca46bd838467717a823893f47438"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
+name = "scarab-config-file"
+version = "0.1.0"
+source = "git+ssh://git@github.com/9aia/scarab.git?rev=9364df88fad0ca46bd838467717a823893f47438#9364df88fad0ca46bd838467717a823893f47438"
+dependencies = [
+ "scarab-config",
+ "scarab-config-toml",
+ "scarab-config-yaml",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "scarab-config-toml"
+version = "0.1.0"
+source = "git+ssh://git@github.com/9aia/scarab.git?rev=9364df88fad0ca46bd838467717a823893f47438#9364df88fad0ca46bd838467717a823893f47438"
+dependencies = [
+ "scarab-config",
+ "serde",
+ "toml",
+]
+
+[[package]]
+name = "scarab-config-yaml"
+version = "0.1.0"
+source = "git+ssh://git@github.com/9aia/scarab.git?rev=9364df88fad0ca46bd838467717a823893f47438#9364df88fad0ca46bd838467717a823893f47438"
+dependencies = [
+ "scarab-config",
+ "serde",
+ "serde_yaml_ng",
+]
+
+[[package]]
 name = "serde"
 version = "1.0.229"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -547,6 +599,8 @@ version = "1.0.154"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
 dependencies = [
+ "foldhash",
+ "indexmap",
  "itoa",
  "memchr",
  "serde",
@@ -561,6 +615,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf41e0cfaf7226dca15e8197172c295a782857fcb97fad1808a166870dee75a3"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "serde_yaml_ng"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b4db627b98b36d4203a7b458cf3573730f2bb591b28871d916dfa9efabfd41f"
+dependencies = [
+ "indexmap",
+ "itoa",
+ "ryu",
+ "serde",
+ "unsafe-libyaml",
 ]
 
 [[package]]
@@ -617,7 +684,6 @@ dependencies = [
  "sturn-bus-redb",
  "sturn-claim",
  "sturn-config",
- "sturn-config-toml",
  "sturn-core",
  "sturn-fuse",
  "sturn-git",
@@ -659,16 +725,8 @@ dependencies = [
 name = "sturn-config"
 version = "0.1.0"
 dependencies = [
+ "scarab-config-file",
  "sturn-core",
-]
-
-[[package]]
-name = "sturn-config-toml"
-version = "0.1.0"
-dependencies = [
- "sturn-config",
- "sturn-core",
- "toml",
 ]
 
 [[package]]
@@ -699,7 +757,6 @@ dependencies = [
  "sturn-ask",
  "sturn-claim",
  "sturn-config",
- "sturn-config-toml",
  "sturn-core",
  "sturn-odb",
  "sturn-wal",
@@ -903,6 +960,12 @@ name = "unicode-ident"
 version = "1.0.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
+
+[[package]]
+name = "unsafe-libyaml"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "673aac59facbab8a9007c7f6108d11f63b603f7cabff99fabf650fea5c32b861"
 
 [[package]]
 name = "utf8parse"

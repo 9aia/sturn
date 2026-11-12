@@ -187,22 +187,22 @@ api:
   file: refs/sturn/wal/devin-ci-bupha
   line: 1
   module: sturn-wal
+- name: luis:claim@devin-cleanup#3468ff21
+  kind: record
+  file: refs/sturn/wal/devin-cleanup
+  line: 2
+  module: sturn-wal
+- name: luis:claim@devin-cleanup#71532b6d
+  kind: record
+  file: refs/sturn/wal/devin-cleanup
+  line: 1
+  module: sturn-wal
 - name: luis:claim@devin-docs#fcb53299
   kind: record
   file: refs/sturn/wal/devin-docs
   line: 1
   module: sturn-wal
-- name: luis:claim@devin-driver-conformance#16ba4824
-  kind: record
-  file: refs/sturn/wal/devin-driver-conformance
-  line: 1
-  module: sturn-wal
-- name: luis:claim@devin-driver-kit#395b8847
-  kind: record
-  file: refs/sturn/wal/devin-driver-kit
-  line: 1
-  module: sturn-wal
-api_omitted: 112
+api_omitted: 116
 deps:
 - sturn-core
 - lasius-vcs
@@ -216,11 +216,11 @@ verify:
 - crates/sturn-wal/tests/non_git_backend.rs
 - refs/sturn/wal/devin
 - refs/sturn/wal/devin-ci-bupha
+- refs/sturn/wal/devin-cleanup
 - refs/sturn/wal/devin-docs
 - refs/sturn/wal/devin-driver-conformance
 - refs/sturn/wal/devin-driver-kit
 - refs/sturn/wal/devin-engine-lib
-- refs/sturn/wal/devin-p001
 provenance:
   files:
   - crates/sturn-wal/Cargo.toml
@@ -228,6 +228,7 @@ provenance:
   - crates/sturn-wal/tests/non_git_backend.rs
   - refs/sturn/wal/devin
   - refs/sturn/wal/devin-ci-bupha
+  - refs/sturn/wal/devin-cleanup
   - refs/sturn/wal/devin-docs
   - refs/sturn/wal/devin-driver-conformance
   - refs/sturn/wal/devin-driver-kit
@@ -254,8 +255,9 @@ provenance:
   - 76230d89b9f4ca046ae704a2a38704fcd56c8397
   - 262f3b88cae3b541be570e2ebe6f9a29f6a5d558
   - 4d7edfe235b9b7049937f1e40c5540a84ff31581
-  - 5703d007b8b03e7fd2925c3038745321aa9a9c4c
+  - da59805f62ca0dd12ebb95d8e087c2c9eaad963f
   - 121de782ee827c7e5981220cf2d7cc8d25efe438
+  - 3468ff217d46157b5f18be2c59e7c9bd7091b563
   - e9febb33251b4e3a29db1c7c699ec28563659fe2
   - 36e4a40f923d9acaf436f3ffa5ede1014517ccfe
   - b240e1b115ca5141c07ba6cfd04c50238ee6460b
@@ -268,7 +270,7 @@ provenance:
   - a64a1f57d1e954839d1a82b759e636720c865241
   - 21109635d14c2700c435ea94396bbf5499b231be
   - aa48bcf3f021ac012a98c7577facb82421aa2a56
-  - 2d75ccaefc15d6d7f742a2630997b38c178df63c
+  - 975ea0e28f3b730e6a148857f9890f815ed921ad
   - ce7921e219861d5b09a47222061cd1f00fced71d
   - c8e1146d28df610b6b7121fae7f53d0139b02930
   - 97f15d879100b406708c00c742fac646ed3bf3f0
@@ -278,6 +280,6 @@ provenance:
   - e5a49c5486f860acc785c137fb9eb70d38149d41
   - 6d1a7c6d3feea4c33419c637408a59914de1df29
   - 6a5c95ab05cd9a7b9185e11973f9edc8cfb5febe
-  commit_sha: adae1d7e7c927216006da972608cc345929607ea
-  generated_at: '1794437265'
+  commit_sha: 9e1e3b78a31a2f94778f74b386d75262aa05da22
+  generated_at: '1794489836'
   generator: kuda-template/0.1.4

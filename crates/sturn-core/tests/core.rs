@@ -1,6 +1,6 @@
 //! Unit tests for sturn-core: overlay folding, snapshot indexing,
 //! event signing bytes, and the op vocabulary's wire shape.
-//! (Config TOML parsing is exercised in sturn-config-toml's tests —
+//! (Config TOML parsing is exercised in sturn-config's tests —
 //! that impl owns the `toml` dependency.)
 
 use sturn_core::{merge, overlay, since_last_snapshot, ActorCfg, Event, Merge, Op, Verdict};
@@ -284,7 +284,7 @@ fn verdict_lowercase() {
     );
 }
 
-// --- Config defaults (the parse itself lives in sturn-config-toml) ------
+// --- Config defaults (the parse itself lives in sturn-config) ------
 
 #[test]
 fn config_defaults() {
@@ -348,7 +348,7 @@ fn topic_vocabulary() {
 #[test]
 fn config_defaults_fill_every_section() {
     // Minimal config (sturn-core's serde defaults fill the rest;
-    // the TOML text path is covered in sturn-config-toml's tests).
+    // the TOML text path is covered in sturn-config's tests).
     let cfg: sturn_core::Config = serde_json::from_str(r#"{"repo":{"dir":"/x"}}"#).unwrap();
     assert_eq!(cfg.wal.ref_prefix, "refs/sturn/wal");
     assert_eq!(cfg.bus.poll_ms, 100);
