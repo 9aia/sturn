@@ -1,4 +1,5 @@
 /target
+/libraries/sturn/drivers/
 coverage/
 *.profraw
 .env

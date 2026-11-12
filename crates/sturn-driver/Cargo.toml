@@ -13,13 +13,14 @@ name = "tamias-driver-sturn"
 path = "src/main.rs"
 
 [features]
-# Embedded surfaces (pavo-driver-kit's surface layer) — optional,
-# acyclic: the driver gains `cli`/`mcp` argv verbs that serve its own
-# ops manifest; the standalone tamias-driver-cli/-mcp binaries front
-# the same ops without any feature. default = view driver + `run`
-# passthrough only.
+# `mcp` embeds pavo-driver-kit's surface layer — the `mcp` argv verb
+# serves this driver's ops manifest as MCP tools on stdio, equivalent
+# to a standalone surface driver minus the PATH/discovery hop.
+# (`cli` is NOT a feature: it's the tamias `bins[]` shim verb — an
+# engine passthrough that needs nothing optional. `daemon`/`sub`/
+# `bridge`/`mount` ride the same shim with inherited stdio.)
+# default = view driver + `ops` manifest + `run`/`cli` passthroughs.
 default = []
-cli = ["pavo-driver-kit/cli"]
 mcp = ["pavo-driver-kit/mcp"]
 
 [dependencies]

@@ -74,6 +74,15 @@ The agent surface is generated, not hand-rolled: `tamias-driver-sturn`
 exposes every bounded verb as a `cli.<verb>` op (and MCP tool via the
 pavo surface drivers) — `sturn mcp` is gone.
 
+The `sturn` command also ships as a tamias pack (`libraries/sturn`) —
+a generated `bins[]` shim → `tamias-driver-sturn cli` → the engine
+lib's `run_from` with inherited stdio (`scripts/pack.sh` stages the
+driver under `drivers/bin/<triple>/`). With `tamias` installed:
+
+```sh
+tamias install --allow-drivers ./libraries/sturn   # deploys `sturn`
+```
+
 ## vs git / jj / AVCS
 
 | | git | jj | sturn |

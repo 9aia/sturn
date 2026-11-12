@@ -1,0 +1,35 @@
+# sturn — the ephemeral coordination engine as a tamias package
+# (the T-012 replication of the cuora P-023 pilot: a real product
+# CLI riding `bins[]`, no hand-rolled binary).
+#
+# `scripts/pack.sh` release-builds `tamias-driver-sturn` into
+# `drivers/bin/<host-triple>/` (gitignored — a build artifact) and
+# this manifest ships it as a bundled driver. `tamias install
+# ./libraries/sturn` (or the packed `.tgz` / a registry ref)
+# registers the driver into `<tamias-home>/drivers/` and deploys the
+# `sturn` bin below by default.
+#
+# The `sturn` shim is a generated script → `tamias bin exec` →
+# `tamias-driver-sturn cli --dir <pkg> --name sturn <argv>` → the
+# sturn engine lib's `run_from` in-process with inherited stdio.
+# That is full argv parity with the `sturn` binary: `--help`/
+# `--version`, globals before the verb (`--repo`/`--config`),
+# every bounded verb (`claims`/`claim`/`release`/`log`/`diff`/
+# `check`/`asks`/`wait`/`verify`/`ws`/`write`/`rename`/`delete`/
+# `snap`/`push`/…), stdin-bound verbs, and the unbounded
+# `daemon`/`sub`/`bridge`/`mount` surfaces all stream end-to-end.
+# No `tools/bin/` payload bin: the surfaces are verbs, not second
+# binaries — they ride the same shim.
+name: sturn
+version: "0.1.0"
+type: files
+description: >-
+  Ephemeral coordination engine — claims/ops/topics over VCS
+  state. Every verb rides the tamias-driver-sturn engine
+  passthrough; `sturn daemon`/`sub`/`bridge`/`mount` are the
+  streaming surfaces.
+
+bins:
+  - name: sturn
+    shim: cli
+    driver: sturn

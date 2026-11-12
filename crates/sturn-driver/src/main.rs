@@ -20,13 +20,19 @@
 //!   `query:"ops"` answers the ops manifest; `query:"cli.<verb>"`
 //!   runs the engine op.
 //!
-//! Optional surfaces: features `cli`/`mcp` embed
-//! pavo-driver-kit's surface layer — `cli <op> [args]` is a
-//! generated CLI over the ops manifest (`daemon`/`sub`/`bridge`/
-//! `mount` ride as streaming subcommands), `mcp` serves the
-//! ops as MCP tools on stdio. Both are equivalent to the standalone
-//! `tamias-driver-cli`/`tamias-driver-mcp` surface drivers, minus
-//! the PATH/discovery hop.
+//! - `cli <sturn argv>` — the tamias `bins[]` shim verb (T-012):
+//!   `tamias bin exec` runs `tamias-driver-sturn cli --dir <pkg>
+//!   --name sturn <argv>` for a declared `shim: cli` bin; the two
+//!   driver flags are stripped and the rest goes to
+//!   `sturn::run_from` with inherited stdio — full engine parity
+//!   (`--repo`/`--config` globals before the verb, `--help`,
+//!   stdin-bound verbs, the unbounded `daemon`/`sub`/`bridge`/
+//!   `mount` surfaces).
+//!
+//! Optional surface: feature `mcp` embeds pavo-driver-kit's
+//! surface layer — `mcp` serves the ops as MCP tools on stdio,
+//! equivalent to the standalone `tamias-driver-mcp` surface
+//! driver, minus the PATH/discovery hop.
 //!
 //! Which repo: each `view`/`query` resolves its own target —
 //! `params.dir`/`params.root`/`params.repo` → `$STURN_REPO` →
@@ -44,7 +50,7 @@
 
 mod data;
 mod ops;
-#[cfg(any(feature = "cli", feature = "mcp"))]
+#[cfg(feature = "mcp")]
 mod surface;
 mod views;
 
@@ -144,20 +150,24 @@ fn main() {
             let argv = std::iter::once("sturn".to_string()).chain(args.iter().skip(1).cloned());
             std::process::exit(sturn::run_from(argv));
         }
-        // Embedded surface verbs (feature-gated, optional): the
-        // pavo-driver-kit surface layer renders this driver's own
-        // ops manifest — `cli` = generated clap CLI (op →
-        // subcommand), `mcp` = ops → MCP tools over stdio. The
-        // standalone tamias-driver-cli/-mcp binaries do the same
-        // over process dispatch; these verbs need nothing on PATH.
-        #[cfg(feature = "cli")]
+        // The tamias `bins[]` shim verb (T-012): `tamias bin exec`
+        // runs `<driver> cli --dir <pkg> --name <pkg> <sturn argv>`
+        // for a declared `shim: cli` bin. sturn's engine IS the
+        // CLI, so this is a passthrough — strip the two standard
+        // driver flags and hand the rest to `sturn::run_from` with
+        // inherited stdio. That keeps full engine parity a
+        // generated ops→CLI surface can't express: globals before
+        // the verb (`--repo`/`--config`), `--help`, stdin-bound
+        // verbs, and the unbounded `daemon`/`sub`/`bridge`/`mount`
+        // surfaces all behave exactly like the `sturn` binary.
         Some("cli") => {
-            let m = kit::surface::OpsManifest::from_value(&ops::manifest()).unwrap_or_default();
-            let argv: Vec<String> = std::iter::once("sturn".to_string())
-                .chain(args.iter().skip(1).cloned())
-                .collect();
-            kit::surface::cli::run("sturn", &m, &argv, &mut surface::Engine)
+            let argv = engine_argv(&args[1..]);
+            std::process::exit(sturn::run_from(argv));
         }
+        // Optional embedded surface (feature-gated): the
+        // pavo-driver-kit surface layer serves this driver's own
+        // ops manifest as MCP tools over stdio — the same ops the
+        // `cli.*` wire queries expose.
         #[cfg(feature = "mcp")]
         Some("mcp") => {
             let m = kit::surface::OpsManifest::from_value(&ops::manifest()).unwrap_or_default();
@@ -172,10 +182,37 @@ fn main() {
         Some("serve") | None => serve(),
         _ => {
             eprintln!(
-                "usage: tamias-driver-sturn manifest|capabilities|ops|run <argv>|serve\n       (feature `cli` adds `cli <op> [args]`; feature `mcp` adds `mcp`)"
+                "usage: tamias-driver-sturn manifest|capabilities|ops|run <argv>|cli <sturn argv>|serve\n       (feature `mcp` adds `mcp`)"
             );
             1
         }
     };
     std::process::exit(code);
+}
+
+/// `cli` verb argv (after the `cli` token) → engine argv (argv[0]
+/// included). `tamias bin exec`/`driver exec` prepend the standard
+/// driver flags — `--dir <payload>` `--name <pkg>` — which the
+/// engine doesn't know; consume the leading run of those two
+/// (`--flag v` and `--flag=v` forms) and pass everything else
+/// through untouched. `--repo`/`--config` are deliberately NOT
+/// stripped: they're sturn globals, so a user-passed one must
+/// reach the engine's own parse.
+fn engine_argv(args: &[String]) -> Vec<String> {
+    let mut out = vec!["sturn".to_string()];
+    let mut i = 0;
+    while i < args.len() {
+        let a = args[i].as_str();
+        if a == "--dir" || a == "--name" {
+            // flag + separate value — skip both (a trailing flag
+            // with no value just ends the scan).
+            i = (i + 2).min(args.len());
+        } else if a.starts_with("--dir=") || a.starts_with("--name=") {
+            i += 1;
+        } else {
+            break;
+        }
+    }
+    out.extend(args[i..].iter().cloned());
+    out
 }

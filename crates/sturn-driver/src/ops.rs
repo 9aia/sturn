@@ -235,7 +235,7 @@ fn argv(
 
 /// The bare-name entry the embedded surfaces use (`OpSpec.name` is
 /// `cli.`-stripped); the wire path goes `op_of` → `run_verb`.
-#[cfg(any(feature = "cli", feature = "mcp"))]
+#[cfg(feature = "mcp")]
 pub fn run_op(op: &str, params: &Map<String, Value>) -> Response {
     match op_of(&format!("cli.{}", op.strip_prefix("cli.").unwrap_or(op))) {
         Some(name) => run_verb(&name, params),
