@@ -19,7 +19,10 @@
 //! the pavo-driver-kit `surface` layer) stream them via `run`.
 //! Streaming *flags* (`diff --live`, `check --watch`,
 //! `service logs -f`) are likewise excluded — the bounded form of
-//! those verbs stays a wire op.
+//! those verbs stays a wire op. The manifest has no bounded-ness
+//! flag: `wait` stays an op even though `--timeout 0` (its
+//! default) never returns — callers wanting a cap pass
+//! `--timeout` explicitly; the op doc carries the warning.
 
 use clap::{Arg, ArgAction, Command};
 use pavo_protocol::wire::{QueryResult, Response};

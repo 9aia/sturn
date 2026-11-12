@@ -255,10 +255,13 @@ enum Cmd {
     },
     /// Block until an ask resolves — prints the result as JSON.
     /// Exit: 0 answered, 2 cancelled, 3 expired, 4 timeout.
+    /// `--timeout 0` (the default) waits until resolved — unbounded;
+    /// a bare `cli.wait` op can park a request forever, pass
+    /// `--timeout` for a bounded wait.
     Wait {
         /// Ask event id.
         ask: String,
-        /// Max seconds to wait. 0 = until resolved.
+        /// Max seconds to wait. 0 = until resolved (unbounded — the default).
         #[arg(long, default_value_t = 0)]
         timeout: u64,
         /// Poll interval, ms.
