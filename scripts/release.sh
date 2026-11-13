@@ -1,65 +1,47 @@
 #!/usr/bin/env bash
-# Triggered by sturn watch on pushes to 9aia/sturn (script runner).
-# The leading sleep is the debounce window: a newer push kills this
-# run via cancel_running, so only the last push in a quiet window
-# releases. Runs inside a detached worktree — commits/tags are pushed
-# from here, not from the main checkout.
+# sturn release — thin shim over tarsi-serve (the org release plane,
+# project ADR-0005; repo config: ./tarsi.toml). One call runs
+# plan → changelog → bump → tag → push; publish targets are off
+# (ADR-0004: crates.io is tamias-only, GitHub Releases unused).
+# Operator-run on main — `tarsi-serve release` is dry-run by
+# default; --yes is the explicit opt-in.
+#
+# crates.io publish is GONE: the old per-crate `cargo publish`
+# loop (with its hand-maintained, drift-prone publish-order list)
+# and the `dist build` + `gh release upload` binary path are
+# retired. The `sturn` command ships as the tamias pack in
+# `libraries/sturn` (`tamias install --allow-drivers
+# ./libraries/sturn`); `scripts/pack.sh` stages the driver payload.
+#
+# Preserved repo step: the tamias pack manifest version is synced
+# to the new version *before* the release commit lands, so the
+# tagged tree carries consistent versions. The pack publish itself
+# stays manual (`tamias publish libraries/sturn`).
 set -euo pipefail
-# worktree-local secrets (gitignored); the service env file is canonical
+cd "$(git rev-parse --show-toplevel)"
+# worktree-local env (gitignored); the service env file is canonical
 [ -f ./.env ] && { set -a; source ./.env; set +a; }
-sleep "${STURN_RELEASE_DEBOUNCE:-300}"
 
-git fetch origin --tags -q
-last="$(git describe --tags --abbrev=0 2>/dev/null || true)"
-if [ -z "$last" ]; then
-    echo "no tags yet — run 'sturn deploy release' to seed the flow"; exit 0
+ws_version() { grep -m1 '^version = "' Cargo.toml | cut -d'"' -f2; }
+
+# Learn the version tarsi will bump to (all releasing units share one
+# workspace version — empty output means "don't sync").
+new="$(tarsi-serve plan --dir . | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+if not d.get("ok"): sys.exit(0)
+units=[u for u in d["result"]["plan"]["units"] if u.get("releases")]
+vs={u["new_version"] for u in units}
+print(vs.pop() if len(vs)==1 else "")
+')"
+old="$(ws_version)"
+if [ -n "$new" ] && [ "$new" != "$old" ]; then
+    sed -i "s/^version: \"${old}\"/version: \"${new}\"/" libraries/sturn/tamias.yaml
+    git add libraries/sturn/tamias.yaml
+    git commit -qm "chore(release): sync sturn@${new} version ref ahead of tarsi bump"
 fi
-changed="$(git diff --name-only "${last}..HEAD")"
 
-touched=""
-for c in sturn-core sturn-wal sturn-bus sturn-ws sturn-vcs \
-         sturn-vcs sturn-bus sturn-service sturn-secret sturn-config sturn-claim \
-         sturn-git sturn-bus-redb sturn-keyring sturn-dotenv sturn-config-toml \
-         sturn-wal-git sturn-bus-redb sturn-ws-git sturn-git \
-         sturn-systemd sturn-cli; do
-    grep -q "^crates/$c/" <<<"$changed" && touched="$touched $c"
-done
-# the bin re-publishes whenever any crate changed
-[ -n "$touched" ] && touched="$touched sturn-cli"
-if [ -z "$touched" ]; then echo "no crate changes since $last"; exit 0; fi
+tarsi-serve release --dir . --yes
 
-order="sturn-core sturn-secret sturn-config sturn-fuse \
-sturn-tunnel sturn-vcs sturn-bus sturn-service sturn-secret sturn-config sturn-claim \
-sturn-wal-git sturn-bus-redb sturn-ws-git sturn-git \
-sturn-git sturn-bus-redb sturn-keyring sturn-dotenv sturn-config-toml \
-sturn-systemd sturn-cli"
-published=""
-for c in $order; do
-    # package name: dir sturn-cli ships as package `sturn`
-    p="${c}"; [ "$c" = sturn-cli ] && p="sturn"
-    grep -q " ${c} \|^${c} \?$\| ${c}$" <<<" $touched " || continue
-    cargo set-version -p "$p" --bump patch
-    for i in 1 2 3 4 5; do
-        cargo publish -p "$p" --allow-dirty && break || sleep 30
-    done
-    published="$published $p"
-    # Per-crate tag — versions diverge independently in a monorepo.
-    ver_c="$(grep -m1 '^version' "crates/$c/Cargo.toml" | cut -d'"' -f2)"
-    tags="$tags $p-v$ver_c"
-done
-
-git commit -aqm "release: bump crate versions"
-for t in $tags; do git tag "$t"; done
-ver="$(grep -m1 '^version' crates/sturn-cli/Cargo.toml | cut -d'"' -f2)"
-git push -q origin HEAD:main --tags
-
-# binaries: local dist build (host arch) → GitHub Release.
-# Other arches join when the remote-runner pair lands (TODO).
-if command -v dist >/dev/null && command -v gh >/dev/null; then
-    dist build --output-format=json > /tmp/dist-manifest.json 2>&1 || true
-    gh release create "sturn-v${ver}" --generate-notes         --title "sturn ${ver}" 2>/dev/null || true
-    for f in target/distrib/*; do
-        [ -f "$f" ] && gh release upload "sturn-v${ver}" "$f" --clobber
-    done
-fi
-echo "released:${published} (tags:${tags})"
+echo "released: sturn ${new:-$old} (tag sturn-v${new:-$old}, per-unit tags for the rest)"
+echo "next: scripts/pack.sh && tamias publish libraries/sturn  # ship 9aia:sturn@${new:-$old} to the org registry"
