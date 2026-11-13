@@ -1,7 +1,7 @@
 +++
 id = "P-001"
 title = "resources beyond fs — typed claim URIs (dev/net/sess/cap) over the same WAL"
-status = "in-progress"
+status = "open"
 created = "2026-11-03"
 owner = "human:luis"
 priority = "med"
