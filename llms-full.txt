@@ -1,31 +1,56 @@
 ---
-url: /sturn/tutorials/first-swarm.md
+url: /sturn/tutorials/getting-started.md
 ---
 # Your first swarm
 
-Goal: two agents editing one repo, zero checkouts, one prevented
-conflict.
+Two agents editing one repo, zero checkouts, one prevented conflict.
+By the end you'll have claimed a resource before touching it,
+landed ops as ordinary commits, and pushed the coordination layer
+to the remote — the whole sturn loop.
 
-## Setup
+## Install
+
+The `sturn` command ships as a [tamias](https://9aia.com/tamias/)
+pack — a generated shim over `tamias-driver-sturn`. With tamias:
+
+```sh
+tamias install 9aia:sturn@<version>          # org registry
+# or from a checkout:
+tamias install --allow-drivers ./libraries/sturn
+```
+
+A compat `sturn` bin also exists in `sturn-cli`, so a plain
+`cargo install --git https://github.com/9aia/sturn sturn` works too.
+
+## Set up a repo
 
 ```sh
 git init demo && cd demo
 git commit -qm init --allow-empty
-sturn init
-sturn daemon &            # or: sturn deploy service
+sturn init            # writes sturn.toml, confirms ref namespaces
+sturn daemon &        # WAL → repo.<id>.{ops,claims,…}; or:
+sturn deploy service  # systemd user unit, Restart=always
 ```
 
+`sturn init` also detects colocated jj repos — sturn works on them
+unchanged. You should see `wrote sturn.toml` (or an unchanged
+report) and the daemon logging topic fan-out.
+
 ## Two workspaces
+
+Workspaces are pointers, not checkouts — `refs/sturn/ws/<name>` is
+a ref to a commit:
 
 ```sh
 sturn ws new agent-a
 sturn ws new agent-b
+sturn ws ls            # both point at HEAD; nothing hit disk
 ```
 
-Both point at `HEAD`. Nothing was written to disk — no worktree,
-no index, no checkout.
-
 ## Claim before you edit
+
+Claims publish advisory locks *before* edits — that's the whole
+point:
 
 ```sh
 STURN_ACTOR=agent-a sturn claim "src/**" --ws agent-a
@@ -38,20 +63,56 @@ STURN_ACTOR=agent-b sturn claim "src/lib.rs" --ws agent-b
 
 Agent-b learns in milliseconds that `src/` is taken and picks
 `tests/**` instead. In git, both would have edited the file and
-discovered it at merge.
+discovered it at merge. `sturn check "src/lib.rs"` probes the same
+conflict set without claiming; `--fence` asks "has my claim been
+superseded?"
 
-## Write ops, snap, repeat
+## Write ops, snap, push
+
+Ops are the only write path — `write` content becomes an ODB blob:
 
 ```sh
-echo '…' | sturn write src/lib.rs --ws agent-a
-echo '…' | sturn write tests/lib.rs --ws agent-b
-sturn snap agent-a -m "a: lib"   # → real commit on main
-sturn snap agent-b -m "b: test"  # → real commit on main
+echo 'fn helper() { 42 }' | STURN_ACTOR=agent-a sturn write src/lib.rs --ws agent-a --intent "add helper"
+echo '…' | STURN_ACTOR=agent-b sturn write tests/lib.rs --ws agent-b
+echo '…' | STURN_ACTOR=agent-b sturn rename tests/lib.rs tests/helper.rs --ws agent-b
+sturn log --ws agent-a    # JSONL replay of the WAL
 ```
 
-`git log` shows two ordinary signed-able commits. `git for-each-ref
-refs/sturn/*` shows the coordination layer GitHub never needed to
-understand.
+`snap` folds a workspace's ops into a real commit — several ws
+merge into ONE commit, rename-aware:
+
+```sh
+sturn snap agent-a -m "a: lib"   # → ordinary commit on main
+sturn snap agent-b -m "b: test" # → ordinary commit on main
+git log --oneline                # two normal commits
+```
+
+Then publish heads *and* the coordination layer:
+
+```sh
+sturn push    # heads + refs/sturn/* → origin
+```
+
+## What you now know
+
+* The WAL (`refs/sturn/wal/*`) is the state; the bus and workspaces
+  are rebuildable caches — the daemon only removes latency.
+* Claims prevent collisions; `snap` is the only thing that becomes
+  a commit; merges stay git's.
+* `STURN_ACTOR` names who you are on the ops you append.
+
+## Go deeper
+
+* [Hydrate a workspace](../how-to/hydrate.md) — materialize the ws
+  view for compilers that need POSIX files.
+* [Mount a workspace](../how-to/mount.md) — FUSE: tools write
+  normally, sturn records ops.
+* [Run the daemon](../how-to/daemon.md) — service lifecycle.
+* [Architecture](../explanation/architecture.md) — the three-layer
+  model and its invariants.
+* [The model](../explanation/model.md) — virtual files, per-op
+  approval, agents reviewing agents.
+* [Reference: ops](../reference/ops.md) — the full op vocabulary.
 
 ---
 
@@ -78,9 +139,13 @@ sturn exec --ws agent-7 --keep -- cargo test  # keep the dir
 
 * Target tmpfs (`/dev/shm`/`/tmp`) — it's a projection, delete freely.
 * Exit status propagates: `sturn exec` fails iff the command does.
-* Writes inside the hydrated dir do **not** flow back — ops are the
-  only write path. (Write-back hydration is a backlog item.)
-* FUSE mounts for humans land last — `git` works meanwhile.
+* Writes inside the hydrated dir flow back as ops only with
+  `--writeback` (`sturn exec --ws <w> --writeback -- cmd` or
+  `sturn ws hydrate <w> <dir> --writeback`) — a post-run dir diff
+  becomes Write/Delete/Rename ops. Without it, ops remain the only
+  write path.
+* FUSE mounts for humans: `sturn mount <w> <dir> --rw` — see
+  [mount](mount.md).
 
 ---
 
@@ -197,6 +262,167 @@ agents  │  ops: write/rename/claim/intent/… │
 * daemon + bus — latency reduction only; optional
 * `refs/sturn/ws/<name>` — workspace namespaces; hydration opt-in
 * `snap` — the bridge back to ordinary git history
+
+## Boundaries
+
+Sturn owns **ephemeral coordination** — live claims, ops, topics,
+asks over VCS state. Neighbors own theirs:
+
+* **myco** — durable work memory (the `project/` ledger); sturn
+  coordinates the moment, myco remembers the intent.
+* **kuda** — code memory; `.kuda/` cards are that repo's concern.
+* **tamias** — distribution; the `sturn` command is a tamias pack,
+  releases run through `tarsi-serve`.
+* **peregrin/hypha** — orchestration substrate; sturn is the
+  coordination layer agents call directly.
+
+## Where it sits
+
+In the org's layering — **tamias** (package & content manager) →
+**engines** (myco records, kuda code maps, mimus proofs, sepia
+sessions, hypha substrate, tarsi releases, cicada schedules, cypera
+docs, scarab config) → **orchestration** (peregrin campaigns) →
+**surfaces** (pavo views, MCP fronts, agent harnesses).
+
+Sturn is an **engine** — the coordination substrate every agent
+calls directly, below orchestration. It isn't orchestrated itself:
+agents `claim`/`write`/`snap` against the WAL, the daemon only
+fans events onto topics, and peregrin campaigns can consume sturn
+ops as events without sturn knowing they exist.
+
+---
+
+---
+url: /sturn/explanation/concepts.md
+---
+# Concepts
+
+The domain vocabulary, each term defined once. The op-level
+contract lives in [Reference: ops](../reference/ops).
+
+## WAL (write-ahead log)
+
+`refs/sturn/wal/<ws>` — the append-only op log per workspace, stored
+as ordinary git objects. **The WAL is the state**: anything
+derivable from it (bus cursors, materialized views, live claims) is
+a rebuildable cache.
+
+## Op
+
+The unit of coordination: `write`, `rename`, `delete`, `claim`,
+`release`, `intent`, `review`, `ask`/`answer`, `presence`. Ops are
+metadata about work — they never encode merge semantics. Content
+payloads become ODB blobs; ops reference them.
+
+## Workspace (`ws`)
+
+A named pointer — `refs/sturn/ws/<name>` → a commit — plus that
+workspace's WAL. Zero materialization: no clone, no worktree, no
+checkout. `sturn ws new` costs a ref.
+
+## Claim
+
+An advisory lock on a resource URI (`fs:src/**`, `dev:display0`,
+`sess:T-012`) published *before* edits, with a TTL. Conflicts are
+learned in milliseconds on the claims topic — prevention, not
+merge-time discovery. `sturn check` probes the conflict set;
+`--fence` asks whether your claim was superseded.
+
+## Topic / bus
+
+`repo.<id>.{ops,claims,review,presence,asks}` — the pub/sub cache
+the daemon fans WAL events onto. **A cache, never authority**: when
+the daemon is down, ops still sync through git push/fetch and
+subscribers replay the WAL.
+
+## Snap
+
+The bridge back to ordinary git: folds a workspace's ops into a
+real commit on the branch. Multiple workspaces merge into ONE
+commit — rename-aware, semantic conflicts warn and later ops win.
+
+## Review / ask
+
+`review <op-id> approve|reject` is itself an attributed op —
+per-op approval that streams *before* commit time. `[review]
+require = true` makes `snap` refuse unreviewed ops. `ask` opens a
+pending-response question any actor may answer; `wait` blocks on
+the verdict.
+
+## Actor
+
+Who you are on the ops you append — `STURN_ACTOR` env or config.
+Every op is attributed and (optionally) signed; `sturn verify`
+checks signatures against `allowed_signers`.
+
+## Hydrate / mount / exec
+
+The three ways to get real files: `ws hydrate`/`exec` materialize
+the ws *view* (tip + uncommitted ops) to a dir/tmpfs;
+`sturn mount --rw` exposes it as a FUSE filesystem where POSIX
+writes become ops. See [model](model.md).
+
+---
+
+---
+url: /sturn/explanation/decisions.md
+---
+# Decisions
+
+ADR-lite: the load-bearing decisions, each with the alternative it
+beat and the consequence it carries. Design history lives in the
+`project/` myco ledger.
+
+## The WAL is the state
+
+**Decision:** ops live in `refs/sturn/wal/*` as ordinary git
+objects; the bus, cursors, and materialized views are caches.
+
+* *Alternative:* a dedicated database (or the bus) as authority.
+* *Consequence:* replication is plain `git push`/`fetch` — signed
+  by git's machinery, no new sync protocol. Cost: everything
+  reconstructible must *stay* reconstructible; the rule is
+  enforced by review.
+
+## Ops are metadata; merges stay git's
+
+**Decision:** coordination ops never encode merge semantics —
+claims prevent collisions, `snap` produces ordinary commits.
+
+* *Alternative:* CRDT merge for the tree, or a custom merge driver.
+* *Consequence:* see [Why no CRDT for code](no-crdt.md) — the log
+  converges deterministically, the tree needs decisions, and
+  claims make most collisions never happen.
+
+## Workspaces are pointers
+
+**Decision:** `refs/sturn/ws/<name>` is a ref, not a checkout — a
+thousand agent workspaces cost nothing.
+
+* *Alternative:* git worktrees or clones per agent.
+* *Consequence:* parallelism scales to the ref namespace; real
+  files materialize only on demand (hydrate/exec/mount) for the
+  tools that genuinely need POSIX.
+
+## Claims before edits
+
+**Decision:** advisory locks publish *before* work starts —
+coordination precedes the edit, not the merge.
+
+* *Alternative:* detect conflicts at merge/snap time.
+* *Consequence:* contenders learn in milliseconds and pick
+  different resources; the failure mode git taught us (discovering
+  the collision at a three-way merge) is designed out.
+
+## Continuous review over the PR gate
+
+**Decision:** every op streams through the WAL and can carry a
+`review` verdict; `[review] require` gates `snap` per-op.
+
+* *Alternative:* one big diff reviewed at PR time.
+* *Consequence:* verdicts land *before* commit time, per op, from
+  any actor (agents review agents); PRs become packaging, not the
+  gate.
 
 ---
 
@@ -1297,49 +1523,38 @@ Rustdoc: `/api/sturn_core/` etc. after `bun run docs:api`.
 ---
 
 ---
-url: /sturn/getting-started.md
+url: /sturn/explanation.md
 ---
-# Getting started
+# Explanation
 
-```sh
-cargo install --git https://github.com/9aia/sturn sturn
-cd your-repo
-sturn init
-```
+* [Architecture](architecture.md) — the three layers, invariants, boundaries, where sturn sits
+* [Concepts](concepts.md) — the domain vocabulary, defined once
+* [Decisions](decisions.md) — ADR-lite: decision → alternative → consequence
+* [The model — files, approval, agents](model.md) — virtual trees, per-op review
+* [Why no CRDT for code](no-crdt.md) — convergence for the log, decisions for the tree
 
-`init` writes a `sturn.toml` and confirms the ref namespaces. It
-also detects **colocated jj** repos (`jj git init`) — sturn works
-on them unchanged; non-colocated jj isn't supported. From here,
-workspaces are the unit of parallel work:
+---
 
-```sh
-sturn ws new agent-7      # refs/sturn/ws/agent-7 → HEAD. No checkout.
-sturn ws ls
-```
+---
+url: /sturn/how-to.md
+---
+# How-to guides
 
-Append ops to the workspace's log:
+* [Hydrate a workspace](hydrate.md) — materialize the ws view for POSIX tools
+* [Mount a workspace](mount.md) — FUSE filesystem; writes become ops
+* [Run the daemon](daemon.md) — WAL→topic fan-out, service lifecycle
 
-```sh
-echo 'fn helper() { 42 }' | sturn write src/lib.rs --ws agent-7 --intent "add helper"
-sturn claim "src/**" --ws agent-7
-sturn log --ws agent-7    # JSONL replay of the WAL
-```
+---
 
-Land the work as an ordinary commit:
+---
+url: /sturn/reference.md
+---
+# Reference
 
-```sh
-sturn snap agent-7 -m "add helper"   # ops → real commit on main
-sturn push                           # heads + refs/sturn/* → origin
-```
-
-Run the coordination daemon so other actors see ops live:
-
-```sh
-sturn daemon             # WAL → repo.<id>.{ops,claims,review,presence,asks}
-sturn deploy service     # systemd user unit
-```
-
-Next: [your first swarm](/tutorials/first-swarm).
+* [Ops](ops.md) — the op vocabulary (`write`, `claim`, `review`, `ask`, …)
+* [CLI](cli.md) — every `sturn` verb
+* [Config](config.md) — `sturn.toml` fields
+* [Crate API](crate-api.md) — rustdoc for the workspace crates
 
 ---
 

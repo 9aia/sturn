@@ -21,6 +21,10 @@ sturn exec --ws agent-7 --keep -- cargo test  # keep the dir
 
 * Target tmpfs (`/dev/shm`/`/tmp`) — it's a projection, delete freely.
 * Exit status propagates: `sturn exec` fails iff the command does.
-* Writes inside the hydrated dir do **not** flow back — ops are the
-  only write path. (Write-back hydration is a backlog item.)
-* FUSE mounts for humans land last — `git` works meanwhile.
+* Writes inside the hydrated dir flow back as ops only with
+  `--writeback` (`sturn exec --ws <w> --writeback -- cmd` or
+  `sturn ws hydrate <w> <dir> --writeback`) — a post-run dir diff
+  becomes Write/Delete/Rename ops. Without it, ops remain the only
+  write path.
+* FUSE mounts for humans: `sturn mount <w> <dir> --rw` — see
+  [mount](mount.md).

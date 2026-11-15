@@ -13,7 +13,7 @@ fall back to <code>git rev-parse &lt;rev&gt;:&lt;path&gt;</code>.</dd><dt><a cla
 file), or a bare repo (has HEAD + objects/). Does <em>not</em> walk up
 to parents or honor <code>GIT_DIR</code>; callers fall back to plumbing.</dd><dt><a class="fn" href="fn.list_tree.html" title="fn sturn_odb::list_tree">list_<wbr>tree</a></dt><dd><code>git ls-tree -r --name-only &lt;rev&gt;</code> over loose objects. <code>None</code> →
 fall back to plumbing.</dd><dt><a class="fn" href="fn.object_exists.html" title="fn sturn_odb::object_exists">object_<wbr>exists</a></dt><dd>Loose-object existence check only — packs and alternates are the
-caller’s fallback (<code>git cat-file -e</code>).</dd><dt><a class="fn" href="fn.object_id.html" title="fn sturn_odb::object_id">object_<wbr>id</a></dt><dd>Content address: sha1(“<kind> <len>\0<payload>”) — the same id
+caller’s fallback (<code>git cat-file -e</code>).</dd><dt><a class="fn" href="fn.object_id.html" title="fn sturn_odb::object_id">object_<wbr>id</a></dt><dd>Content address: sha1(“&lt;kind&gt; &lt;len&gt;\0&lt;payload&gt;”) — the same id
 <code>git hash-object</code> computes.</dd><dt><a class="fn" href="fn.read_at.html" title="fn sturn_odb::read_at">read_at</a></dt><dd><code>git cat-file -p &lt;rev&gt;:&lt;path&gt;</code> over loose objects — returns blob
 bytes. <code>None</code> → fall back to plumbing (packs, weird revs, trees).</dd><dt><a class="fn" href="fn.read_object.html" title="fn sturn_odb::read_object">read_<wbr>object</a></dt><dd>Read a loose object → (kind, payload). <code>None</code> when the object
 isn’t a loose file (packed, alternate, or absent) — fall back to
