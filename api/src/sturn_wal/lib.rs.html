@@ -26,23 +26,18 @@
 <a href=#26 id=26 data-nosnippet>26</a>    /// `head`, exclusive) — `None` reads the whole log. Delta reads
 <a href=#27 id=27 data-nosnippet>27</a>    /// are what the daemon and catch-up need; `events` is the full
 <a href=#28 id=28 data-nosnippet>28</a>    /// replay.
-<a href=#29 id=29 data-nosnippet>29</a>    </span><span class="kw">fn </span>events_since(
-<a href=#30 id=30 data-nosnippet>30</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#31 id=31 data-nosnippet>31</a>        repo: <span class="kw-2">&amp;</span>Path,
-<a href=#32 id=32 data-nosnippet>32</a>        ws: <span class="kw-2">&amp;</span>str,
-<a href=#33 id=33 data-nosnippet>33</a>        from: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
-<a href=#34 id=34 data-nosnippet>34</a>    ) -&gt; io::Result&lt;Vec&lt;Event&gt;&gt;;
-<a href=#35 id=35 data-nosnippet>35</a>    <span class="doccomment">/// Opaque tip cursor for the ws log — cheap change detection.
-<a href=#36 id=36 data-nosnippet>36</a>    /// Callers must not interpret the value; feed it back to
-<a href=#37 id=37 data-nosnippet>37</a>    /// `events_since`.
-<a href=#38 id=38 data-nosnippet>38</a>    </span><span class="kw">fn </span>head(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path, ws: <span class="kw-2">&amp;</span>str) -&gt; io::Result&lt;<span class="prelude-ty">Option</span>&lt;String&gt;&gt;;
-<a href=#39 id=39 data-nosnippet>39</a>    <span class="doccomment">/// Workspace ids that have a log.
-<a href=#40 id=40 data-nosnippet>40</a>    </span><span class="kw">fn </span>workspaces(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path) -&gt; io::Result&lt;Vec&lt;String&gt;&gt;;
-<a href=#41 id=41 data-nosnippet>41</a>    <span class="doccomment">/// Drop pre-snapshot history: events before the last `Snapshot`
-<a href=#42 id=42 data-nosnippet>42</a>    /// are already in the tip — replaying them is waste. Returns
-<a href=#43 id=43 data-nosnippet>43</a>    /// events dropped. Old history moves to an archive namespace
-<a href=#44 id=44 data-nosnippet>44</a>    /// (git impl: `refs/sturn/archive/&lt;ws&gt;`) — compaction loses
-<a href=#45 id=45 data-nosnippet>45</a>    /// nothing.
-<a href=#46 id=46 data-nosnippet>46</a>    </span><span class="kw">fn </span>compact(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path, ws: <span class="kw-2">&amp;</span>str) -&gt; io::Result&lt;usize&gt;;
-<a href=#47 id=47 data-nosnippet>47</a>}
+<a href=#29 id=29 data-nosnippet>29</a>    </span><span class="kw">fn </span>events_since(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path, ws: <span class="kw-2">&amp;</span>str, from: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; io::Result&lt;Vec&lt;Event&gt;&gt;;
+<a href=#30 id=30 data-nosnippet>30</a>    <span class="doccomment">/// Opaque tip cursor for the ws log — cheap change detection.
+<a href=#31 id=31 data-nosnippet>31</a>    /// Callers must not interpret the value; feed it back to
+<a href=#32 id=32 data-nosnippet>32</a>    /// `events_since`.
+<a href=#33 id=33 data-nosnippet>33</a>    </span><span class="kw">fn </span>head(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path, ws: <span class="kw-2">&amp;</span>str) -&gt; io::Result&lt;<span class="prelude-ty">Option</span>&lt;String&gt;&gt;;
+<a href=#34 id=34 data-nosnippet>34</a>    <span class="doccomment">/// Workspace ids that have a log.
+<a href=#35 id=35 data-nosnippet>35</a>    </span><span class="kw">fn </span>workspaces(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path) -&gt; io::Result&lt;Vec&lt;String&gt;&gt;;
+<a href=#36 id=36 data-nosnippet>36</a>    <span class="doccomment">/// Drop pre-snapshot history: events before the last `Snapshot`
+<a href=#37 id=37 data-nosnippet>37</a>    /// are already in the tip — replaying them is waste. Returns
+<a href=#38 id=38 data-nosnippet>38</a>    /// events dropped. Old history moves to an archive namespace
+<a href=#39 id=39 data-nosnippet>39</a>    /// (git impl: `refs/sturn/archive/&lt;ws&gt;`) — compaction loses
+<a href=#40 id=40 data-nosnippet>40</a>    /// nothing.
+<a href=#41 id=41 data-nosnippet>41</a>    </span><span class="kw">fn </span>compact(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path, ws: <span class="kw-2">&amp;</span>str) -&gt; io::Result&lt;usize&gt;;
+<a href=#42 id=42 data-nosnippet>42</a>}
 </code></pre></div></section></main></body></html>

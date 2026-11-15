@@ -20,27 +20,21 @@
 <a href=#20 id=20 data-nosnippet>20</a>    </span><span class="kw">fn </span>list(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path, rev: <span class="kw-2">&amp;</span>str) -&gt; io::Result&lt;Vec&lt;String&gt;&gt;;
 <a href=#21 id=21 data-nosnippet>21</a>    <span class="doccomment">/// Materialize `rev` into `dir` — for compilers that need files.
 <a href=#22 id=22 data-nosnippet>22</a>    /// `paths` filters to a subset (pathspec); empty = whole tree.
-<a href=#23 id=23 data-nosnippet>23</a>    </span><span class="kw">fn </span>materialize(
-<a href=#24 id=24 data-nosnippet>24</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#25 id=25 data-nosnippet>25</a>        repo: <span class="kw-2">&amp;</span>Path,
-<a href=#26 id=26 data-nosnippet>26</a>        rev: <span class="kw-2">&amp;</span>str,
-<a href=#27 id=27 data-nosnippet>27</a>        dir: <span class="kw-2">&amp;</span>Path,
-<a href=#28 id=28 data-nosnippet>28</a>        paths: <span class="kw-2">&amp;</span>[String],
-<a href=#29 id=29 data-nosnippet>29</a>    ) -&gt; io::Result&lt;()&gt;;
-<a href=#30 id=30 data-nosnippet>30</a>    <span class="doccomment">/// Create a workspace namespace pointing at `base` (git impl:
-<a href=#31 id=31 data-nosnippet>31</a>    /// `refs/sturn/ws/&lt;name&gt;` = `base`).
-<a href=#32 id=32 data-nosnippet>32</a>    </span><span class="kw">fn </span>create(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path, name: <span class="kw-2">&amp;</span>str, base: <span class="kw-2">&amp;</span>str) -&gt; io::Result&lt;()&gt;;
-<a href=#33 id=33 data-nosnippet>33</a>    <span class="doccomment">/// Blob id at `rev:path` — None when absent. The lookup that
-<a href=#34 id=34 data-nosnippet>34</a>    /// makes overlay reads cheap (content equality = id equality).
-<a href=#35 id=35 data-nosnippet>35</a>    </span><span class="kw">fn </span>entry(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path, rev: <span class="kw-2">&amp;</span>str, path: <span class="kw-2">&amp;</span>str) -&gt; io::Result&lt;<span class="prelude-ty">Option</span>&lt;String&gt;&gt;;
-<a href=#36 id=36 data-nosnippet>36</a>    <span class="doccomment">/// Blob contents by id.
-<a href=#37 id=37 data-nosnippet>37</a>    </span><span class="kw">fn </span>blob(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path, sha: <span class="kw-2">&amp;</span>str) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt;;
-<a href=#38 id=38 data-nosnippet>38</a>    <span class="doccomment">/// Store bytes as a blob; returns its content id.
-<a href=#39 id=39 data-nosnippet>39</a>    </span><span class="kw">fn </span>store(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path, content: <span class="kw-2">&amp;</span>[u8]) -&gt; io::Result&lt;String&gt;;
-<a href=#40 id=40 data-nosnippet>40</a>    <span class="doccomment">/// Revision the ws points at (base today; WAL overlay lands in M4).
-<a href=#41 id=41 data-nosnippet>41</a>    </span><span class="kw">fn </span>tip(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path, name: <span class="kw-2">&amp;</span>str) -&gt; io::Result&lt;String&gt;;
-<a href=#42 id=42 data-nosnippet>42</a>    <span class="doccomment">/// Workspace names with a namespace entry — includes
-<a href=#43 id=43 data-nosnippet>43</a>    /// workspaces that haven't appended an op yet (no WAL log).
-<a href=#44 id=44 data-nosnippet>44</a>    </span><span class="kw">fn </span>workspaces(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path) -&gt; io::Result&lt;Vec&lt;String&gt;&gt;;
-<a href=#45 id=45 data-nosnippet>45</a>}
+<a href=#23 id=23 data-nosnippet>23</a>    </span><span class="kw">fn </span>materialize(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path, rev: <span class="kw-2">&amp;</span>str, dir: <span class="kw-2">&amp;</span>Path, paths: <span class="kw-2">&amp;</span>[String]) -&gt; io::Result&lt;()&gt;;
+<a href=#24 id=24 data-nosnippet>24</a>    <span class="doccomment">/// Create a workspace namespace pointing at `base` (git impl:
+<a href=#25 id=25 data-nosnippet>25</a>    /// `refs/sturn/ws/&lt;name&gt;` = `base`).
+<a href=#26 id=26 data-nosnippet>26</a>    </span><span class="kw">fn </span>create(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path, name: <span class="kw-2">&amp;</span>str, base: <span class="kw-2">&amp;</span>str) -&gt; io::Result&lt;()&gt;;
+<a href=#27 id=27 data-nosnippet>27</a>    <span class="doccomment">/// Blob id at `rev:path` — None when absent. The lookup that
+<a href=#28 id=28 data-nosnippet>28</a>    /// makes overlay reads cheap (content equality = id equality).
+<a href=#29 id=29 data-nosnippet>29</a>    </span><span class="kw">fn </span>entry(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path, rev: <span class="kw-2">&amp;</span>str, path: <span class="kw-2">&amp;</span>str) -&gt; io::Result&lt;<span class="prelude-ty">Option</span>&lt;String&gt;&gt;;
+<a href=#30 id=30 data-nosnippet>30</a>    <span class="doccomment">/// Blob contents by id.
+<a href=#31 id=31 data-nosnippet>31</a>    </span><span class="kw">fn </span>blob(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path, sha: <span class="kw-2">&amp;</span>str) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt;;
+<a href=#32 id=32 data-nosnippet>32</a>    <span class="doccomment">/// Store bytes as a blob; returns its content id.
+<a href=#33 id=33 data-nosnippet>33</a>    </span><span class="kw">fn </span>store(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path, content: <span class="kw-2">&amp;</span>[u8]) -&gt; io::Result&lt;String&gt;;
+<a href=#34 id=34 data-nosnippet>34</a>    <span class="doccomment">/// Revision the ws points at (base today; WAL overlay lands in M4).
+<a href=#35 id=35 data-nosnippet>35</a>    </span><span class="kw">fn </span>tip(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path, name: <span class="kw-2">&amp;</span>str) -&gt; io::Result&lt;String&gt;;
+<a href=#36 id=36 data-nosnippet>36</a>    <span class="doccomment">/// Workspace names with a namespace entry — includes
+<a href=#37 id=37 data-nosnippet>37</a>    /// workspaces that haven't appended an op yet (no WAL log).
+<a href=#38 id=38 data-nosnippet>38</a>    </span><span class="kw">fn </span>workspaces(<span class="kw-2">&amp;</span><span class="self">self</span>, repo: <span class="kw-2">&amp;</span>Path) -&gt; io::Result&lt;Vec&lt;String&gt;&gt;;
+<a href=#39 id=39 data-nosnippet>39</a>}
 </code></pre></div></section></main></body></html>

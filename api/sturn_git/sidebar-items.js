@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["snap_commit","store_blob"],"struct":["GitVcs"]};
+window.SIDEBAR_ITEMS = {"fn":["has_commit","push","resolve","snap_commit","store_blob"]};
