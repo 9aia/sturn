@@ -27,8 +27,8 @@ modules:
 commands:
 - cargo check
 - cargo test --workspace
-tree_digest: 4b797622e42a4054923ed9b4ac9e27912894e986
-files_total: 115
+tree_digest: e0027b323e66fbdeecdfc00bf3ffe2d2e16d0072
+files_total: 121
 provenance:
   files:
   - Cargo.toml
@@ -54,8 +54,8 @@ provenance:
   - crates/sturn-ws/Cargo.toml
   - crates/sturn-ws-git/Cargo.toml
   hashes:
-  - 730e0ede4880b57180e891b175ca289ea3df7d21
-  - 1bf278f98b4ae01a4114ca185c9d9db04fd22714
+  - cd69f03acd48b93a0363993d44dd86eba4cf794e
+  - aa6039f463e5e09a4343b6718fcb8df3bcf5565f
   - 4dafecd121808bfabe6de0b6fd362c82eae4c268
   - d2bdd41da6f91a3199ae6ce1759d4dcdeda1590c
   - 400e9db9ac5978965f038a926e04e4ef1dbb2f4e
@@ -64,7 +64,7 @@ provenance:
   - 9e27ee95465ebe3ada1d6e77033a9fa9714a7c44
   - 8882be00ff91823f5d18b19eaca492be7e9a5ef5
   - 1034b2491bf076039224a52253fddb5330eaa0bf
-  - cc11ad5889716eb17a83776d56cafe4c576ba293
+  - 5ac84f1658f81f303a68f2358fcfa799e4ad2cf5
   - 6c132812f2fc147db0df216bc92eb260e01b2491
   - 83daaba3458beaee0247769cca93f3ac6f427a74
   - b880dc8f26d37f2be3f51c066a251ed062f93a0a
@@ -76,6 +76,6 @@ provenance:
   - 920e3060a2a096d2c39647c722b94768629605d2
   - baa5ab79e9ba5d08dbaffbee0a0961c003dc8a4f
   - 74885c8dbd6264f0bc6da2657aeab82fc54a0c70
-  commit_sha: 9e1e3b78a31a2f94778f74b386d75262aa05da22
-  generated_at: '1794489836'
+  commit_sha: ca5e11878408b22eceee337fcb1adf299da5e24c
+  generated_at: '1794726698'
   generator: kuda/0.1.0

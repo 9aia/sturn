@@ -69,13 +69,13 @@ api:
   module: project
 - name: T-011
   kind: record
-  file: project/BACKLOG.md
-  line: 8
+  file: project/DONE.md
+  line: 5
   module: project
 - name: T-013
   kind: record
-  file: project/TODO.md
-  line: 5
+  file: project/BACKLOG.md
+  line: 8
   module: project
 - name: T-015
   kind: record
@@ -121,19 +121,19 @@ provenance:
   - project/issues/issue-0005-evaluate-pando-class-git-hosts-when-if-released-refs-sturn-as-unrelated-refs-sturn-s-native-regime-verify-ref-advertisement-limits-non-ff-retry-loop.md
   - project/proposals/proposal-0001-resources-beyond-fs-typed-claim-uris-dev-net-sess-cap-over-the-same-wal.md
   hashes:
-  - 343190c56e97f25d148f6c1da5630ed95648bd76
-  - d9e948613a4926ff509c4ba5405b009bbca5d88e
-  - 0dbe26ed3f912b840d1fe09c8094654c160c269e
+  - 8741914bf45402b3f714ff522d0e2df1c1b8f0a4
+  - c66b63d634f8b4593191312a532c11030e756ab5
+  - 556e7dda16d6eac4f0b16e8b8334ade03924bf4e
   - 61884bb7bd90f0430a523f03bad6b413f130cc41
   - fdd235473b8a9291d70f747e8c0c354d4b55acb9
-  - 1d7d47c82f9a3ab694915bcf785a272183caaf46
+  - 4f37663ae88ccdfad213651be20e566671023da9
   - 0caa8eea9611929f08763b86d9ca93d4bfdc12a8
   - c00eae6fe6d181790668cdd4a750bd24feba8d74
   - d9763ad517a5d47eeb3302560a7bea4ba6674db4
   - c5eefe83d96d19aa9da833c8e8a3ac97ad943ef8
   - e74d93dc6ec56766921c3a658d3069f525928757
   - f93bc3f3c1e1f77299ea4ce488c52ea639a4cb2a
-  - 3bedf7b3271b505bb2cc16222a48ad28265cd1b8
-  commit_sha: adae1d7e7c927216006da972608cc345929607ea
-  generated_at: '1794437265'
+  - cf36c82c066438e542084505b07c28db49052b22
+  commit_sha: ca5e11878408b22eceee337fcb1adf299da5e24c
+  generated_at: '1794726698'
   generator: kuda-template/0.1.4

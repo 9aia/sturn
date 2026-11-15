@@ -5,7 +5,7 @@ api:
 - name: Engine
   kind: type
   file: crates/sturn-driver/src/surface.rs
-  line: 20
+  line: 19
   module: sturn-driver
 - name: READ_ONLY
   kind: const
@@ -75,7 +75,7 @@ api:
 - name: capabilities_json
   kind: function
   file: crates/sturn-driver/src/main.rs
-  line: 54
+  line: 60
   module: sturn-driver
 - name: claim_row
   kind: function
@@ -105,7 +105,7 @@ api:
 - name: data
   kind: module
   file: crates/sturn-driver/src/main.rs
-  line: 45
+  line: 51
   module: sturn-driver
 - name: default
   kind: function
@@ -120,7 +120,7 @@ api:
 - name: dispatch
   kind: function
   file: crates/sturn-driver/src/main.rs
-  line: 64
+  line: 70
   module: sturn-driver
 - name: driver_passes_pavo_conformance
   kind: function
@@ -131,6 +131,11 @@ api:
   kind: function
   file: crates/sturn-driver/tests/ops_wire.rs
   line: 116
+  module: sturn-driver
+- name: engine_argv
+  kind: function
+  file: crates/sturn-driver/src/main.rs
+  line: 201
   module: sturn-driver
 - name: error_payload
   kind: function
@@ -190,19 +195,14 @@ api:
 - name: main
   kind: function
   file: crates/sturn-driver/src/main.rs
-  line: 122
+  line: 128
   module: sturn-driver
 - name: manifest
   kind: function
   file: crates/sturn-driver/src/ops.rs
   line: 125
   module: sturn-driver
-- name: manifest
-  kind: function
-  file: crates/sturn-driver/src/views.rs
-  line: 198
-  module: sturn-driver
-api_omitted: 48
+api_omitted: 49
 deps:
 - clap
 - pavo-driver-kit
@@ -249,14 +249,14 @@ provenance:
   - crates/sturn-driver/tests/conformance.rs
   - crates/sturn-driver/tests/ops_wire.rs
   hashes:
-  - cc11ad5889716eb17a83776d56cafe4c576ba293
+  - 5ac84f1658f81f303a68f2358fcfa799e4ad2cf5
   - 5ed4f744f7b78efee3e4da788fa66c48ec5b911c
-  - ce4934c15c651a7a9174d084d4aee6a4ba39f2da
-  - 8f0d6ede809982034f3d94c72d93e068f170f562
-  - 4428bc21a7cd420c5d74b1582e94dde30fc6c676
+  - 199b021eb7798399ef8177b23fb35d6a1bc0ea5e
+  - ebd155a000acee8b336d9f238d9dc11e2ae029cc
+  - dd4235b7a7ff6a946c1597bcf778203afe9dbf33
   - a6c14e6ad89e6b9de14d17c1142924e9b2149ed4
   - 4f731fec636db60e4ae90d45e355a861b238128f
   - e47dc5a19698bdb071e5ffdb3c6ba0ae3c5e19b5
-  commit_sha: 9e1e3b78a31a2f94778f74b386d75262aa05da22
-  generated_at: '1794489836'
+  commit_sha: ca5e11878408b22eceee337fcb1adf299da5e24c
+  generated_at: '1794726698'
   generator: kuda-template/0.1.4

@@ -7,12 +7,12 @@ api:
   file: docs/explanation/architecture.md
   line: 1
   module: docs
-- name: CLI reference
+- name: Command-Line Help for `sturn`
   kind: record
   file: docs/reference/cli.md
   line: 1
   module: docs
-- name: Config reference
+- name: Config — `sturn.toml`
   kind: record
   file: docs/reference/config.md
   line: 1
@@ -69,17 +69,20 @@ verify:
 - docs/explanation/architecture.md
 - docs/explanation/model.md
 - docs/explanation/no-crdt.md
+- docs/gen-cli-docs.py
+- docs/gen-config-docs.py
+- docs/gen-crate-map.py
 - docs/getting-started.md
 - docs/how-to/daemon.md
 - docs/how-to/hydrate.md
-- docs/how-to/mount.md
-- docs/index.md
-- docs/public/api/static.files/SourceSerif4-LICENSE-a2cfd9d5.md
 provenance:
   files:
   - docs/explanation/architecture.md
   - docs/explanation/model.md
   - docs/explanation/no-crdt.md
+  - docs/gen-cli-docs.py
+  - docs/gen-config-docs.py
+  - docs/gen-crate-map.py
   - docs/getting-started.md
   - docs/how-to/daemon.md
   - docs/how-to/hydrate.md
@@ -96,18 +99,21 @@ provenance:
   - 38377502e770c7d95b1c2b14d3f053ac955ec0e6
   - 013f9ca05541f10e541981becfa30a9d1095da86
   - e57f877f30d8a79a79f24d0488c9a9f41dc6f1fc
+  - d0e36f64d58ee3547de6ff8821c2b236848dba70
+  - 16d8d8487d8df048edbd08d1e2732018ec27fb4b
+  - 873a113dcecbaf3d80768c10f89588acf4a9569a
   - 4298069a091705e8723f2edb954d2283f3e598ec
   - 821dde498145202bcb8c9749dc79c2faa873d233
   - 4c2cebeb9c75d0e94f44afb62b58349bf546a5e2
   - ee344da440b2a293d281ce40c92e3421be36fa72
   - 955042d3972346fb3e4c7e73bd56cbe72d2f4a4b
-  - 630d6dfb71f069a0263fa6779c4b9725b56f607d
+  - 7b94a679be3cfff07348115037c708c75ecadbbc
   - 175fa4f47aecdc02e902d243a1c29914eb2ee258
-  - f57a056ac1c720b4d13221ff6ffa95ff0584fa37
-  - d8741ff9f6108d6089a44b320315c26d1cf1c2d7
-  - 12677a54f8068c5527b62796e3e8d19356f10733
+  - 2876ec231ff2e6f65a85ec9c0e79d7293a7ee5bd
+  - 4e99639727585ac255d4c8dfcc51f8e9c55c600b
+  - 4c019fc48638f15ca51176df0b8c72a2cb3dfabd
   - 7d176d052c2fe9e03f0c464a2f9777315d7aa43d
   - f4a6726904b0bfaf8e0b2b87280bf633b9f1a372
-  commit_sha: 9e1e3b78a31a2f94778f74b386d75262aa05da22
-  generated_at: '1794489836'
+  commit_sha: ca5e11878408b22eceee337fcb1adf299da5e24c
+  generated_at: '1794726698'
   generator: kuda-template/0.1.4

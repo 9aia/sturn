@@ -202,7 +202,7 @@ api:
   file: refs/sturn/wal/devin-docs
   line: 1
   module: sturn-wal
-api_omitted: 116
+api_omitted: 128
 deps:
 - sturn-core
 - lasius-vcs
@@ -234,14 +234,17 @@ provenance:
   - refs/sturn/wal/devin-driver-kit
   - refs/sturn/wal/devin-engine-lib
   - refs/sturn/wal/devin-p001
+  - refs/sturn/wal/devin-pl014-e1
   - refs/sturn/wal/devin-refactor
   - refs/sturn/wal/devin-t003
   - refs/sturn/wal/devin-t007
   - refs/sturn/wal/devin-t036
+  - refs/sturn/wal/docs-fix
   - refs/sturn/wal/dogfood
   - refs/sturn/wal/gate
   - refs/sturn/wal/r2
   - refs/sturn/wal/sturn
+  - refs/sturn/wal/sync-refs-rollout
   - refs/sturn/ws/devin
   - refs/sturn/ws/devin-docs
   - refs/sturn/ws/devin-driver-kit
@@ -263,14 +266,17 @@ provenance:
   - b240e1b115ca5141c07ba6cfd04c50238ee6460b
   - 34311ae0cf1abed72344d36578c54836f88290c0
   - 1397408886e75b484f29c93e4157b2c25f1966d6
+  - 09f9b7d8ab4e72cd3877c5120dbd0e2f093e854b
   - 976c4344e03f24b342f70ef18f8f77a3ba648703
   - d9c74cb37cc1d2be714f8834fa2de8cfec107317
   - 174b024faaacfe931ab47f79f002f36a4e650ffe
   - 8a43855e699b429691b04c9123e4cdc6ba80e492
+  - abc911459bd6fe06dbbf63b8c48ce9693fc37fe3
   - a64a1f57d1e954839d1a82b759e636720c865241
   - 21109635d14c2700c435ea94396bbf5499b231be
   - aa48bcf3f021ac012a98c7577facb82421aa2a56
-  - 975ea0e28f3b730e6a148857f9890f815ed921ad
+  - e64a24c11aafae5711ada429dc1080f34dff4918
+  - 5d53b39b5b252d69037006d07fe3ef0113b1f29e
   - ce7921e219861d5b09a47222061cd1f00fced71d
   - c8e1146d28df610b6b7121fae7f53d0139b02930
   - 97f15d879100b406708c00c742fac646ed3bf3f0
@@ -280,6 +286,6 @@ provenance:
   - e5a49c5486f860acc785c137fb9eb70d38149d41
   - 6d1a7c6d3feea4c33419c637408a59914de1df29
   - 6a5c95ab05cd9a7b9185e11973f9edc8cfb5febe
-  commit_sha: 9e1e3b78a31a2f94778f74b386d75262aa05da22
-  generated_at: '1794489836'
+  commit_sha: ca5e11878408b22eceee337fcb1adf299da5e24c
+  generated_at: '1794726698'
   generator: kuda-template/0.1.4
