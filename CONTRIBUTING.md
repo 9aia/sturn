@@ -7,12 +7,14 @@ maintained without PRs.)
 ## Layout
 
 `crates/` — rust workspace. `sturn-core` is pure domain (op schema,
-config). Ports are crates: `sturn-wal`, `sturn-bus`, `sturn-ws`,
-`sturn-vcs`, `sturn-config`, `sturn-secret`, `sturn-service`. Impls:
-`sturn-wal-git`/`sturn-git`/`sturn-ws-git` (git plumbing),
-`sturn-bus-redb`, `sturn-config` (scarab-config-file impl),
-`sturn-keyring`/`sturn-dotenv`,
-`sturn-systemd`. `sturn-claim` is pure claim logic. `sturn-cli`
+config, shared vocabulary). Ports are crates: `sturn-wal`,
+`sturn-bus`, `sturn-ws`, `sturn-service`, `sturn-secret`,
+`sturn-config` (scarab-config-file impl). Impls: `sturn-wal-git` +
+`sturn-odb` + `sturn-ws-git` (git plumbing — `sturn-git` is the
+snap bridge over the shared `lasius-vcs` port), `sturn-bus-redb`,
+`sturn-keyring`/`sturn-dotenv`, `sturn-systemd`, `sturn-fuse`
+(FUSE mount). `sturn-claim`/`sturn-ask` are pure fold logic over
+the WAL. `sturn-cli`
 (package `sturn` — engine lib + compat bin `sturn`) is the
 composition root; `sturn-driver` (bin
 `tamias-driver-sturn`) is the pavo view/ops driver over it — its
@@ -47,5 +49,10 @@ Follow Diátaxis on the `docs` branch: `docs/tutorials/` (learn) ·
 
 ## Releasing
 
-Seed once with `sturn deploy release`… *(release loop pending —
-see project/BACKLOG.md)*
+`scripts/release.sh` is run manually by an operator on `main`
+(releases are operator-run) — a thin shim over `tarsi-serve
+release` (plan → changelog → bump → tag → push; publish targets
+off per ADR-0004). The `sturn` command ships as the tamias pack in
+`libraries/sturn` — after the tag, `scripts/pack.sh` stages the
+driver payload and the operator runs `tamias publish
+libraries/sturn` to ship `9aia:sturn@<ver>` to the org registry.

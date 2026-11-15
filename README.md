@@ -35,8 +35,8 @@ in between with an op log and a coordination bus.
 ## Install
 
 ```sh
-cargo install --git https://github.com/9aia/sturn sturn   # today
-cargo install sturn                                      # post-0.1.0
+tamias install 9aia:sturn@0.1.0                  # org registry (needs TAMIAS_REGISTRY_TOKEN)
+cargo install --git https://github.com/9aia/sturn sturn   # from source
 ```
 
 Platform: **Linux** for the daemon (systemd); the CLI works
@@ -64,12 +64,13 @@ sturn deploy service    # systemd user unit
 
 ## Commands
 
-`init` · `ws new/ls/read/paths/grep/hydrate` · `claim/release/claims` ·
-`write`/`rename`/`delete`/`intent` · `log`/`compact` ·
+`init` · `ws new/ls/read/paths/grep/hydrate` ·
+`claim`/`release`/`claims`/`check` ·
+`write`/`rename`/`delete`/`intent` · `log`/`compact`/`diff` ·
 `snap` (multi-ws merge) · `review`/`verify` ·
 `ask`/`asks`/`answer`/`cancel`/`wait` · `push` ·
 `daemon`/`sub`/`bridge` · `mount` · `exec` · `join`/`leave` ·
-`deploy` — full table in [docs](https://9aia.com/sturn/reference/cli.html).
+`deploy`/`destroy`/`service` — full table in [docs](https://9aia.com/sturn/reference/cli.html).
 The agent surface is generated, not hand-rolled: `tamias-driver-sturn`
 exposes every bounded verb as a `cli.<verb>` op (and MCP tool via the
 pavo surface drivers) — `sturn mcp` is gone.
@@ -104,8 +105,11 @@ supported.
 
 ## Status
 
-Scaffold. Tasks, milestones, and decisions live in the `project/`
-worktree — `myco status --prompt` for the board.
+Working v0.1.0 — the full verb surface is implemented, the docs
+site is live at `9aia.com/sturn`, and `libraries/sturn` ships as a
+tamias pack (`9aia:sturn@0.1.0` on the org registry). Tasks,
+milestones, and decisions live in the `project/` worktree —
+`myco status --prompt` for the board.
 
 ## License
 
