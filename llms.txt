@@ -25,8 +25,8 @@ Ephemeral coordination engine — claims/ops/topics over VCS state
 ### Reference
 
 - [Ops](/sturn/reference/ops.md)
-- [CLI reference](/sturn/reference/cli.md)
-- [Config reference](/sturn/reference/config.md)
+- [Command-Line Help for `sturn`](/sturn/reference/cli.md)
+- [Config — `sturn.toml`](/sturn/reference/config.md)
 - [Crate map](/sturn/reference/crate-api.md)
 
 ### Other

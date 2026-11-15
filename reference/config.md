@@ -1,48 +1,73 @@
 ---
 url: /sturn/reference/config.md
 ---
-# Config reference
+# Config — `sturn.toml`
 
-`sturn.toml` — searched at `$STURN_CONFIG`, `./sturn.toml`,
-`~/.config/sturn/sturn.toml`. Unknown fields are rejected. Secrets
-never live here.
+## Top level
 
-```toml
-[repo]
-dir = "."              # required — the git repo being coordinated
-id = "9aia/sturn"      # topic prefix; default: dir basename
-branch = "main"        # snap target; default: main
+| field | type | required | notes |
+|---|---|---|---|
+| `repo` | `RepoCfg` | required | The coordinated repo. |
+| `wal` | `WalCfg` | optional | — |
+| `bus` | `BusCfg` | optional | — |
+| `actor` | `ActorCfg` | optional | — |
+| `signing` | `SigningCfg` | optional | — |
+| `review` | `ReviewCfg` | optional | — |
+| `hooks` | `HooksCfg` | optional | — |
 
-[wal]
-ref_prefix = "refs/sturn/wal"   # default
+## `[repo]`
 
-[bus]
-store = "~/.local/state/sturn/bus.redb"   # default
-poll_ms = 100                             # daemon fan-out interval
-# repos = ["../other-repo"]             # extra repos to fan out
+| field | type | required | notes |
+|---|---|---|---|
+| `dir` | `path` | required | Repo dir (the ODB lives at `&lt;dir&gt;/.git`). |
+| `id` | `string` | optional | Topic prefix id, e.g. "9aia/sturn". Defaults to dir basename. |
+| `branch` | `string` | optional | Branch `snap` updates by default. |
 
-[review]
-require = true         # snap refuses unreviewed tree ops
+## `[wal]`
 
-[signing]
-key = "~/.ssh/id_ed25519"             # sign every event (ssh-keygen)
-# allowed_signers = "..."
+| field | type | required | notes |
+|---|---|---|---|
+| `ref_prefix` | `string` | optional | WAL ref prefix — one ref per workspace beneath it. |
 
-[actor]
-name = "agent-7"       # default: $STURN_ACTOR → $USER → "anon"
+## `[bus]`
 
-[hooks]
-# post_op = "kuda sync"  # or a list: ["kuda sync", "./scripts/notify"]
-```
+| field | type | required | notes |
+|---|---|---|---|
+| `store` | `path` | optional | Embedded store path for the local bus impl. |
+| `poll_ms` | `int` | optional | Daemon poll interval for WAL→topic fan-out, ms. |
+| `repos` | `list` | optional | Extra repo dirs this daemon also fans out — multi-repo from one process. Topic ids derive from dir basename. |
 
-`[hooks] post_op` runs each command detached (`sh -c`, null
-stdio, cwd = repo dir) after a successful verb that moved refs —
-claim/release/join/leave, write/rename/delete/intent, asks,
-review, compact, snap, push, `ws new`, `--writeback`/`--rw`
-surfaces. Read verbs never fire it, a failed hook never fails
-the op, and `$STURN_POST_OP` (one command) overrides the list.
-Off by default — it's the event-driven way to re-index, e.g.
-`post_op = "kuda sync"` replaces `kuda watch --poll-refs` when
-sturn drives the writes.
+## `[actor]`
 
-See `examples/sturn.toml.example` in the repo.
+| field | type | required | notes |
+|---|---|---|---|
+| `name` | `string` | optional | Actor name. Defaults to `$STURN_ACTOR`, then `$USER`. |
+
+## `[signing]`
+
+| field | type | required | notes |
+|---|---|---|---|
+| `key` | `string` | optional | Private key path (ed25519). ~ expands. |
+| `allowed_signers` | `string` | optional | allowed_signers for `sturn verify`. |
+
+## `[review]`
+
+| field | type | required | notes |
+|---|---|---|---|
+| `require` | `bool` | optional | Every Write/Rename/Delete since last snap must hold an Approve review (in any ws's WAL) before `snap` lands. |
+
+## `[hooks]`
+
+| field | type | required | notes |
+|---|---|---|---|
+| `post_op` | `list` | optional | Shell commands spawned (`sh -c`, detached, cwd = repo dir) after a successful ref-moving verb — claim, leave, write, snap, push, … The event-driven way to re-index: e.g. `post_op = "kuda sync"` replaces `kuda watch --poll-refs` when sturn drives the writes. One string or a list; `$STURN_POST_OP` (single command) overrides. |
+
+## Constraints
+
+* Search order: `--config <path>` → `$STURN_CONFIG` →
+  `./sturn.toml` → `~/.config/sturn/sturn.toml`.
+* Every table has `deny_unknown_fields` — typos fail the load.
+* Secrets never live here; secret material resolves through the
+  `Secrets` chain (`sturn-secret` → keyring/dotenv).
+* `[hooks] post_op` also reads `$STURN_POST_OP` (single command
+  overrides the configured list).
