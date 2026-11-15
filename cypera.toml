@@ -125,3 +125,6 @@ text = """
 - `[hooks] post_op` also reads `$STURN_POST_OP` (single command
   overrides the configured list).
 """
+
+[check]
+profile = "engine"
