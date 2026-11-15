@@ -3,8 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "docs:dev": "vitepress dev",
-    "docs:build": "vitepress build",
+    "docs:dev": "bun run docs:gen && vitepress dev",
+    "docs:gen": "bun run docs:cli && bun run docs:config && bun run docs:crates",
+    "docs:cli": "python3 gen-cli-docs.py",
+    "docs:config": "python3 gen-config-docs.py",
+    "docs:crates": "python3 gen-crate-map.py",
+    "docs:build": "bun run docs:gen && vitepress build",
     "docs:api": "cd .. && cargo doc --workspace --no-deps && mkdir -p docs/public/api && rm -rf docs/public/api/* && cp -r target/doc/* docs/public/api/",
     "docs:deploy": "bun run docs:api && bun run docs:build && bunx gh-pages -d .vitepress/dist"
   },
