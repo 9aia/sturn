@@ -6,6 +6,14 @@ clap is the source of truth — the script shells out to the real binary
 never drift from `--help`. Never hand-edit cli.md.
 
 Per-repo knobs live in the PROG/ARGS block below.
+
+Migration note (myco T-065): the shared `cypera` tool
+(../cypera — `cypera gen cli`) now owns CLI-reference *page*
+wrapping, but it consumes `gen-cli-docs` output (clap-markdown),
+which this repo's engines do not emit yet — this script's
+`<cli> --help` walk is still the producer. Debt: add a hidden
+`gen-cli-docs` verb (clap-markdown) to the engine, then reduce this
+to `<cli> gen-cli-docs | cypera gen cli --out reference/cli.md`.
 """
 import os, pathlib, re, subprocess, sys
 

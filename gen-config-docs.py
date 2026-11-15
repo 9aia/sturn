@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Generate docs/reference/config.md from config-struct doc comments
-— the structs in sturn-core are the source of truth."""
+— the structs in sturn-core are the source of truth.
+
+Migration note (myco T-065): the shared `cypera` tool
+(../cypera — `cypera gen config`) scans `pub struct` doc comments,
+but its page format has no marker splice and none of the curated
+prose/type-name conventions below — this script stays until cypera
+grows config-page splicing (or the page is restructured).
+"""
 import os, pathlib, re
 
 # Sources live in the main checkout — normally docs/ is a worktree of it
