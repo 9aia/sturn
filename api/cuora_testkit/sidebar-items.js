@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["FAKE"],"fn":["env_isolation","get_missing_is_none","list_refs","overwrite_semantics","put_get_roundtrip","rm_semantics","rotate_bumps","unicode_and_long_values"],"macro":[["vault_conformance",1]],"mod":["httpmock","mocks"]};

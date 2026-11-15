@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["h_init","load_fresh"],"struct":["RepoView"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Storage"],"fn":["prelude_table"],"struct":["KindSpec","KindTable"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["WORKER_JS","WRANGLER_TOML"],"struct":["CfDeploy"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["fingerprint"],"struct":["FileStamp","Related"],"trait":["LinkIndex"]};

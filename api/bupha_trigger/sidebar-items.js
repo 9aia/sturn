@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["PushOutcome","Verdict"],"struct":["Push"],"trait":["ForgeAdmin","Source","Trigger"],"type":["Emit","Stop"]};

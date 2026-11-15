@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["status_path","targets","walk_descendants_to","walk_to"]};

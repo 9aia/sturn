@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["BRANCH","DIR"],"fn":["discover","discover_at","discover_with","qualifies","repo_root_for","worktree_path"],"struct":["Project"]};

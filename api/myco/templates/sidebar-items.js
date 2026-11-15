@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["adr","append_to_section","issue","plan","proposal"]};

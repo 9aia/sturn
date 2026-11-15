@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["IdentityError"],"fn":["ensure"],"trait":["IdentitySource"]};

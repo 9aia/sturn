@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["archive","atomic","digest","error","identity","manifest","overlay","process","project","records","sealed"]};

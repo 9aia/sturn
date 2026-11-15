@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["MUTATES","SKIP_PARAMS","SURFACES"],"fn":["argv","kind","manifest","op_cmd","op_of","param_json","run_verb","scalar","skipped","values","verbs"]};

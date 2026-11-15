@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["AGE_FORMAT","AGE_MAGIC"],"fn":["check_ciphertext_only","has_age_magic","is_age_ciphertext"],"struct":["Sealed"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Error","LedgerMode"],"mod":["links"],"struct":["RepoEntry","RepoSnapshot"],"trait":["Index"]};

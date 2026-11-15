@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["fixture","fixtures_dir","fixtures_under"],"mod":["strat"]};

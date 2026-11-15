@@ -19,6 +19,7 @@ Ephemeral coordination engine — claims/ops/topics over VCS state
 ### Explanation
 
 - [Architecture](/sturn/explanation/architecture.md)
+- [Boundaries](/sturn/explanation/boundaries.md)
 - [Concepts](/sturn/explanation/concepts.md)
 - [Decisions](/sturn/explanation/decisions.md)
 - [Why no CRDT for code](/sturn/explanation/no-crdt.md)

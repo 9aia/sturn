@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ContradictionKind"],"fn":["canon_subject","contradictions","contradictions_with_aliases","extract_triples","same_fingerprint"],"struct":["Contradiction","DuplicateCandidate","Triple"]};

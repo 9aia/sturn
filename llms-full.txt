@@ -263,18 +263,7 @@ agents  │  ops: write/rename/claim/intent/… │
 * `refs/sturn/ws/<name>` — workspace namespaces; hydration opt-in
 * `snap` — the bridge back to ordinary git history
 
-## Boundaries
-
-Sturn owns **ephemeral coordination** — live claims, ops, topics,
-asks over VCS state. Neighbors own theirs:
-
-* **myco** — durable work memory (the `project/` ledger); sturn
-  coordinates the moment, myco remembers the intent.
-* **kuda** — code memory; `.kuda/` cards are that repo's concern.
-* **tamias** — distribution; the `sturn` command is a tamias pack,
-  releases run through `tarsi-serve`.
-* **peregrin/hypha** — orchestration substrate; sturn is the
-  coordination layer agents call directly.
+See [Boundaries](boundaries.md) for owns / doesn't-own.
 
 ## Where it sits
 
@@ -289,6 +278,24 @@ calls directly, below orchestration. It isn't orchestrated itself:
 agents `claim`/`write`/`snap` against the WAL, the daemon only
 fans events onto topics, and peregrin campaigns can consume sturn
 ops as events without sturn knowing they exist.
+
+---
+
+---
+url: /sturn/explanation/boundaries.md
+---
+# Boundaries
+
+Sturn owns **ephemeral coordination** — live claims, ops, topics,
+asks over VCS state. Neighbors own theirs:
+
+* **myco** — durable work memory (the `project/` ledger); sturn
+  coordinates the moment, myco remembers the intent.
+* **kuda** — code memory; `.kuda/` cards are that repo's concern.
+* **tamias** — distribution; the `sturn` command is a tamias pack,
+  releases run through `tarsi-serve`.
+* **peregrin/hypha** — orchestration substrate; sturn is the
+  coordination layer agents call directly.
 
 ---
 
@@ -1528,6 +1535,7 @@ url: /sturn/explanation.md
 # Explanation
 
 * [Architecture](architecture.md) — the three layers, invariants, boundaries, where sturn sits
+* [Boundaries](boundaries.md) — owns / doesn't-own, neighbors named
 * [Concepts](concepts.md) — the domain vocabulary, defined once
 * [Decisions](decisions.md) — ADR-lite: decision → alternative → consequence
 * [The model — files, approval, agents](model.md) — virtual trees, per-op review
