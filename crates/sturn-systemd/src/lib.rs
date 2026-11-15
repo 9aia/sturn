@@ -83,7 +83,7 @@ pub fn stop_service(unit: &str) -> io::Result<()> {
     run("systemctl", &["--user", "disable", "--now", unit])
 }
 
-/// One-line "enabled=<state> active=<state>" for `service status` —
+/// One-line "enabled=&lt;state&gt; active=&lt;state&gt;" for `service status` —
 /// is-enabled/is-active exit non-zero on disabled/inactive units,
 /// so failures report the state instead of throwing.
 pub fn unit_status(unit: &str) -> io::Result<String> {

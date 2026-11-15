@@ -174,7 +174,7 @@ fn values(v: &Value) -> Vec<String> {
     }
 }
 
-/// `cli.<verb>` params → sturn argv (no argv[0] — `run` prepends
+/// `cli.<verb>` params → sturn argv (no argv\[0\] — `run` prepends
 /// it). Globals are resolved by [`run_verb`] (`--repo`/`--config`
 /// prepend here); the dotted verb name splits into the group path
 /// (`ws.new` → `ws new`). Declared params map by kind — positionals

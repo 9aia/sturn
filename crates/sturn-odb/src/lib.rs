@@ -106,7 +106,7 @@ fn unhex(s: &str) -> Option<Vec<u8>> {
         .collect()
 }
 
-/// Content address: sha1("<kind> <len>\0<payload>") — the same id
+/// Content address: sha1("&lt;kind&gt; &lt;len&gt;\0&lt;payload&gt;") — the same id
 /// `git hash-object` computes.
 pub fn object_id(kind: &str, payload: &[u8]) -> String {
     use sha1::Digest;
