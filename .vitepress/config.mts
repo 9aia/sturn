@@ -11,8 +11,7 @@ export default defineConfig({
   ignoreDeadLinks: [/\/api\//],
   themeConfig: {
     nav: [
-      { text: "Getting Started", link: "/getting-started" },
-      { text: "Tutorial", link: "/tutorials/first-swarm" },
+      { text: "Tutorials", link: "/tutorials/getting-started" },
       { text: "How-to", link: "/how-to/hydrate" },
       { text: "Explanation", link: "/explanation/architecture" },
       { text: "Reference", link: "/reference/ops" },
@@ -28,7 +27,7 @@ export default defineConfig({
     sidebar: [
       {
         text: "Tutorials",
-        items: [{ text: "Your first swarm", link: "/tutorials/first-swarm" }],
+        items: [{ text: "Your first swarm", link: "/tutorials/getting-started" }],
       },
       {
         text: "How-to",
@@ -42,6 +41,8 @@ export default defineConfig({
         text: "Explanation",
         items: [
           { text: "Architecture", link: "/explanation/architecture" },
+          { text: "Concepts", link: "/explanation/concepts" },
+          { text: "Decisions", link: "/explanation/decisions" },
           { text: "Why no CRDT for code", link: "/explanation/no-crdt" },
           { text: "The model", link: "/explanation/model" },
         ],
