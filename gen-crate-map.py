@@ -87,13 +87,14 @@ def tidy(text):
         return text
     cut = text[:200]
     dot = max(cut.rfind(". "), cut.rfind("! "), cut.rfind("? "))
-    return (cut[:dot + 1] if dot > 60 else cut.rstrip() + "…")
+    return ((cut[:dot + 1] if dot > 60 else cut.rstrip() + "…").rstrip(" ,;:"))
 
 rows = []
 for rel in members:
     t = ROOT / rel / "Cargo.toml"
     name = re.search(r'^name\s*=\s*"([^"]+)"', t.read_text(), re.M).group(1)
-    desc = description(t).replace("<", "&lt;").replace(">", "&gt;")
+    desc = (description(t).replace("<", "&lt;").replace(">", "&gt;")
+            .replace("{{", "&#123;&#123;").replace("}}", "&#125;&#125;"))
     rows.append((name, LAYER.get(name, "crate"), desc))
 rows.sort(key=lambda r: (ORDER.get(r[1], 9), r[0]))
 print(f"crate map: {len(rows)} crates")
