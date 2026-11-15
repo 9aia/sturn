@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["bound","col","known_query","kv","manifest","query_data","spec","specs","table","titled","tree","view_result"]};

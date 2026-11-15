@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["expand_path"],"struct":["Fetched","Planned","Refs","Sources"],"trait":["Plan","RefKind","Source"],"type":["Spec"]};

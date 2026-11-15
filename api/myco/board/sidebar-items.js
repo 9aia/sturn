@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["COLUMNS","DEFAULT_MAX_ROWS"],"fn":["render_columns"],"struct":["Fit"]};

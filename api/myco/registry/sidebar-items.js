@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ArgVal","On","PKind","Val"],"fn":["builtin_refs","command","dispatch","find","flag","manifest_implemented","manifest_verbs","opt","pos","served_names"],"static":["VERBS"],"struct":["Args","Ctx","Param","Verb"],"type":["CliHandler","WireHandler"]};

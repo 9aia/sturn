@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["bundled_drivers","capabilities","config_schema","discovered_drivers","dispatch","dispatch_with_args","drivers_allowed","drivers_dir","find_driver","register_bundled_drivers","tamias_home","target_triple"],"mod":["overrides"],"type":["DriverOutput"]};

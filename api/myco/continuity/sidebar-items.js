@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["CLAIM_NOTE","INTERRUPT_NOTE"],"fn":["claim_session","h_handoff","h_interrupt","h_resume","interrupt_item","interrupt_session","interrupted_set","is_interrupted","record_handoff","resume_json"],"struct":["SessionInterrupts"]};

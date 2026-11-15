@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["audit_cards","audit_rows","audit_summary","binding","col","err","fmt_age","hash_objects","known_query","kv","manifest","md","param","query_data","rules_rows","rules_summary","slot","spec","specs","summary","table","view_result","violations"],"struct":["CardRow"]};

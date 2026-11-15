@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["CONFIG","DEFAULT_ACTOR"],"fn":["autocommit","commit_msg","commit_paths","commits_enabled","ensure_committable","ensure_synced","history_list","index_template","lock_shared","lock_worktree","print_json","print_paged","redo_depth","redo_last","resolve_actor","scaffold","store_at","undo_last"],"struct":["UndoOutcome","WorktreeLock"]};

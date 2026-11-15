@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Claim"],"struct":["Fence","Job","JsonQueueStore","KeyPolicy","LocalClaim","MemWorkQueue","PersistedQueue"],"trait":["QueueStore","TryClaim","WorkQueue"]};

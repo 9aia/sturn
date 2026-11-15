@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["TRIPLES_VERSION"],"fn":["extract_triples_cached","triples_cache_rows"],"struct":["TriplesCache"]};
