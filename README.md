@@ -35,7 +35,7 @@ in between with an op log and a coordination bus.
 ## Install
 
 ```sh
-tamias install 9aia:sturn@0.1.0                  # org registry (needs TAMIAS_REGISTRY_TOKEN)
+tamias install 9aia:sturn@<version>              # org registry (needs TAMIAS_REGISTRY_TOKEN)
 cargo install --git https://github.com/9aia/sturn sturn   # from source
 ```
 
@@ -105,9 +105,9 @@ supported.
 
 ## Status
 
-Working v0.1.0 — the full verb surface is implemented, the docs
+Working — the full verb surface is implemented, the docs
 site is live at `9aia.com/sturn`, and `libraries/sturn` ships as a
-tamias pack (`9aia:sturn@0.1.0` on the org registry). Tasks,
+tamias pack (`9aia:sturn@<version>` on the org registry). Tasks,
 milestones, and decisions live in the `project/` worktree —
 `myco status --prompt` for the board.
 
