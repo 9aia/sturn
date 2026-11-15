@@ -41,6 +41,7 @@ export default defineConfig({
         text: "Explanation",
         items: [
           { text: "Architecture", link: "/explanation/architecture" },
+          { text: "Boundaries", link: "/explanation/boundaries" },
           { text: "Concepts", link: "/explanation/concepts" },
           { text: "Decisions", link: "/explanation/decisions" },
           { text: "Why no CRDT for code", link: "/explanation/no-crdt" },
