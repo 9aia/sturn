@@ -1,0 +1,127 @@
+# sturn — docs/reference generation contract for `cypera`
+# (`cypera gen crate-map|cli|config`, discovered upward from --repo).
+# Replaces the retired docs/gen-*.py wrappers; schema lives in
+# ../cypera crates/cypera-core/src/repo_config.rs.
+
+[crate_map]
+
+[crate_map.layers]
+"sturn-core" = "domain"
+"sturn-claim" = "domain"
+"sturn-ask" = "domain"
+"sturn-wal" = "port"
+"sturn-bus" = "port"
+"sturn-ws" = "port"
+"sturn-secret" = "port"
+"sturn-service" = "port"
+"sturn-wal-git" = "adapter"
+"sturn-bus-redb" = "adapter"
+"sturn-ws-git" = "adapter"
+"sturn-git" = "adapter"
+"sturn-odb" = "adapter"
+"sturn-keyring" = "adapter"
+"sturn-dotenv" = "adapter"
+"sturn-systemd" = "adapter"
+"sturn-fuse" = "adapter"
+"sturn-config" = "adapter"
+"sturn" = "engine"
+"sturn-driver" = "driver"
+
+[[crate_map.splices]]
+target = "docs/reference/crate-api.md"
+marker = "<!-- crate-map -->"
+
+[cli]
+package = "sturn"
+bin = "sturn"
+prefix = []
+out = "docs/reference/cli.md"
+
+[config]
+title = "Config — `sturn.toml`"
+types = { "String" = "string", "PathBuf" = "path", "bool" = "bool", "u16" = "int", "usize" = "int", "u64" = "int", "Vec<String>" = "list", "Vec<PathBuf>" = "list", "std::collections::BTreeMap<String, String>" = "map", "std::collections::BTreeMap<String, UnitOverride>" = "map" }
+out = "docs/reference/config.md"
+
+[[config.structs]]
+file = "crates/sturn-core/src/lib.rs"
+name = "Config"
+title = "Top level"
+
+[[config.structs]]
+file = "crates/sturn-core/src/lib.rs"
+name = "RepoCfg"
+title = "`[repo]`"
+
+[[config.structs]]
+file = "crates/sturn-core/src/lib.rs"
+name = "WalCfg"
+title = "`[wal]`"
+
+[[config.structs]]
+file = "crates/sturn-core/src/lib.rs"
+name = "BusCfg"
+title = "`[bus]`"
+
+[[config.structs]]
+file = "crates/sturn-core/src/lib.rs"
+name = "ActorCfg"
+title = "`[actor]`"
+
+[[config.structs]]
+file = "crates/sturn-core/src/lib.rs"
+name = "SigningCfg"
+title = "`[signing]`"
+
+[[config.structs]]
+file = "crates/sturn-core/src/lib.rs"
+name = "ReviewCfg"
+title = "`[review]`"
+
+[[config.structs]]
+file = "crates/sturn-core/src/lib.rs"
+name = "HooksCfg"
+title = "`[hooks]`"
+
+[[config.sections]]
+title = "Top level"
+struct = "Config"
+
+[[config.sections]]
+title = "`[repo]`"
+struct = "RepoCfg"
+
+[[config.sections]]
+title = "`[wal]`"
+struct = "WalCfg"
+
+[[config.sections]]
+title = "`[bus]`"
+struct = "BusCfg"
+
+[[config.sections]]
+title = "`[actor]`"
+struct = "ActorCfg"
+
+[[config.sections]]
+title = "`[signing]`"
+struct = "SigningCfg"
+
+[[config.sections]]
+title = "`[review]`"
+struct = "ReviewCfg"
+
+[[config.sections]]
+title = "`[hooks]`"
+struct = "HooksCfg"
+
+[[config.sections]]
+title = "Constraints"
+text = """
+- Search order: `--config <path>` → `$STURN_CONFIG` →
+  `./sturn.toml` → `~/.config/sturn/sturn.toml`.
+- Every table has `deny_unknown_fields` — typos fail the load.
+- Secrets never live here; secret material resolves through the
+  `Secrets` chain (`sturn-secret` → keyring/dotenv).
+- `[hooks] post_op` also reads `$STURN_POST_OP` (single command
+  overrides the configured list).
+"""
