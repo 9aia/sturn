@@ -34,14 +34,15 @@ See [Boundaries](boundaries.md) for owns / doesn't-own.
 
 ## Where it sits
 
-In the org's layering — **tamias** (package & content manager) →
-**engines** (myco records, kuda code maps, mimus proofs, sepia
-sessions, hypha substrate, tarsi releases, cicada schedules, cypera
-docs, scarab config) → **orchestration** (peregrin campaigns) →
-**surfaces** (pavo views, MCP fronts, agent harnesses).
+In the org's layering — **delivery** (tamias distribution, scarab
+config/templates, tarsi releases, bupha CI) → **memory** (myco
+records, kuda code maps, **sturn** coordination, hypha substrate) →
+**process** (cuora secrets, mimus proofs, cicada schedules, lasius
+workspace, sepia sessions) → **agency** (peregrin campaigns, pavo
+views, MCP fronts, agent harnesses).
 
-Sturn is an **engine** — the coordination substrate every agent
-calls directly, below orchestration. It isn't orchestrated itself:
-agents `claim`/`write`/`snap` against the WAL, the daemon only
-fans events onto topics, and peregrin campaigns can consume sturn
-ops as events without sturn knowing they exist.
+Sturn is a **memory-layer engine** — the coordination substrate
+every agent calls directly, below agency. It isn't orchestrated
+itself: agents `claim`/`write`/`snap` against the WAL, the daemon
+only fans events onto topics, and peregrin campaigns can consume
+sturn ops as events without sturn knowing they exist.
