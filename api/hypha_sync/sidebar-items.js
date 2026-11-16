@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["NodeStatus","OpKind","OutboxStatus","PatchStatus","SyncError"],"mod":["client","engine","kind"],"struct":["IndexedEntity","NodeRef","NodeRow","NodeWrite","Outbox","OutboxEntry","ProjectionStore"]};

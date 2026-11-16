@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["DangerLevel","ParamKind"],"struct":["Action","ParamSchema"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["RecordError"],"fn":["load_transcript","record_session","replay_driver","save_transcript"],"struct":["Entry","Transcript"]};

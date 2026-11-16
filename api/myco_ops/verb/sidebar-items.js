@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["is_valid_verb_name","named_verbs","named_verbs_lenient","raw_verb","resolve","resolve_lenient","validate_repo_verbs"],"struct":["BuiltinVerb","NamedVerb"]};

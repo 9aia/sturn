@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_MENTIONS","MAX_SCAN_BYTES"],"enum":["EdgeKind"],"fn":["extract","mentions"],"struct":["Edge"]};

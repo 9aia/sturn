@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["binding","binding_on","binding_on_params","binding_params","capabilities_value","contribution","foreign_query","manifest_json","query","view"],"struct":["Manifest","View"]};

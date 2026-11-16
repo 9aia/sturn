@@ -1,0 +1,58 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Operator deploy-override drop-ins — see the module docs and the crate-level contract note. Deploy overrides — the durable operator-config persistence channel (T-026)."><title>tamias_driver::overrides - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="tamias_driver" data-themes="" data-resource-suffix="" data-rustdoc-version="1.99.1 (58cf8f9c3 2026-10-13) (Arch Linux rust 1:1.99.1-1)" data-channel="1.99.1" data-search-js="search-cf4fc35e.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module overrides</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../tamias_driver/index.html">tamias_<wbr>driver</a><span class="version">0.1.5</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module overrides</a></h2><h3><a href="#constants">Module Items</a></h3><ul class="block"><li><a href="#constants" title="Constants">Constants</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate tamias_<wbr>driver</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">tamias_driver</a></div><h1>Module <span>overrides</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/tamias_driver/overrides.rs.html#1-512">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Operator deploy-override drop-ins — see the module docs and the
+crate-level contract note.
+Deploy overrides — the durable operator-config persistence channel
+(T-026).</p>
+<p>Kind drivers regenerate operator config on every <code>deploy</code>/<code>install</code>
+(e.g. <code>~/.config/peregrin/serve/&lt;name&gt;.yaml</code>), wiping hand-applied
+edits. tamias owns the <em>storage</em> side of the fix; the driver owns
+the merge (it alone knows the generated document’s shape):</p>
+<ul>
+<li>Drop-in dir per installed package:
+<code>&lt;config&gt;/tamias/deploy.d/&lt;kind&gt;/&lt;name&gt;/</code> — <code>&lt;config&gt;</code> is
+<code>$XDG_CONFIG_HOME/tamias</code> (<code>~/.config/tamias</code> fallback), or
+<code>$TAMIAS_DEPLOY_D</code> when set. Every <code>*.yaml</code>/<code>*.yml</code>/<code>*.json</code> file
+in it is a partial document, merged in sorted-filename order —
+later files win — with <a href="../../tamias_core/overlay/fn.merge_values.html" title="fn tamias_core::overlay::merge_values"><code>tamias_core::merge_values</code></a> semantics
+(the same deep-merge <code>include:</code> overlays use: dicts per-key,
+arrays concat high-first with <code>id</code> dedupe).</li>
+<li><code>tamias deploy &lt;pkg&gt; --set key=value</code> (repeatable) edits the
+<code>cli.yaml</code> fragment inside that dir — dotted keys build nested
+maps (<code>a.b.c=v</code>), values parse as YAML (<code>--set 'nodes=[1,2]'</code>,
+<code>--set 'x={k: v}'</code>); <code>--unset key</code> removes a path,
+<code>--clear-overrides</code> drops the package’s whole dir. Because
+<code>cli.yaml</code> is just one fragment, hand-written files sorting after
+it (<code>zz-*.yaml</code>) still win over <code>--set</code> values.</li>
+<li>At dispatch time <a href="../fn.dispatch.html" title="fn tamias_driver::dispatch"><code>dispatch</code></a> hands
+the driver the drop-in dir via <a href="constant.OVERRIDES_ENV.html" title="constant tamias_driver::overrides::OVERRIDES_ENV"><code>OVERRIDES_ENV</code></a> whenever it
+exists — every lifecycle verb (<code>install</code>/<code>deploy</code>/<code>uninstall</code>)
+and <code>driver exec</code> passthrough, so CLI, <code>tamias serve</code>, sync, and
+the TUI all carry it. Drivers that generate config merge the
+fragments over the generated doc before writing; drivers that
+don’t simply ignore the variable.</li>
+</ul>
+<p>The <code>&lt;kind&gt;/&lt;name&gt;</code> key is exactly what the driver sees on argv
+(<code>--name</code> is the bare record name — scope isn’t part of it), so two
+scopes sharing a name+kind share overrides; that’s inherent to the
+driver contract, not this channel.</p>
+</div></details><h2 id="constants" class="section-header">Constants<a href="#constants" class="anchor">§</a></h2><dl class="item-table"><dt><a class="constant" href="constant.OVERRIDES_ENV.html" title="constant tamias_driver::overrides::OVERRIDES_ENV">OVERRIDES_<wbr>ENV</a></dt><dd>Env var naming the package’s deploy-override drop-in dir, injected
+into every dispatched driver whose dir exists. Drivers merge its
+fragments over generated config — see the module docs.</dd><dt><a class="constant" href="constant.OVERRIDES_ROOT_ENV.html" title="constant tamias_driver::overrides::OVERRIDES_ROOT_ENV">OVERRIDES_<wbr>ROOT_<wbr>ENV</a></dt><dd>Env var naming the overrides <em>root</em> (the <code>deploy.d</code> dir itself) —
+an escape hatch for tests and nonstandard config homes; overrides
+<code>$XDG_CONFIG_HOME</code>/<code>$HOME</code> discovery when set.</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.clear_overrides.html" title="fn tamias_driver::overrides::clear_overrides">clear_<wbr>overrides</a></dt><dd>Drop the package’s whole drop-in dir — every fragment, <code>cli.yaml</code>
+included. <code>Ok(true)</code> when a dir was removed.</dd><dt><a class="fn" href="fn.merged_overrides.html" title="fn tamias_driver::overrides::merged_overrides">merged_<wbr>overrides</a></dt><dd>Fold every fragment in <code>dir</code> into one document — sorted by
+filename, later files higher priority, <a href="../../tamias_core/overlay/fn.merge_values.html" title="fn tamias_core::overlay::merge_values"><code>tamias_core::merge_values</code></a>
+per file (deep-merge: dicts per-key, arrays concat high-first with
+<code>id</code> dedupe). <code>Ok(None)</code> when the dir is absent or holds no
+fragments; a malformed fragment is an error, never silently skipped.</dd><dt><a class="fn" href="fn.overrides_root.html" title="fn tamias_driver::overrides::overrides_root">overrides_<wbr>root</a></dt><dd>The overrides root — <code>$TAMIAS_DEPLOY_D</code>, else
+<code>$XDG_CONFIG_HOME/tamias/deploy.d</code>, else <code>~/.config/tamias/deploy.d</code>.
+<code>None</code> when no home/config dir resolves (same posture as
+<code>tamias-registry-open</code>’s <code>user_config_dir</code>).</dd><dt><a class="fn" href="fn.package_dir.html" title="fn tamias_driver::overrides::package_dir">package_<wbr>dir</a></dt><dd>The drop-in dir for one <code>(kind, name)</code> under <code>root</code> — <code>None</code> when
+either component fails its charset (a hand-built store record can’t
+smuggle <code>../</code> into the join; dispatch then simply injects nothing).</dd><dt><a class="fn" href="fn.package_overrides.html" title="fn tamias_driver::overrides::package_overrides">package_<wbr>overrides</a></dt><dd>The merged persisted overrides for one package — what <code>--show</code>
+prints. <code>Ok(None)</code> when nothing is persisted.</dd><dt><a class="fn" href="fn.parse_set_arg.html" title="fn tamias_driver::overrides::parse_set_arg">parse_<wbr>set_<wbr>arg</a></dt><dd>Parse one <code>--set</code> argument — <code>key=value</code> where <code>key</code> is a dotted
+path (<code>a.b.c</code>) and <code>value</code> parses as YAML (plain scalars, lists,
+inline maps all work; unparseable values stay literal strings).</dd><dt><a class="fn" href="fn.set_override.html" title="fn tamias_driver::overrides::set_override">set_<wbr>override</a></dt><dd>Set <code>key</code> (dotted path) to <code>value</code> inside <code>doc</code>, creating
+intermediate maps (or arrays when the next segment is numeric).
+Returns the fragment path written.</dd><dt><a class="fn" href="fn.unset_override.html" title="fn tamias_driver::overrides::unset_override">unset_<wbr>override</a></dt><dd>Remove <code>key</code> (dotted path) from the package’s <code>cli.yaml</code> fragment.
+<code>Ok(true)</code> when something was removed; the file is deleted when it
+empties out.</dd></dl></section></div></main></body></html>

@@ -1,0 +1,89 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="tamias-driver — the content driver host: discovery + dispatch of `tamias-driver-&#60;type&#62;` executables, with no product knowledge in tamias."><title>tamias_driver - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="tamias_driver" data-themes="" data-resource-suffix="" data-rustdoc-version="1.99.1 (58cf8f9c3 2026-10-13) (Arch Linux rust 1:1.99.1-1)" data-channel="1.99.1" data-search-js="search-cf4fc35e.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate tamias_driver</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../tamias_driver/index.html">tamias_<wbr>driver</a><span class="version">0.1.5</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#functions" title="Functions">Functions</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1>Crate <span>tamias_<wbr>driver</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/tamias_driver/lib.rs.html#1-964">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>tamias-driver — the content <strong>driver</strong> host: discovery + dispatch of
+<code>tamias-driver-&lt;type&gt;</code> executables, with <strong>no product knowledge</strong> in
+tamias.</p>
+<p>A <strong>driver</strong> is an executable <code>tamias-driver-&lt;type&gt;</code> on <code>PATH</code> or in
+<code>&lt;tamias-home&gt;/drivers/</code>. tamias reads a package’s <code>type:</code>, resolves its
+driver, and runs:</p>
+<div class="example-wrap"><pre class="language-text"><code>tamias-driver-&lt;type&gt; &lt;verb&gt; --dir &lt;dir&gt; --name &lt;name&gt; [--config &lt;file&gt;]</code></pre></div>
+<p><code>verb ∈ {install, deploy, uninstall}</code> for the lifecycle dispatch;
+drivers may declare further provider verbs (<code>health</code>, <code>hooks</code>, …)
+in <code>capabilities.verbs</code>, reached through <a href="fn.dispatch_with_args.html" title="fn tamias_driver::dispatch_with_args"><code>dispatch_with_args</code></a> —
+<code>tamias driver exec</code>. A driver may also answer <code>capabilities</code>.</p>
+<p><strong><code>config-schema</code> — a reserved verb by convention.</strong> A driver that
+consumes a <code>--config</code> file <em>may</em> implement <code>config-schema</code>: dispatch
+it and the driver prints a JSON Schema (draft 2020-12) on stdout
+describing that file’s format, exit 0. Drivers without one exit
+non-zero with a clear stderr message — callers treat that as
+“unsupported” and surface it, never a crash. The standard
+<code>--dir</code>/<code>--name</code>/<code>--config</code> flags are appended like any verb, but
+the schema should be instance-agnostic. Fetch it with
+<a href="fn.config_schema.html" title="fn tamias_driver::config_schema"><code>config_schema</code></a> or <code>tamias driver config-schema &lt;pkg&gt;</code>.</p>
+<p>Validating a config <em>against</em> the schema is deliberately
+driver-side, not engine-side: tamias ships no JSON Schema validator,
+so a driver that wants validation implements it as an ordinary
+provider verb — <code>tamias driver exec &lt;pkg&gt; config validate --config &lt;file&gt;</code> is the intended shape.</p>
+<p><strong>Operator config overrides (T-026).</strong> Drivers that <em>generate</em>
+config on <code>deploy</code>/<code>install</code> wipe hand edits every run. tamias owns
+the persistence half in <a href="overrides/index.html" title="mod tamias_driver::overrides"><code>overrides</code></a>: drop-in fragments under
+<code>&lt;config&gt;/tamias/deploy.d/&lt;kind&gt;/&lt;name&gt;/</code> (<code>tamias deploy --set key=value</code> edits the <code>cli.yaml</code> fragment), injected into every
+dispatch as <a href="overrides/constant.OVERRIDES_ENV.html" title="constant tamias_driver::overrides::OVERRIDES_ENV"><code>overrides::OVERRIDES_ENV</code></a>. A driver that generates
+config merges the dir’s fragments over the generated doc before
+writing — <a href="../tamias_core/overlay/fn.merge_values.html" title="fn tamias_core::overlay::merge_values"><code>tamias_core::merge_values</code></a> gives the same deep-merge
+<code>include:</code> overlays use.
+Installing a product drops its driver into
+<code>&lt;tamias-home&gt;/drivers/</code> (from the payload’s <code>drivers/</code> dir), so tamias
+finds it. The engine never links a product crate.</p>
+<p><strong>Bundled drivers.</strong> A payload’s <code>drivers/</code> dir ships ready-to-run
+driver files:</p>
+<ul>
+<li><code>drivers/&lt;name&gt;</code> — portable drivers (interpreted scripts like
+<code>#!/usr/bin/env python3</code> ship as source).</li>
+<li><code>drivers/bin/&lt;target-triple&gt;/&lt;name&gt;</code> — compiled drivers, one dir per
+rustc target triple (<code>x86_64-unknown-linux-gnu</code>, …). At install time
+only the dir matching <a href="fn.target_triple.html" title="fn tamias_driver::target_triple"><code>target_triple</code></a> is copied; a package that
+ships platform dirs but none for this host fails the install with a
+clear error rather than silently dropping the driver.</li>
+</ul>
+<p>Both forms land flat in <code>&lt;tamias-home&gt;/drivers/</code> (executable bit set),
+stay inside the payload digest, and are consent-gated — see
+<a href="fn.drivers_allowed.html" title="fn tamias_driver::drivers_allowed"><code>drivers_allowed</code></a>.</p>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="overrides/index.html" title="mod tamias_driver::overrides">overrides</a></dt><dd>Operator deploy-override drop-ins — see the module docs and the
+crate-level contract note.
+Deploy overrides — the durable operator-config persistence channel
+(T-026).</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.bundled_drivers.html" title="fn tamias_driver::bundled_drivers">bundled_<wbr>drivers</a></dt><dd>Names of the driver files a payload ships under <code>drivers/</code> — regular
+files only, mirroring <code>register_bundled_drivers</code>’s filter, plus the
+platform bins under <code>drivers/bin/&lt;triple&gt;/</code> (reported as
+<code>bin/&lt;triple&gt;/&lt;name&gt;</code>). Lets callers detect (and gate) bundled drivers
+<em>before</em> copying or dispatching them — including binaries for other
+platforms, which are still bundled executable content.</dd><dt><a class="fn" href="fn.capabilities.html" title="fn tamias_driver::capabilities">capabilities</a></dt><dd>Run a driver’s <code>capabilities</code> probe and return the JSON it prints —
+the same bounded call <code>driver_handles</code> makes, exposed for the
+<code>tamias drivers</code> listing. <code>Ok</code> only on a zero exit <em>and</em> parseable
+JSON; anything else is an <a href="../tamias_core/error/enum.Error.html" title="enum tamias_core::error::Error"><code>Error</code></a> the caller renders as “unreachable”.</dd><dt><a class="fn" href="fn.config_schema.html" title="fn tamias_driver::config_schema">config_<wbr>schema</a></dt><dd>Fetch a kind driver’s <code>config-schema</code> — the reserved verb that
+prints a JSON Schema (draft 2020-12) describing the <code>--config</code> file
+the driver consumes. Bounded like <code>capabilities</code> (a probe, not a
+lifecycle verb). <code>Ok(None)</code> = no driver found; a driver that doesn’t
+implement the verb exits non-zero and surfaces as <a href="../tamias_core/error/enum.Error.html" title="enum tamias_core::error::Error"><code>Error</code></a> with its
+stderr — “unsupported” is a normal outcome, not a crash.</dd><dt><a class="fn" href="fn.discovered_drivers.html" title="fn tamias_driver::discovered_drivers">discovered_<wbr>drivers</a></dt><dd>Every discovered driver as <code>(type, path)</code> — for <code>doctor</code> and
+<code>tamias drivers</code>.</dd><dt><a class="fn" href="fn.dispatch.html" title="fn tamias_driver::dispatch">dispatch</a></dt><dd>Dispatch a verb to the content type’s driver. Returns whether a driver
+ran (<code>false</code> = nothing to do — a <code>files</code> package, or no driver present).</dd><dt><a class="fn" href="fn.dispatch_with_args.html" title="fn tamias_driver::dispatch_with_args">dispatch_<wbr>with_<wbr>args</a></dt><dd><a href="fn.dispatch.html" title="fn tamias_driver::dispatch"><code>dispatch</code></a> plus arbitrary trailing argv — the <code>tamias driver exec</code>
+passthrough for provider verbs beyond the lifecycle three
+(<code>hooks register</code>, <code>health</code>, …). <code>args</code> land after the standard
+<code>--dir</code>/<code>--name</code>/<code>--config</code> flags. On success the driver’s captured
+stdout/stderr come back for the caller to render — provider verbs
+answer with status JSON the operator needs to see. <code>Ok(None)</code> = no
+driver found (same <code>false</code> as <a href="fn.dispatch.html" title="fn tamias_driver::dispatch"><code>dispatch</code></a>).</dd><dt><a class="fn" href="fn.drivers_allowed.html" title="fn tamias_driver::drivers_allowed">drivers_<wbr>allowed</a></dt><dd>Consent for registering + running payload-shipped drivers: the caller’s
+<code>--allow-drivers</code> flag, or <code>TAMIAS_ALLOW_DRIVERS=1</code> in the environment.</dd><dt><a class="fn" href="fn.drivers_dir.html" title="fn tamias_driver::drivers_dir">drivers_<wbr>dir</a></dt><dd>The <code>&lt;tamias-home&gt;/drivers</code> dir.</dd><dt><a class="fn" href="fn.find_driver.html" title="fn tamias_driver::find_driver">find_<wbr>driver</a></dt><dd>Find the driver for a content type — <code>tamias-driver-&lt;kind&gt;</code> on <code>PATH</code>,
+then <code>&lt;tamias-home&gt;/drivers/</code>. Kinds outside the manifest charset
+(<a href="../tamias_core/manifest/fn.is_valid_kind.html" title="fn tamias_core::manifest::is_valid_kind"><code>tamias_core::is_valid_kind</code></a>) never resolve — a hand-built store
+record can’t smuggle <code>../</code> into the driver-name join.</dd><dt><a class="fn" href="fn.register_bundled_drivers.html" title="fn tamias_driver::register_bundled_drivers">register_<wbr>bundled_<wbr>drivers</a></dt><dd>Copy any bundled drivers a payload ships into <code>&lt;tamias-home&gt;/drivers/</code>
+so tamias discovers them: top-level <code>drivers/&lt;name&gt;</code> files as-is, plus
+the <code>drivers/bin/&lt;target-triple&gt;/</code> dir matching this host (see
+<a href="fn.target_triple.html" title="fn tamias_driver::target_triple"><code>target_triple</code></a>). Platform bins for other triples are skipped; a
+payload that ships platform dirs but none for this host is an error —
+the package intended a runnable compiled driver and can’t provide one.
+Returns action lines.</dd><dt><a class="fn" href="fn.tamias_home.html" title="fn tamias_driver::tamias_home">tamias_<wbr>home</a></dt><dd><code>&lt;tamias-home&gt;</code> — <code>$TAMIAS_HOME</code> → <code>$XDG_DATA_HOME/tamias</code> →
+<code>~/.local/share/tamias</code> → <code>./.tamias</code>.</dd><dt><a class="fn" href="fn.target_triple.html" title="fn tamias_driver::target_triple">target_<wbr>triple</a></dt><dd>The rustc target triple this build was compiled for
+(<code>x86_64-unknown-linux-gnu</code>) — captured at compile time by <code>build.rs</code>
+(<code>cargo:rustc-env</code>), so it always names a real cargo target even where
+<code>std::env::consts</code> can’t reconstruct the vendor/os/env spelling.</dd></dl><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><dl class="item-table"><dt><a class="type" href="type.DriverOutput.html" title="type tamias_driver::DriverOutput">Driver<wbr>Output</a></dt><dd><code>(stdout, stderr)</code> captured from a dispatched driver verb —
+<a href="fn.dispatch_with_args.html" title="fn tamias_driver::dispatch_with_args"><code>dispatch_with_args</code></a> returns it for the caller to render.</dd></dl></section></div></main></body></html>

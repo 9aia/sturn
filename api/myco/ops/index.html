@@ -1,0 +1,60 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Re-export — lives in `myco_ops::ops` so other front-ends (`myco-driver`) share it. `store_at` is cli-local: the concrete `MdStore` factory — `myco-ops` is generic over `myco_store::Store`, so the composition root (this crate) names the impl."><title>myco::ops - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="myco" data-themes="" data-resource-suffix="" data-rustdoc-version="1.99.1 (58cf8f9c3 2026-10-13) (Arch Linux rust 1:1.99.1-1)" data-channel="1.99.1" data-search-js="search-cf4fc35e.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module ops</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../myco/index.html">myco</a><span class="version">0.2.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module ops</a></h2><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#constants" title="Constants">Constants</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate myco</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">myco</a></div><h1>Module <span>ops</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/myco/ops.rs.html#1-23">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Re-export — lives in <code>myco_ops::ops</code> so other front-ends
+(<code>myco-driver</code>) share it.
+<code>store_at</code> is cli-local: the concrete <code>MdStore</code> factory —
+<code>myco-ops</code> is generic over <a href="../../myco_store/trait.Store.html" title="trait myco_store::Store"><code>myco_store::Store</code></a>, so the
+composition root (this crate) names the impl.</p>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.UndoOutcome.html" title="struct myco::ops::UndoOutcome">Undo<wbr>Outcome</a></dt><dd>What <a href="fn.undo_last.html" title="fn myco::ops::undo_last"><code>undo_last</code></a> reverted — the <code>undo</code> verb’s report payload.</dd><dt><a class="struct" href="struct.WorktreeLock.html" title="struct myco::ops::WorktreeLock">Worktree<wbr>Lock</a></dt><dd>RAII guard for a worktree lock — an OS advisory lock (<code>flock</code>)
+on the repo’s lock file. The lock releases when the guard
+drops (or the process dies — the OS cleans up).</dd></dl><h2 id="constants" class="section-header">Constants<a href="#constants" class="anchor">§</a></h2><dl class="item-table"><dt><a class="constant" href="constant.CONFIG.html" title="constant myco::ops::CONFIG">CONFIG</a></dt><dd>The config impl ops verbs share — the scarab-backed TOML
+loader <code>myco-ops</code> owns (the per-repo <code>myco-config*</code> crates are
+gone); cli-local like <code>store_at</code>: the composition root names
+it, ops stays format-free.</dd><dt><a class="constant" href="constant.DEFAULT_ACTOR.html" title="constant myco::ops::DEFAULT_ACTOR">DEFAULT_<wbr>ACTOR</a></dt><dd>Fallback actor for the <code>Actor:</code> commit trailer and every
+actor default — the local CLI wrote it. The last rung of
+<a href="fn.resolve_actor.html" title="fn myco::ops::resolve_actor"><code>resolve_actor</code></a>’s chain; verbs that name an actor
+(<code>--actor</code>/<code>--owner</code>) resolve through the chain instead.</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.autocommit.html" title="fn myco::ops::autocommit">autocommit</a></dt><dd>One atomic commit of everything under <code>dir</code> — the
+auto-commit-per-verb path. <code>msg</code> gains the <code>Actor:</code> trailer
+(<a href="fn.commit_msg.html" title="fn myco::ops::commit_msg"><code>commit_msg</code></a>; <code>actor</code> is the verb’s actor, <code>None</code> →
+<a href="fn.resolve_actor.html" title="fn myco::ops::resolve_actor"><code>resolve_actor</code></a> over <code>dir</code> — <code>$MYCO_ACTOR</code> → <code>human:&lt;git user.name&gt;</code> → <code>cli</code>). No commit when disabled or when the
+tree is clean. Returns whether a commit was made.</dd><dt><a class="fn" href="fn.commit_msg.html" title="fn myco::ops::commit_msg">commit_<wbr>msg</a></dt><dd><code>msg</code> + the <code>Actor:</code> trailer — every myco commit names the
+verb’s actor in the message body (T-011: actor-tagged
+trailers, not per-actor git authors — author/committer stay
+the repo’s stable <code>user.name</code>/<code>user.email</code> identity, or the
+<code>myco@localhost</code> fallback). <code>None</code> resolves to
+<a href="constant.DEFAULT_ACTOR.html" title="constant myco::ops::DEFAULT_ACTOR"><code>DEFAULT_ACTOR</code></a>. The subject line is untouched, so <code>%s</code>
+parses (e.g. <code>report</code>’s velocity walk) never see it.</dd><dt><a class="fn" href="fn.commit_paths.html" title="fn myco::ops::commit_paths">commit_<wbr>paths</a></dt><dd>Commit only <code>paths</code> inside <code>dir</code> — used for repo-root edits
+(<code>.gitignore</code>, <code>pm/</code> removal) so an unrelated dirty tree isn’t
+swept into the verb’s commit. Returns whether a commit was made.</dd><dt><a class="fn" href="fn.commits_enabled.html" title="fn myco::ops::commits_enabled">commits_<wbr>enabled</a></dt><dd>Are verb commits enabled? <code>--no-commit</code> or <code>$MYCO_NO_COMMIT</code>
+(any value) suppresses them.</dd><dt><a class="fn" href="fn.ensure_committable.html" title="fn myco::ops::ensure_committable">ensure_<wbr>committable</a></dt><dd>Mutating verbs must not write a ledger they cannot commit. A
+detached <code>project/</code> worktree is the failure mode that costs the
+most: every write lands, no branch records it, and the audit
+trail is gone the moment the worktree moves. <code>check</code> reports and
+repairs it; every write path refuses it first.</dd><dt><a class="fn" href="fn.ensure_synced.html" title="fn myco::ops::ensure_synced">ensure_<wbr>synced</a></dt><dd>Refuse a mutation while the ledger branch is behind its
+tracked remote — every verb commit would deepen the divergence
+<code>myco sync</code> exists to close.</dd><dt><a class="fn" href="fn.history_list.html" title="fn myco::ops::history_list">history_<wbr>list</a></dt><dd>The redoable stack, next-redo first — backs <code>myco undo --list</code>.</dd><dt><a class="fn" href="fn.index_template.html" title="fn myco::ops::index_template">index_<wbr>template</a></dt><dd>Default <code>index.md</code> — a human map of the ledger.</dd><dt><a class="fn" href="fn.lock_shared.html" title="fn myco::ops::lock_shared">lock_<wbr>shared</a></dt><dd>The shared read lock — concurrent readers don’t block each
+other, but a reader contending with a writer fails fast
+rather than rendering a mid-verb ledger.</dd><dt><a class="fn" href="fn.lock_worktree.html" title="fn myco::ops::lock_worktree">lock_<wbr>worktree</a></dt><dd>The exclusive mutation lock — every load→mutate→save→commit
+verb holds it for the verb’s whole life (including the
+autocommit). Fail-fast on contention: concurrent writers
+corrupt the ledger (dup ids, last-writer-wins), so the second
+one gets a retry hint instead.</dd><dt><a class="fn" href="fn.print_json.html" title="fn myco::ops::print_json">print_<wbr>json</a></dt><dd>Pretty JSON to stdout.</dd><dt><a class="fn" href="fn.print_paged.html" title="fn myco::ops::print_paged">print_<wbr>paged</a></dt><dd>Print <code>text</code>, paging it through the user’s pager when stdout is
+a tty — <code>less -F</code> exits instantly for one-screen output, so
+callers can page unconditionally. Non-tty output, a disabled or
+unspawnable pager all fall back to <code>println!</code>.</dd><dt><a class="fn" href="fn.redo_depth.html" title="fn myco::ops::redo_depth">redo_<wbr>depth</a></dt><dd>How many commits <code>redo</code> could still restore — 0 when the
+journal is empty or its top anchor no longer matches HEAD.</dd><dt><a class="fn" href="fn.redo_last.html" title="fn myco::ops::redo_last">redo_<wbr>last</a></dt><dd><code>myco redo</code> — restore the commit the last undo moved away
+from: pop the top of the undo journal
+(<code>&lt;git-common-dir&gt;/myco-history.json</code>, see
+<a href="../../myco_ops/history/index.html" title="mod myco_ops::history"><code>crate::history</code></a>) and <code>git reset --hard</code> to its target.
+Repeatable — each pop exposes the next-older undone commit,
+which is the redo stack single-step reflog tricks can’t
+express.</dd><dt><a class="fn" href="fn.resolve_actor.html" title="fn myco::ops::resolve_actor">resolve_<wbr>actor</a></dt><dd>The actor-resolution chain every verb shares — explicit flag
+first, then environment, then git identity, then the CLI
+fallback:</dd><dt><a class="fn" href="fn.scaffold.html" title="fn myco::ops::scaffold">scaffold</a></dt><dd>Create every missing scaffold piece in the worktree; existing
+files are never overwritten. <code>root</code> is the store’s worktree
+dir (the <code>.gitkeep</code> sweep is raw fs — the port has no “list
+dir” verb). Returns the rel paths created.</dd><dt><a class="fn" href="fn.store_at.html" title="fn myco::ops::store_at">store_<wbr>at</a></dt><dd><code>MdStore</code> rooted at a worktree path, resolving item layout
+through the repo’s kind table (<code>[[kinds]]</code>, P-008).</dd><dt><a class="fn" href="fn.undo_last.html" title="fn myco::ops::undo_last">undo_<wbr>last</a></dt><dd><code>myco undo</code> — move the worktree’s branch tip back one commit
+(<code>git reset --hard HEAD~1</code>). Every mutating verb is exactly one
+commit on the ledger branch, so the reset <em>is</em> the inverse
+mutation — including file deletions (<code>todo done</code>’s removed
+line comes back whole). The commit stays reachable through the
+reflog; nothing is garbage-collected.</dd></dl></section></div></main></body></html>

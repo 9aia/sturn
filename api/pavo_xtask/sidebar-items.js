@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["check","coverage","coverage_command","dispatch","have","have_cargo_sub","install","main","run","run_in","site","test"]};

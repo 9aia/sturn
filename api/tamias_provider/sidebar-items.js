@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ServiceBackend","UnitAction"],"fn":["deploy","exec_spec","list","provider_base","service_rows","uninstall","unit_action","unit_name","unit_state","units_of","unquote_env"],"struct":["DeployReport","ExecSpec","ProviderPackage","ProviderView","ServiceRow"]};

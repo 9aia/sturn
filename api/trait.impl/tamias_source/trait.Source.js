@@ -1,0 +1,9 @@
+(function() {
+    const implementors = Object.fromEntries([["tamias_source_cf",[["impl <a class=\"trait\" href=\"tamias_source/trait.Source.html\" title=\"trait tamias_source::Source\">Source</a> for <a class=\"struct\" href=\"tamias_source_cf/struct.CfSource.html\" title=\"struct tamias_source_cf::CfSource\">CfSource</a>",0]]],["tamias_source_cf",[["impl Source for <a class=\"struct\" href=\"tamias_source_cf/struct.CfSource.html\" title=\"struct tamias_source_cf::CfSource\">CfSource</a>",0]]],["tamias_source_fs",[["impl <a class=\"trait\" href=\"tamias_source/trait.Source.html\" title=\"trait tamias_source::Source\">Source</a> for <a class=\"struct\" href=\"tamias_source_fs/struct.FsSource.html\" title=\"struct tamias_source_fs::FsSource\">FsSource</a>",0]]],["tamias_source_fs",[["impl Source for <a class=\"struct\" href=\"tamias_source_fs/struct.FsSource.html\" title=\"struct tamias_source_fs::FsSource\">FsSource</a>",0]]],["tamias_source_git",[["impl <a class=\"trait\" href=\"tamias_source/trait.Source.html\" title=\"trait tamias_source::Source\">Source</a> for <a class=\"struct\" href=\"tamias_source_git/struct.GitSource.html\" title=\"struct tamias_source_git::GitSource\">GitSource</a>",0]]],["tamias_source_git",[["impl Source for <a class=\"struct\" href=\"tamias_source_git/struct.GitSource.html\" title=\"struct tamias_source_git::GitSource\">GitSource</a>",0]]],["tamias_source_http",[["impl <a class=\"trait\" href=\"tamias_source/trait.Source.html\" title=\"trait tamias_source::Source\">Source</a> for <a class=\"struct\" href=\"tamias_source_http/struct.HttpSource.html\" title=\"struct tamias_source_http::HttpSource\">HttpSource</a>",0]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":59,"fragment_lengths":[270,169,271,169,277,175,283]}

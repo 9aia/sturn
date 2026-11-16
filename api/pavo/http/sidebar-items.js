@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_BODY","MAX_HEAD"],"enum":["ReadError"],"fn":["collect_params","find_subslice","hex_val","param_json","parse_query","percent_decode","query_get","read_request","reason_phrase","split_target"],"struct":["Request","Response"]};

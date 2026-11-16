@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["require_kind"],"struct":["ItemId","ItemKind","ParseItemIdError","ParseItemKindError"]};

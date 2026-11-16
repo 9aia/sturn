@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["LEGACY_SCHEME","SCHEME"],"fn":["is_valid_segment"],"struct":["ParseRefError","Ref"]};

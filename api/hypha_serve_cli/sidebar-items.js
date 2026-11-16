@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ParseError"],"fn":["one_shot","parse"],"struct":["OneShot"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Auth"],"struct":["CfVault","CfVaultConfig","MigrateReport"]};

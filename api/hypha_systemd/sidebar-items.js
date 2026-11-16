@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["daemon_reload","default_unit_dir","disable","enable","remove","render","restart","status","unit_path","write_unit"],"struct":["SystemdService"]};
