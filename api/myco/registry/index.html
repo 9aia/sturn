@@ -2,7 +2,7 @@
 all three front-ends: the clap command tree (<a href="fn.command.html" title="fn myco::registry::command"><code>command</code></a>,
 builder mode, no derive), <code>manifest().verbs</code>/<code>implemented</code>
 (<a href="fn.manifest_verbs.html" title="fn myco::registry::manifest_verbs"><code>manifest_verbs</code></a>), and serve/batch dispatch
-(<a href="../serve/struct.Server.html#method.dispatch" title="method myco::serve::Server::dispatch"><code>crate::serve::Server::dispatch</code></a>). A verb can’t exist on one
+(<code>crate::serve::Server::dispatch</code>). A verb can’t exist on one
 surface and not the others: <code>cli</code>/<code>wire</code> handlers share one
 <code>params</code> schema — the wire schema and the CLI surface are one
 declaration decoded into the same <a href="struct.Args.html" title="struct myco::registry::Args"><code>Args</code></a> bag.</p>

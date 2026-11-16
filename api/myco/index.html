@@ -31,7 +31,7 @@ filtered universe. Structured <code>--json</code> for pavo/agents,
 deterministic ASCII on tty.</dd><dt><a class="mod" href="backlog/index.html" title="mod myco::backlog">backlog</a></dt><dd><code>myco backlog add|promote|list</code> — deferred items in BACKLOG.md.</dd><dt><a class="mod" href="batch/index.html" title="mod myco::batch">batch</a></dt><dd><code>myco batch</code> — the one-shot <code>serve</code> (P-004): NDJSON verb
 requests in (stdin or <code>--file</code>), one JSON-RPC 2.0 response
 line out per request, each dispatched through the same
-[<code>serve::Server</code>] surface <code>myco serve</code> exposes — the whole
+<a href="serve/struct.Server.html" title="struct myco::serve::Server"><code>crate::serve::Server</code></a> surface <code>myco serve</code> exposes — the whole
 verb set without holding a pipe open.</dd><dt><a class="mod" href="board/index.html" title="mod myco::board">board</a></dt><dd>The board chrome — the columnar card renderer behind <code>myco view</code>’s board format (repo- and index-sourced alike).</dd><dt><a class="mod" href="cfgverb/index.html" title="mod myco::cfgverb">cfgverb</a></dt><dd>Config-declared verbs — <code>[verbs.&lt;name&gt;]</code> in <code>myco.toml</code>
 (P-007). <code>myco &lt;name&gt;</code> resolves a config verb (layered
 repo&lt;user, builtins win collisions); <code>alias</code> bakes argv for a
@@ -84,7 +84,7 @@ home for items that are gone. Two commits, one per worktree,
 both under the usual <code>--no-commit</code>/<code>$MYCO_NO_COMMIT</code> rules.</dd><dt><a class="mod" href="next/index.html" title="mod myco::next">next</a></dt><dd><code>myco next</code> — the single highest-priority open item:
 “what should I work on” (I-020, falls out of P-006). It’s a
 view eval with <code>limit = 1</code> — the filter flags are <code>view</code>’s
-[<code>FilterFlags</code>] merged over an open tasks+issues default.
+<code>FilterPatch</code> merged over an open tasks+issues default.
 <code>--claim</code> is the only new surface: it mutates the emitted
 item to <code>claimed</code> + an owner in one per-verb commit.</dd><dt><a class="mod" href="ops/index.html" title="mod myco::ops">ops</a></dt><dd>Re-export — lives in <code>myco_ops::ops</code> so other front-ends
 (<code>myco-driver</code>) share it.
@@ -112,7 +112,7 @@ remain and HEAD still matches each entry’s anchor.</dd><dt><a class="mod" href
 all three front-ends: the clap command tree (<a href="registry/fn.command.html" title="fn myco::registry::command"><code>command</code></a>,
 builder mode, no derive), <code>manifest().verbs</code>/<code>implemented</code>
 (<a href="registry/fn.manifest_verbs.html" title="fn myco::registry::manifest_verbs"><code>manifest_verbs</code></a>), and serve/batch dispatch
-(<a href="serve/struct.Server.html#method.dispatch" title="method myco::serve::Server::dispatch"><code>crate::serve::Server::dispatch</code></a>). A verb can’t exist on one
+(<code>crate::serve::Server::dispatch</code>). A verb can’t exist on one
 surface and not the others: <code>cli</code>/<code>wire</code> handlers share one
 <code>params</code> schema — the wire schema and the CLI surface are one
 declaration decoded into the same <a href="registry/struct.Args.html" title="struct myco::registry::Args"><code>Args</code></a> bag.</dd><dt><a class="mod" href="report/index.html" title="mod myco::report">report</a></dt><dd><code>myco report</code> — aging + velocity + blocked, the “how is the

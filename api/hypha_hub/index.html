@@ -13,7 +13,7 @@ subscription fans out to every paired node).</li>
 entity-scoped calls routed to the owning node on multi-node
 setups (<code>HYPHA_NODES</code>).</li>
 </ul>
-<p><a href="sync_api/struct.SyncEntityApi.html" title="struct hypha_hub::sync_api::SyncEntityApi"><code>sync_api::SyncEntityApi</code></a> is the hub’s <a href="../hypha_node_api/api/trait.EntityApi.html" title="trait hypha_node_api::api::EntityApi"><code>EntityApi</code></a>: entity
+<p><a href="sync_api/struct.SyncEntityApi.html" title="struct hypha_hub::sync_api::SyncEntityApi"><code>sync_api::SyncEntityApi</code></a> is the hub’s [<code>EntityApi</code>]: entity
 lists read the merged projection and writes queue in the durable
 outbox when a node is down.</p>
 <p>The hub is <strong>policy-injected</strong>: <a href="kind_policies/fn.default_kind_policies.html" title="fn hypha_hub::kind_policies::default_kind_policies"><code>kind_policies::default_kind_policies</code></a>
@@ -32,7 +32,7 @@ passthrough so the merged surface wins.</dd><dt><a class="mod" href="kind_polici
 integrations.</dd><dt><a class="mod" href="proxy/index.html" title="mod hypha_hub::proxy">proxy</a></dt><dd>Hub → node HTTP bridges.</dd><dt><a class="mod" href="push_routes/index.html" title="mod hypha_hub::push_routes">push_<wbr>routes</a></dt><dd>Hub-owned push subscriptions — one subscription store for every
 node, so a browser subscribes once and gets notified by all of
 them. <code>runFinished</code>/<code>permissionRequested</code> feed markers (emitted by
-each node’s live listener) drive the fan-out.</dd><dt><a class="mod" href="sync_api/index.html" title="mod hypha_hub::sync_api">sync_<wbr>api</a></dt><dd><a href="sync_api/struct.SyncEntityApi.html" title="struct hypha_hub::sync_api::SyncEntityApi"><code>SyncEntityApi</code></a> — the hub’s <a href="../hypha_node_api/api/trait.EntityApi.html" title="trait hypha_node_api::api::EntityApi"><code>EntityApi</code></a> backed by <code>hypha-sync</code>:
+each node’s live listener) drive the fan-out.</dd><dt><a class="mod" href="sync_api/index.html" title="mod hypha_hub::sync_api">sync_<wbr>api</a></dt><dd><a href="sync_api/struct.SyncEntityApi.html" title="struct hypha_hub::sync_api::SyncEntityApi"><code>SyncEntityApi</code></a> — the hub’s [<code>EntityApi</code>] backed by <code>hypha-sync</code>:
 the entity list reads the local projection (merged across every
 paired node), detail + detail-stream traffic proxies to the owning
 node live, and ops go through <code>SyncEngine::submit_op</code> so they queue

@@ -3,7 +3,7 @@
 <a href=#3 id=3 data-nosnippet>3</a>//!
 <a href=#4 id=4 data-nosnippet>4</a>//! Verbs (the tamias driver contract):
 <a href=#5 id=5 data-nosnippet>5</a>//!
-<a href=#6 id=6 data-nosnippet>6</a>//! - `manifest` — print the [`DriverManifest`] JSON (discovery
+<a href=#6 id=6 data-nosnippet>6</a>//! - `manifest` — print the [`DriverManifest`](pavo_protocol::DriverManifest) JSON (discovery
 <a href=#7 id=7 data-nosnippet>7</a>//!   probe; never touches project state).
 <a href=#8 id=8 data-nosnippet>8</a>//! - `capabilities` — `{"capabilities": ["pavo"], "verbs": […]}`.
 <a href=#9 id=9 data-nosnippet>9</a>//! - `ops` — the engine ops manifest: every `myco` CLI verb as a
@@ -204,7 +204,7 @@
 <a href=#204 id=204 data-nosnippet>204</a>    std::process::exit(code);
 <a href=#205 id=205 data-nosnippet>205</a>}
 <a href=#206 id=206 data-nosnippet>206</a>
-<a href=#207 id=207 data-nosnippet>207</a><span class="doccomment">/// `cli` verb argv (after the `cli` token) → engine argv (argv[0]
+<a href=#207 id=207 data-nosnippet>207</a><span class="doccomment">/// `cli` verb argv (after the `cli` token) → engine argv (argv\[0\]
 <a href=#208 id=208 data-nosnippet>208</a>/// included). `tamias bin exec` prepends the standard driver flags
 <a href=#209 id=209 data-nosnippet>209</a>/// — exactly `--dir &lt;entry&gt; --name &lt;pkg&gt;` — which the engine
 <a href=#210 id=210 data-nosnippet>210</a>/// doesn't know; consume that one leading pair (`--flag v` and

@@ -15,7 +15,9 @@ actor default — the local CLI wrote it. The last rung of
 auto-commit-per-verb path. <code>msg</code> gains the <code>Actor:</code> trailer
 (<a href="fn.commit_msg.html" title="fn myco::ops::commit_msg"><code>commit_msg</code></a>; <code>actor</code> is the verb’s actor, <code>None</code> →
 <a href="fn.resolve_actor.html" title="fn myco::ops::resolve_actor"><code>resolve_actor</code></a> over <code>dir</code> — <code>$MYCO_ACTOR</code> → <code>human:&lt;git user.name&gt;</code> → <code>cli</code>). No commit when disabled or when the
-tree is clean. Returns whether a commit was made.</dd><dt><a class="fn" href="fn.commit_msg.html" title="fn myco::ops::commit_msg">commit_<wbr>msg</a></dt><dd><code>msg</code> + the <code>Actor:</code> trailer — every myco commit names the
+tree is clean. A landed commit on the <code>project</code> branch then
+gets the best-effort <a href="fn.maybe_push.html" title="fn myco::ops::maybe_push"><code>maybe_push</code></a> publish (<code>sync.auto_push</code>,
+default on). Returns whether a commit was made.</dd><dt><a class="fn" href="fn.commit_msg.html" title="fn myco::ops::commit_msg">commit_<wbr>msg</a></dt><dd><code>msg</code> + the <code>Actor:</code> trailer — every myco commit names the
 verb’s actor in the message body (T-011: actor-tagged
 trailers, not per-actor git authors — author/committer stay
 the repo’s stable <code>user.name</code>/<code>user.email</code> identity, or the
@@ -36,7 +38,17 @@ rather than rendering a mid-verb ledger.</dd><dt><a class="fn" href="fn.lock_wor
 verb holds it for the verb’s whole life (including the
 autocommit). Fail-fast on contention: concurrent writers
 corrupt the ledger (dup ids, last-writer-wins), so the second
-one gets a retry hint instead.</dd><dt><a class="fn" href="fn.print_json.html" title="fn myco::ops::print_json">print_<wbr>json</a></dt><dd>Pretty JSON to stdout.</dd><dt><a class="fn" href="fn.print_paged.html" title="fn myco::ops::print_paged">print_<wbr>paged</a></dt><dd>Print <code>text</code>, paging it through the user’s pager when stdout is
+one gets a retry hint instead.</dd><dt><a class="fn" href="fn.maybe_push.html" title="fn myco::ops::maybe_push">maybe_<wbr>push</a></dt><dd>Best-effort publish of the ledger branch after a commit —
+<code>[sync] auto_push</code> (default on; <code>false</code> opts out). Only fires
+on the <code>project</code> branch: a <code>--dir</code> ledger parked on another
+branch (or a plain dir with no checkout) stays local —
+auto-push must never publish a branch the ledger doesn’t own.
+The config read is the shared TOML loader every front-end
+binds; missing/broken config means <code>true</code>. A repo with no
+<code>origin</code> remote skips silently — local-only ledgers don’t earn
+a warning per mutation. Returns the warning on push failure —
+never an error: the commit already landed, pushing is advisory
+(mirrors <code>auto_fetch</code>, which never blocks either).</dd><dt><a class="fn" href="fn.print_json.html" title="fn myco::ops::print_json">print_<wbr>json</a></dt><dd>Pretty JSON to stdout.</dd><dt><a class="fn" href="fn.print_paged.html" title="fn myco::ops::print_paged">print_<wbr>paged</a></dt><dd>Print <code>text</code>, paging it through the user’s pager when stdout is
 a tty — <code>less -F</code> exits instantly for one-screen output, so
 callers can page unconditionally. Non-tty output, a disabled or
 unspawnable pager all fall back to <code>println!</code>.</dd><dt><a class="fn" href="fn.redo_depth.html" title="fn myco::ops::redo_depth">redo_<wbr>depth</a></dt><dd>How many commits <code>redo</code> could still restore — 0 when the

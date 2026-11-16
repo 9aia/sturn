@@ -39,7 +39,7 @@ lands in <a href="struct.InstallPlan.html#structfield.problems" title="field tam
 </div><span id="structfield.bundled_drivers" class="structfield section-header"><a href="#structfield.bundled_drivers" class="anchor field">§</a><code>bundled_drivers: <a class="struct" href="https://doc.rust-lang.org/1.99.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.99.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</code></span><div class="docblock"><p>Driver files the payload ships under <code>drivers/</code> (portable files
 plus <code>bin/&lt;triple&gt;/</code> payloads, reported as <code>bin/&lt;triple&gt;/&lt;name&gt;</code>).</p>
 </div><span id="structfield.consent_required" class="structfield section-header"><a href="#structfield.consent_required" class="anchor field">§</a><code>consent_required: <a class="primitive" href="https://doc.rust-lang.org/1.99.1/std/primitive.bool.html">bool</a></code></span><div class="docblock"><p>Bundled drivers exist and no consent was given — a real install
-would refuse. Consent comes from [<code>tamias_driver::drivers_allowed</code>]
+would refuse. Consent comes from <a href="../tamias_driver/fn.drivers_allowed.html" title="fn tamias_driver::drivers_allowed"><code>tamias_driver::drivers_allowed</code></a>
 (<code>--allow-drivers</code> / <code>TAMIAS_ALLOW_DRIVERS=1</code>) OR a recorded
 per-package consent matching this payload’s digest (the <code>consent</code>
 module — P-005 §D.3). NOTE: for <code>include:</code> packages the recorded

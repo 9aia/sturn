@@ -201,7 +201,7 @@
 <a href=#201 id=201 data-nosnippet>201</a>    }
 <a href=#202 id=202 data-nosnippet>202</a>}
 <a href=#203 id=203 data-nosnippet>203</a>
-<a href=#204 id=204 data-nosnippet>204</a><span class="doccomment">/// `cli.&lt;verb&gt;` params → myco argv (no argv[0] — `run` prepends
+<a href=#204 id=204 data-nosnippet>204</a><span class="doccomment">/// `cli.&lt;verb&gt;` params → myco argv (no argv\[0\] — `run` prepends
 <a href=#205 id=205 data-nosnippet>205</a>/// it). Globals go first; the dotted verb name splits into the
 <a href=#206 id=206 data-nosnippet>206</a>/// group path (`todo.add` → `todo add`). Declared params map by
 <a href=#207 id=207 data-nosnippet>207</a>/// kind — positionals land last, in schema order.
@@ -307,7 +307,7 @@
 <a href=#307 id=307 data-nosnippet>307</a>    }
 <a href=#308 id=308 data-nosnippet>308</a>}
 <a href=#309 id=309 data-nosnippet>309</a>
-<a href=#310 id=310 data-nosnippet>310</a><span class="doccomment">/// [`run_op`] with the verb already resolved — the `cli.&lt;verb&gt;`
+<a href=#310 id=310 data-nosnippet>310</a><span class="doccomment">/// `run_op` with the verb already resolved — the `cli.&lt;verb&gt;`
 <a href=#311 id=311 data-nosnippet>311</a>/// wire-query path lands here too.
 <a href=#312 id=312 data-nosnippet>312</a></span><span class="kw">pub fn </span>run_verb(v: <span class="kw-2">&amp;</span>Verb, params: <span class="kw-2">&amp;</span>Map&lt;String, Value&gt;) -&gt; Response {
 <a href=#313 id=313 data-nosnippet>313</a>    <span class="kw">let </span>(args, o) = <span class="kw">match </span>exec(v, params) {

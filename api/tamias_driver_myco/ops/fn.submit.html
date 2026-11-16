@@ -2,7 +2,7 @@
     view: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.99.1/std/primitive.str.html">str</a>,
     form: <a class="enum" href="https://doc.rust-lang.org/1.99.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;<a class="primitive" href="https://doc.rust-lang.org/1.99.1/std/primitive.str.html">str</a>&gt;,
     values: &amp;<a class="struct" href="https://docs.rs/serde_json/1.0.154/serde_json/map/struct.Map.html" title="struct serde_json::map::Map">Map</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.99.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>, <a class="enum" href="https://docs.rs/serde_json/1.0.154/serde_json/value/enum.Value.html" title="enum serde_json::value::Value">Value</a>&gt;,
-) -&gt; Response</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p><code>{"op":"submit"}</code> — thin adapter. This driver declares no form
+) -&gt; <a class="struct" href="../../pavo_protocol/wire/struct.Response.html" title="struct pavo_protocol::wire::Response">Response</a></code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p><code>{"op":"submit"}</code> — thin adapter. This driver declares no form
 nodes, so a submit only dispatches when <code>form</code> (or the view id
 itself, when no form is named) resolves to an engine verb —
 the submitted <code>values</code> become the verb params verbatim. Anything

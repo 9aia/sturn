@@ -2,7 +2,7 @@
 <strong>per-user scheduled task</strong> through <code>schtasks.exe</code> (Task Scheduler).
 No admin needed: tasks register under the interactive user with
 <code>RunLevel=LeastPrivilege</code>.</p>
-<p>A [<code>ServiceSpec</code>] renders to two artifacts under the task dir
+<p>A <a href="../tamias_deploy/struct.ServiceSpec.html" title="struct tamias_deploy::ServiceSpec"><code>ServiceSpec</code></a> renders to two artifacts under the task dir
 (<code>%LOCALAPPDATA%\tamias\tasks</code> by default):</p>
 <ul>
 <li><code>&lt;name&gt;.cmd</code> — a generated batch wrapper that applies the spec’s

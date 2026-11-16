@@ -2,7 +2,7 @@
 <strong>per-user launchd agent</strong> — a plist under
 <code>~/Library/LaunchAgents</code> driven by <code>launchctl</code>. No admin needed:
 agents load into the caller’s <code>gui/&lt;uid&gt;</code> domain.</p>
-<p>A [<code>ServiceSpec</code>] renders to artifacts under the agent dir
+<p>A <a href="../tamias_deploy/struct.ServiceSpec.html" title="struct tamias_deploy::ServiceSpec"><code>ServiceSpec</code></a> renders to artifacts under the agent dir
 (<code>$HOME/Library/LaunchAgents</code> by default):</p>
 <ul>
 <li><code>&lt;label&gt;.plist</code> — the agent definition. <code>ProgramArguments</code> takes

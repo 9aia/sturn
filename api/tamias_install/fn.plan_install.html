@@ -6,12 +6,12 @@
 parse → plan → fetch-or-cache → manifest, then <em>report</em> instead of
 act. <code>include:</code> entries are classified (<code>include::plan_include</code>),
 never resolved — no recursive installs, no overlay, no composed
-digest. Driver work stops at resolution ([<code>tamias_driver::find_driver</code>]
+digest. Driver work stops at resolution (<a href="../tamias_driver/fn.find_driver.html" title="fn tamias_driver::find_driver"><code>tamias_driver::find_driver</code></a>
 may <code>capabilities</code>-probe discovered drivers — trusted local
 binaries, 10s timeout); bundled-driver registration, dispatch, and
 the store commit never run.</p>
 <p>Trust/signature are computed exactly as install does, except a
-would-be <a href="../tamias_sign/fn.enforce_signature.html" title="fn tamias_sign::enforce_signature"><code>tamias_sign::enforce_signature</code></a> failure is captured in
+would-be [<code>tamias_sign::enforce_signature</code>] failure is captured in
 <a href="struct.InstallPlan.html#structfield.problems" title="field tamias_install::InstallPlan::problems"><code>InstallPlan::problems</code></a> — a dry-run shows “this would fail”
 instead of hiding it or refusing to plan.</p>
 <h2 id="errors"><a class="doc-anchor" href="#errors">§</a>Errors</h2>

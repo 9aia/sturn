@@ -9,7 +9,7 @@
 <a href=#9 id=9 data-nosnippet>9</a>//! moves one raw line in and out (stdio first; a unix socket can
 <a href=#10 id=10 data-nosnippet>10</a>//! slot in untouched), and [`WireProtocol`] frames requests and
 <a href=#11 id=11 data-nosnippet>11</a>//! responses (JSON-RPC 2.0 first — the default, not the spec).
-<a href=#12 id=12 data-nosnippet>12</a>//! [`Server::dispatch`] is the verb surface itself and knows
+<a href=#12 id=12 data-nosnippet>12</a>//! `Server::dispatch` is the verb surface itself and knows
 <a href=#13 id=13 data-nosnippet>13</a>//! neither. stdin IS the wire — no served method reads content
 <a href=#14 id=14 data-nosnippet>14</a>//! from it. `myco batch` drives the identical surface one-shot
 <a href=#15 id=15 data-nosnippet>15</a>//! through [`Server::handle_line`] — NDJSON in, NDJSON out.
@@ -318,7 +318,7 @@
 <a href=#318 id=318 data-nosnippet>318</a>
 <a href=#319 id=319 data-nosnippet>319</a><span class="comment">// ---------------------------------------------------------------- dispatch
 <a href=#320 id=320 data-nosnippet>320</a>
-<a href=#321 id=321 data-nosnippet>321</a></span><span class="doccomment">/// Dispatch failure — [`Server::respond`] maps these to wire
+<a href=#321 id=321 data-nosnippet>321</a></span><span class="doccomment">/// Dispatch failure — `Server::respond` maps these to wire
 <a href=#322 id=322 data-nosnippet>322</a>/// codes; dispatch itself knows no wire.
 <a href=#323 id=323 data-nosnippet>323</a></span><span class="attr">#[derive(Debug)]
 <a href=#324 id=324 data-nosnippet>324</a></span><span class="kw">pub enum </span>Fail {

@@ -2,7 +2,7 @@
 <a href=#2 id=2 data-nosnippet>2</a>//! all three front-ends: the clap command tree ([`command`],
 <a href=#3 id=3 data-nosnippet>3</a>//! builder mode, no derive), `manifest().verbs`/`implemented`
 <a href=#4 id=4 data-nosnippet>4</a>//! ([`manifest_verbs`]), and serve/batch dispatch
-<a href=#5 id=5 data-nosnippet>5</a>//! ([`crate::serve::Server::dispatch`]). A verb can't exist on one
+<a href=#5 id=5 data-nosnippet>5</a>//! (`crate::serve::Server::dispatch`). A verb can't exist on one
 <a href=#6 id=6 data-nosnippet>6</a>//! surface and not the others: `cli`/`wire` handlers share one
 <a href=#7 id=7 data-nosnippet>7</a>//! `params` schema — the wire schema and the CLI surface are one
 <a href=#8 id=8 data-nosnippet>8</a>//! declaration decoded into the same [`Args`] bag.
@@ -1122,7 +1122,7 @@
 <a href=#1122 id=1122 data-nosnippet>1122</a>    },
 <a href=#1123 id=1123 data-nosnippet>1123</a>    Verb {
 <a href=#1124 id=1124 data-nosnippet>1124</a>        name: <span class="string">"sync"</span>,
-<a href=#1125 id=1125 data-nosnippet>1125</a>        about: <span class="string">"Reconcile the ledger branch with `origin/&lt;branch&gt;` — fetch, fast-forward or rebase local commits onto the remote tip, then heal merge damage: `meta.toml` counters reconcile, duplicate ids renumber remote-wins (the pushed item keeps its id; the local one moves to a fresh id, inbound `blocks:`/`links:`/supersede refs rebind to it, and a `renumbered` handoff entry records the audit). Mutating verbs refuse while behind (`ensure_synced`; `sync.auto_fetch` config fetches first), so this is the gate. A rebase conflict stops mid-flight — resolve + `git rebase --continue` + `myco sync` again, or `--abort` to bail."</span>,
+<a href=#1125 id=1125 data-nosnippet>1125</a>        about: <span class="string">"Reconcile the ledger branch with `origin/&lt;branch&gt;` — fetch, fast-forward or rebase local commits onto the remote tip, then heal merge damage: `meta.toml` counters reconcile, duplicate ids renumber remote-wins (the pushed item keeps its id; the local one moves to a fresh id, inbound `blocks:`/`links:`/supersede refs rebind to it, and a `renumbered` handoff entry records the audit). Mutating verbs refuse while behind (`ensure_synced`; `sync.auto_fetch` config fetches first), so this is the gate. A rebase conflict stops mid-flight — resolve + `git rebase --continue` + `myco sync` again, or `--abort` to bail. With `sync.auto_push` enabled (the default; `false` opts out), a successful sync also pushes the reconciled tip (best-effort — a push failure warns, never fails)."</span>,
 <a href=#1126 id=1126 data-nosnippet>1126</a>        params: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[flag(
 <a href=#1127 id=1127 data-nosnippet>1127</a>            <span class="string">"abort"</span>,
 <a href=#1128 id=1128 data-nosnippet>1128</a>            <span class="string">"Abort a stopped rebase/merge (`git rebase --abort`) and return to the pre-sync tip."</span>,
