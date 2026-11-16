@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["CI_JOB_KIND","DEFAULT_LEASE_SECS","MAX_ATTEMPTS","SNAPSHOT_FORMAT"],"enum":["JobState"],"struct":["CiJob"]};

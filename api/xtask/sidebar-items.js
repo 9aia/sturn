@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["check","coverage","have","have_cargo_sub","host_triple","install","main","pack","run","run_in","site","target_dir","test"]};

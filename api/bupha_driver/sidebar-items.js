@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["capabilities_value","dispatch","manifest_value","serve"],"mod":["data","engine_ops","ops","views"]};

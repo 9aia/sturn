@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["manifest","op_of","run_verb"]};

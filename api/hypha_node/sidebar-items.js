@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["serve","serve_state","state"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["drivers_dir","tamias_home"]};

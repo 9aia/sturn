@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["SubmitOutcome"],"struct":["NodeTarget","SyncEngine","SyncHandle","SyncOptions"],"type":["FeedHook"]};

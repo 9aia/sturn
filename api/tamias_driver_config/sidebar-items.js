@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["collect_forms","dispatch","main","query_data","query_op","serve","sources_payload","submit_op","submit_set","view_result"],"mod":["config","view"]};

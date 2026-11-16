@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["PROMPT_MAX_LINES"],"fn":["digest_json","h","prompt_block","prompt_json","status_json"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["MANIFEST_NAMES","MAX_KEYWORD_LEN"],"fn":["is_valid_keyword","is_valid_kind","is_valid_name","is_valid_version"],"struct":["BinDecl","Manifest","Provider","ProviderHealth","ProviderHook","ProviderIngress","ProviderService"]};

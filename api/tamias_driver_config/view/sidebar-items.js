@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["binding","edit_view","manifest","node","show_view","sources_view","view_summaries"]};

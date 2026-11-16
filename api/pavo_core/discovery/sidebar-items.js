@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["discover","discover_with"],"struct":["DiscoveryOptions","DriverInfo"]};

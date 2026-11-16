@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["MAX_JSON_BODY","SMALL_JSON_BODY"],"fn":["json_response","not_found","now_ms_f64","ok","query_param","query_params","read_json_body","read_json_bytes"],"mod":["entities","events","kv","misc","push"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["INVALID_PARAMS","INVALID_REQUEST","INVALID_TRANSITION","METHOD_NOT_FOUND","PARSE_ERROR","VERB_ERROR"],"enum":["Fail","Response"],"fn":["run"],"struct":["JsonRpc2","Request","Server","SpecPatch","StdioTransport","WireError"],"trait":["ServeTransport","WireProtocol"]};

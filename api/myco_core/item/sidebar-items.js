@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["MAX_ESTIMATE"],"fn":["is_valid_group_name","is_valid_label","tree_view"],"struct":["Item","NewItemMeta"],"type":["ItemMeta"]};

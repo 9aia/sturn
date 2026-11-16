@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["ROW_CAP","SYMBOL_GRAPH_CAP"],"fn":["capped","dependents","drift","drift_rows","edge_json","edge_kind_str","err","find","graph","graph_modules","graph_symbols","module","module_deps","module_symbols","modules","need_indexed","need_store","param_str","repo","run_query","short_purpose","status","symbol_kind_str","symbol_row"]};

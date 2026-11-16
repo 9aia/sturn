@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["config_schema","deploy","health","hooks","host","install","logs","parse_flags","run","status","uninstall","worker"],"struct":["Flags"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["index_age","load_graph","semantic_candidates"],"mod":["cache"],"struct":["IndexEdgeChecker","ProseContradictionChecker","SemanticCandidate","UndocumentedFactChecker"]};

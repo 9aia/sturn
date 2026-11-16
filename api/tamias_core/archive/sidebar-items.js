@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["DEFAULT_MAX_ENTRIES","DEFAULT_MAX_UNPACK_BYTES"],"fn":["pack_tgz","pack_tgz_atomic","untar","untar_gz","untar_gz_limited","untar_limited"]};

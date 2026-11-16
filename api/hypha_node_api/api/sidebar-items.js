@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["OpResult"],"struct":["HttpEntityApi"],"trait":["EntityApi"]};

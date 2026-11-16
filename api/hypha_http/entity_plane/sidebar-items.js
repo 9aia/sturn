@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":["EntityContext","KindRegistry"],"trait":["EntityPlane"]};

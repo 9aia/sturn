@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Includes"],"fn":["compose","pack"],"struct":["Composed"]};

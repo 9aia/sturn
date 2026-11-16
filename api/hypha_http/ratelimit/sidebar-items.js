@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["DEFAULT_MAX_KEYS"],"struct":["Quota","RateLimiter"]};

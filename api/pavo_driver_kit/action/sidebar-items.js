@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["action","menu","param"],"struct":["ActionBuilder","MenuBuilder","ParamBuilder"]};

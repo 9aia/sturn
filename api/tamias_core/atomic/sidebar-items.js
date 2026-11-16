@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["tmp_path","write_atomic"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["canonical_body"],"struct":["BacklogDoc","DoneDoc","ItemFile","Section","TodoDoc"]};

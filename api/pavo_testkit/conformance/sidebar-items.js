@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Check"],"fn":["check_driver","check_driver_with"],"struct":["CheckOptions","Violation"]};

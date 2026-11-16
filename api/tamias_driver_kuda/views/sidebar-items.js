@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["binding","col","contrib","graph_node","kv","manifest","search_form","spec","table"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["DiffTombstone","NoticeKind"],"struct":["IndexColumns","KindPolicies","Notice"],"trait":["KindPolicy"]};

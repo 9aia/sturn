@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["known_query","manifest","query_data","specs","view_result"]};

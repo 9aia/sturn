@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["dispatch","engine_argv","main","query_result","serve","view_result","views_summaries"],"mod":["ops","queries","repo","views"]};

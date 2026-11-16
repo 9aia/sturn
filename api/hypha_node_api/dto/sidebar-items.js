@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":["CreateResultDto","EntityDto","EntityIndexDto","EntityOp","NodeInfoDto","NodeStatusDto","PendingOpDto","PushKeysDto","PushPrefsDto","PushSubscriptionDto"]};

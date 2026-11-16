@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["h_list","h_new","h_status"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["OpKind","OutboxError","Status"],"struct":["Outbox","OutboxEntry"]};

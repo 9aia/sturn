@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["hub_state","hub_state_with","router"],"mod":["auth","credentials","entity_routes","kind_policies","proxy","push_routes","sync_api"],"struct":["HubConfig","HubState"],"type":["StreamRouter"]};

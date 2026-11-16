@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ActionScope"],"fn":["collect_actions","dedupe_actions","manifest_actions","menu_entries","ops_actions","param_form_field","params_by_name","validate_params"],"struct":["ScopedAction"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["drivers_dir","find_driver","ops_manifest"],"struct":["DriverClient"]};

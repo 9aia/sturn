@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["blob_hash","card_drift","cards_dir","load_config","resolve_root","safe"],"struct":["Ctx"]};

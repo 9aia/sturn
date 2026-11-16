@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["binding_value","keymap_paths","load","parse"],"struct":["UserKeymap"]};

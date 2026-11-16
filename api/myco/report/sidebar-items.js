@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["STALE_CLAIM_DAYS"],"fn":["aging","h","report_json","velocity"],"struct":["Aging","WeekTally"]};

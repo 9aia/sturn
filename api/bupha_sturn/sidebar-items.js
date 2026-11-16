@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["WS_PREFIX"],"fn":["branch_ref","events_since","fetch","load_heads","meta","save_heads","wal_heads","ws_tip"],"struct":["Event","Meta","SturnSource"]};

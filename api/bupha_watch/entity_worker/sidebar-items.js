@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ClaimOutcome","ExecEnd","Step"],"fn":["candidates","run","step"],"struct":["ClaimFilter","EntityClaim","EntityJob","EntityJobApi","HeldClaim","WatchExec"],"trait":["JobApi","JobExec"]};

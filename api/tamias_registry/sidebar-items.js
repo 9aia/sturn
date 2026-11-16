@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["RegistryRef"],"fn":["apply_retention","parse_registry_ref"],"struct":["PublishOutcome","RegistryEntry"],"trait":["Registry"]};

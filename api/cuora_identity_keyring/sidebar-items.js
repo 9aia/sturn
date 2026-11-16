@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["CANONICAL_SERVICE","LEGACY_SERVICES","USER"],"struct":["KeyringIdentity"]};
