@@ -11,7 +11,7 @@ The `sturn` command ships as a [tamias](https://9aia.com/tamias/)
 pack — a generated shim over `tamias-driver-sturn`. With tamias:
 
 ```sh
-tamias install 9aia:sturn@<version>          # org registry
+tamias install 9aia:sturn@<version>          # org registry (needs TAMIAS_REGISTRY_TOKEN)
 # or from a checkout:
 tamias install --allow-drivers ./libraries/sturn
 ```
@@ -51,10 +51,10 @@ point:
 
 ```sh
 STURN_ACTOR=agent-a sturn claim "src/**" --ws agent-a
-# claimed src/** (ws agent-a, ttl 3600s)
+# claimed src/** (ws agent-a, ttl 3600s, fence 1)
 
 STURN_ACTOR=agent-b sturn claim "src/lib.rs" --ws agent-b
-# conflict: agent-a claimed src/** (ws agent-a, expires …)
+# conflict: agent-a claimed src/** (ws agent-a, actor agent-a, expires …, fence 1)
 # sturn: claim denied — --force to override
 ```
 

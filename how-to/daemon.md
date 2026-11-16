@@ -1,7 +1,7 @@
 # Run the daemon
 
 `sturn daemon` polls WAL heads and fans new events onto topics
-(`repo.<id>.ops|claims|review|presence`) in the embedded bus store.
+(`repo.<id>.ops|claims|review|presence|asks`) in the embedded bus store.
 
 ```sh
 sturn daemon                      # foreground
