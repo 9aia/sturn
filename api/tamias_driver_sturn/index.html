@@ -12,7 +12,7 @@ probe; never touches repo state).</p>
 <li>
 <p><code>ops</code> — the engine ops manifest: every <code>sturn</code> CLI verb as a
 <code>cli.&lt;verb&gt;</code> wire query, derived from the engine’s own clap
-tree ([<code>sturn::command</code>]).</p>
+tree (<a href="../sturn/fn.command.html" title="fn sturn::command"><code>sturn::command</code></a>).</p>
 </li>
 <li>
 <p><code>run &lt;argv&gt;</code> — engine passthrough: <code>tamias-driver-sturn run claims</code> ≡ <code>sturn claims</code>. Also the child side of <code>cli.*</code> wire
