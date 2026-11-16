@@ -49,10 +49,11 @@ Follow Diátaxis on the `docs` branch: `docs/tutorials/` (learn) ·
 
 ## Releasing
 
-`scripts/release.sh` is run manually by an operator on `main`
-(releases are operator-run) — a thin shim over `tarsi-serve
-release` (plan → changelog → bump → tag → push; publish targets
-off per ADR-0004). The `sturn` command ships as the tamias pack in
+Releases are run manually by an operator on `main` via
+`tarsi-serve release --dir . --yes` directly (plan → changelog →
+bump → tag → push; publish targets off per ADR-0004) — the
+per-repo `scripts/release.sh` shims were removed org-wide. The
+`sturn` command ships as the tamias pack in
 `libraries/sturn` — after the tag, `scripts/pack.sh` stages the
 driver payload and the operator runs `tamias publish
 libraries/sturn` to ship `9aia:sturn@<ver>` to the org registry.

@@ -34,7 +34,9 @@ cargo test --workspace
 scripts/coverage.sh    # cargo-llvm-cov HTML → target/llvm-cov/html;
                        # extra args pass through (--fail-under-lines 100)
 scripts/pack.sh        # stage libraries/sturn driver payload
-scripts/release.sh     # operator-run: thin shim over `tarsi-serve release`
+tarsi-serve release --dir . --yes
+                       # operator-run: version bump + tag
+                       # (dry-run without --yes)
 ```
 
 The `sturn` command ships as the tamias pack in `libraries/sturn` —
