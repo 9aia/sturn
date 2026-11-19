@@ -1,0 +1,459 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/myco-core/src/analytics.rs`."><title>analytics.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="myco_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.99.1 (58cf8f9c3 2026-10-13) (Arch Linux rust 1:1.99.1-1)" data-channel="1.99.1" data-search-js="search-cf4fc35e.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">myco_core/</div>analytics.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Analytics emits — roadmap/timeline, stats, and burnup over the
+<a href=#2 id=2 data-nosnippet>2</a>//! filtered view universe (P-012). Pure domain: callers hand in
+<a href=#3 id=3 data-nosnippet>3</a>//! filter-applied [`Scoped`] items (the same universe `eval`
+<a href=#4 id=4 data-nosnippet>4</a>//! consumes); `myco-cli` renders the results. The design
+<a href=#5 id=5 data-nosnippet>5</a>//! principle holds — **fields are data, scheduling is config,
+<a href=#6 id=6 data-nosnippet>6</a>//! views are emits**: these functions only read `Item` fields and
+<a href=#7 id=7 data-nosnippet>7</a>//! `[[cycles]]` config, never ledger state.
+<a href=#8 id=8 data-nosnippet>8</a>//!
+<a href=#9 id=9 data-nosnippet>9</a>//! - [`timeline`] — epic → milestone → cycle lanes, items placed
+<a href=#10 id=10 data-nosnippet>10</a>//!   by `due:`. An item lands in exactly one lane: its most
+<a href=#11 id=11 data-nosnippet>11</a>//!   specific scheduling field wins (`cycle` &gt; `milestone` &gt;
+<a href=#12 id=12 data-nosnippet>12</a>//!   `epic`); items with none land in `ungrouped`.
+<a href=#13 id=13 data-nosnippet>13</a>//! - [`stats`] — count-by-dimension tallies (status, priority,
+<a href=#14 id=14 data-nosnippet>14</a>//!   owner, epic, milestone, cycle, label).
+<a href=#15 id=15 data-nosnippet>15</a>//! - [`burnup`] — cumulative `done:`-stamped completions vs total
+<a href=#16 id=16 data-nosnippet>16</a>//!   scope per cycle (or one series when nothing is cycled).
+<a href=#17 id=17 data-nosnippet>17</a>//!   Items archived before the stamp existed count toward scope
+<a href=#18 id=18 data-nosnippet>18</a>//!   but never the curve — their completion date is unknowable.
+<a href=#19 id=19 data-nosnippet>19</a>
+<a href=#20 id=20 data-nosnippet>20</a></span><span class="kw">use </span>std::collections::BTreeMap;
+<a href=#21 id=21 data-nosnippet>21</a>
+<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span>time::{Date, Duration};
+<a href=#23 id=23 data-nosnippet>23</a>
+<a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span><span class="kw">crate</span>::view::{Scoped, UNGROUPED};
+<a href=#25 id=25 data-nosnippet>25</a><span class="kw">use crate</span>::{CycleConfig, Item, Priority, Status};
+<a href=#26 id=26 data-nosnippet>26</a>
+<a href=#27 id=27 data-nosnippet>27</a><span class="doccomment">/// Which scheduling dimension a timeline lane groups by.
+<a href=#28 id=28 data-nosnippet>28</a></span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+<a href=#29 id=29 data-nosnippet>29</a></span><span class="kw">pub enum </span>LaneKind {
+<a href=#30 id=30 data-nosnippet>30</a>    <span class="doccomment">/// `epic:&lt;name&gt;` — the broadest lane.
+<a href=#31 id=31 data-nosnippet>31</a>    </span>Epic,
+<a href=#32 id=32 data-nosnippet>32</a>    <span class="doccomment">/// `ms:&lt;name&gt;` — narrower than epic.
+<a href=#33 id=33 data-nosnippet>33</a>    </span>Milestone,
+<a href=#34 id=34 data-nosnippet>34</a>    <span class="doccomment">/// `cycle:&lt;name&gt;` — the iteration window.
+<a href=#35 id=35 data-nosnippet>35</a>    </span>Cycle,
+<a href=#36 id=36 data-nosnippet>36</a>    <span class="doccomment">/// No scheduling field — always trails.
+<a href=#37 id=37 data-nosnippet>37</a>    </span>Ungrouped,
+<a href=#38 id=38 data-nosnippet>38</a>}
+<a href=#39 id=39 data-nosnippet>39</a>
+<a href=#40 id=40 data-nosnippet>40</a><span class="kw">impl </span>LaneKind {
+<a href=#41 id=41 data-nosnippet>41</a>    <span class="doccomment">/// The lane-kind token — `epic|milestone|cycle|ungrouped`.
+<a href=#42 id=42 data-nosnippet>42</a>    </span><span class="kw">pub fn </span>name(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#43 id=43 data-nosnippet>43</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#44 id=44 data-nosnippet>44</a>            LaneKind::Epic =&gt; <span class="string">"epic"</span>,
+<a href=#45 id=45 data-nosnippet>45</a>            LaneKind::Milestone =&gt; <span class="string">"milestone"</span>,
+<a href=#46 id=46 data-nosnippet>46</a>            LaneKind::Cycle =&gt; <span class="string">"cycle"</span>,
+<a href=#47 id=47 data-nosnippet>47</a>            LaneKind::Ungrouped =&gt; <span class="string">"ungrouped"</span>,
+<a href=#48 id=48 data-nosnippet>48</a>        }
+<a href=#49 id=49 data-nosnippet>49</a>    }
+<a href=#50 id=50 data-nosnippet>50</a>
+<a href=#51 id=51 data-nosnippet>51</a>    <span class="doccomment">/// Sort rank — epic lanes first, ungrouped last.
+<a href=#52 id=52 data-nosnippet>52</a>    </span><span class="kw">fn </span>rank(<span class="self">self</span>) -&gt; usize {
+<a href=#53 id=53 data-nosnippet>53</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#54 id=54 data-nosnippet>54</a>            LaneKind::Epic =&gt; <span class="number">0</span>,
+<a href=#55 id=55 data-nosnippet>55</a>            LaneKind::Milestone =&gt; <span class="number">1</span>,
+<a href=#56 id=56 data-nosnippet>56</a>            LaneKind::Cycle =&gt; <span class="number">2</span>,
+<a href=#57 id=57 data-nosnippet>57</a>            LaneKind::Ungrouped =&gt; <span class="number">3</span>,
+<a href=#58 id=58 data-nosnippet>58</a>        }
+<a href=#59 id=59 data-nosnippet>59</a>    }
+<a href=#60 id=60 data-nosnippet>60</a>}
+<a href=#61 id=61 data-nosnippet>61</a>
+<a href=#62 id=62 data-nosnippet>62</a><span class="doccomment">/// One roadmap lane — every item carrying the lane's scheduling
+<a href=#63 id=63 data-nosnippet>63</a>/// value (as its most specific field) lands here, `due:`-sorted.
+<a href=#64 id=64 data-nosnippet>64</a></span><span class="attr">#[derive(Debug, PartialEq, Eq)]
+<a href=#65 id=65 data-nosnippet>65</a></span><span class="kw">pub struct </span>Lane&lt;<span class="lifetime">'a</span>&gt; {
+<a href=#66 id=66 data-nosnippet>66</a>    <span class="doccomment">/// The dimension this lane groups by.
+<a href=#67 id=67 data-nosnippet>67</a>    </span><span class="kw">pub </span>kind: LaneKind,
+<a href=#68 id=68 data-nosnippet>68</a>    <span class="doccomment">/// The epic/milestone/cycle name, or [`UNGROUPED`].
+<a href=#69 id=69 data-nosnippet>69</a>    </span><span class="kw">pub </span>name: String,
+<a href=#70 id=70 data-nosnippet>70</a>    <span class="doccomment">/// Lane items — `due:` ascending, undated last, id tiebreak.
+<a href=#71 id=71 data-nosnippet>71</a>    </span><span class="kw">pub </span>items: Vec&lt;Scoped&lt;<span class="lifetime">'a</span>&gt;&gt;,
+<a href=#72 id=72 data-nosnippet>72</a>}
+<a href=#73 id=73 data-nosnippet>73</a>
+<a href=#74 id=74 data-nosnippet>74</a><span class="doccomment">/// The lane an item belongs to — most specific scheduling field
+<a href=#75 id=75 data-nosnippet>75</a>/// wins: `cycle` &gt; `milestone` &gt; `epic` &gt; ungrouped.
+<a href=#76 id=76 data-nosnippet>76</a></span><span class="kw">fn </span>lane_of(item: <span class="kw-2">&amp;</span>Item) -&gt; (LaneKind, <span class="kw-2">&amp;</span>str) {
+<a href=#77 id=77 data-nosnippet>77</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(c) = <span class="kw-2">&amp;</span>item.cycle {
+<a href=#78 id=78 data-nosnippet>78</a>        (LaneKind::Cycle, c.as_str())
+<a href=#79 id=79 data-nosnippet>79</a>    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(m) = <span class="kw-2">&amp;</span>item.milestone {
+<a href=#80 id=80 data-nosnippet>80</a>        (LaneKind::Milestone, m.as_str())
+<a href=#81 id=81 data-nosnippet>81</a>    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(e) = <span class="kw-2">&amp;</span>item.epic {
+<a href=#82 id=82 data-nosnippet>82</a>        (LaneKind::Epic, e.as_str())
+<a href=#83 id=83 data-nosnippet>83</a>    } <span class="kw">else </span>{
+<a href=#84 id=84 data-nosnippet>84</a>        (LaneKind::Ungrouped, UNGROUPED)
+<a href=#85 id=85 data-nosnippet>85</a>    }
+<a href=#86 id=86 data-nosnippet>86</a>}
+<a href=#87 id=87 data-nosnippet>87</a>
+<a href=#88 id=88 data-nosnippet>88</a><span class="kw">fn </span>due_then_id(a: <span class="kw-2">&amp;</span>Scoped, b: <span class="kw-2">&amp;</span>Scoped) -&gt; std::cmp::Ordering {
+<a href=#89 id=89 data-nosnippet>89</a>    a.item
+<a href=#90 id=90 data-nosnippet>90</a>        .due
+<a href=#91 id=91 data-nosnippet>91</a>        .cmp(<span class="kw-2">&amp;</span>b.item.due)
+<a href=#92 id=92 data-nosnippet>92</a>        .then_with(|| a.item.id.cmp(<span class="kw-2">&amp;</span>b.item.id))
+<a href=#93 id=93 data-nosnippet>93</a>}
+<a href=#94 id=94 data-nosnippet>94</a>
+<a href=#95 id=95 data-nosnippet>95</a><span class="doccomment">/// Roadmap lanes over the (already filtered) universe. Lane
+<a href=#96 id=96 data-nosnippet>96</a>/// order: epic lanes alphabetical, then milestone, then cycle,
+<a href=#97 id=97 data-nosnippet>97</a>/// `ungrouped` last — the epic → milestone → cycle hierarchy the
+<a href=#98 id=98 data-nosnippet>98</a>/// proposal fixes.
+<a href=#99 id=99 data-nosnippet>99</a></span><span class="kw">pub fn </span>timeline&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">mut </span>items: Vec&lt;Scoped&lt;<span class="lifetime">'a</span>&gt;&gt;) -&gt; Vec&lt;Lane&lt;<span class="lifetime">'a</span>&gt;&gt; {
+<a href=#100 id=100 data-nosnippet>100</a>    <span class="kw">let </span><span class="kw-2">mut </span>lanes: BTreeMap&lt;(usize, String), Vec&lt;Scoped&gt;&gt; = BTreeMap::new();
+<a href=#101 id=101 data-nosnippet>101</a>    <span class="kw">for </span>s <span class="kw">in </span>items.drain(..) {
+<a href=#102 id=102 data-nosnippet>102</a>        <span class="kw">let </span>(kind, name) = lane_of(s.item);
+<a href=#103 id=103 data-nosnippet>103</a>        lanes
+<a href=#104 id=104 data-nosnippet>104</a>            .entry((kind.rank(), name.to_string()))
+<a href=#105 id=105 data-nosnippet>105</a>            .or_default()
+<a href=#106 id=106 data-nosnippet>106</a>            .push(s);
+<a href=#107 id=107 data-nosnippet>107</a>    }
+<a href=#108 id=108 data-nosnippet>108</a>    lanes
+<a href=#109 id=109 data-nosnippet>109</a>        .into_iter()
+<a href=#110 id=110 data-nosnippet>110</a>        .map(|((rank, name), <span class="kw-2">mut </span>items)| {
+<a href=#111 id=111 data-nosnippet>111</a>            items.sort_by(due_then_id);
+<a href=#112 id=112 data-nosnippet>112</a>            Lane {
+<a href=#113 id=113 data-nosnippet>113</a>                kind: <span class="kw">match </span>rank {
+<a href=#114 id=114 data-nosnippet>114</a>                    <span class="number">0 </span>=&gt; LaneKind::Epic,
+<a href=#115 id=115 data-nosnippet>115</a>                    <span class="number">1 </span>=&gt; LaneKind::Milestone,
+<a href=#116 id=116 data-nosnippet>116</a>                    <span class="number">2 </span>=&gt; LaneKind::Cycle,
+<a href=#117 id=117 data-nosnippet>117</a>                    <span class="kw">_ </span>=&gt; LaneKind::Ungrouped,
+<a href=#118 id=118 data-nosnippet>118</a>                },
+<a href=#119 id=119 data-nosnippet>119</a>                name,
+<a href=#120 id=120 data-nosnippet>120</a>                items,
+<a href=#121 id=121 data-nosnippet>121</a>            }
+<a href=#122 id=122 data-nosnippet>122</a>        })
+<a href=#123 id=123 data-nosnippet>123</a>        .collect()
+<a href=#124 id=124 data-nosnippet>124</a>}
+<a href=#125 id=125 data-nosnippet>125</a>
+<a href=#126 id=126 data-nosnippet>126</a><span class="doccomment">/// One count-by-name bucket.
+<a href=#127 id=127 data-nosnippet>127</a></span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq)]
+<a href=#128 id=128 data-nosnippet>128</a></span><span class="kw">pub struct </span>Tally {
+<a href=#129 id=129 data-nosnippet>129</a>    <span class="doccomment">/// Bucket name — a status/priority token, owner, group name,
+<a href=#130 id=130 data-nosnippet>130</a>    /// label, or [`UNGROUPED`].
+<a href=#131 id=131 data-nosnippet>131</a>    </span><span class="kw">pub </span>name: String,
+<a href=#132 id=132 data-nosnippet>132</a>    <span class="doccomment">/// Items in the bucket.
+<a href=#133 id=133 data-nosnippet>133</a>    </span><span class="kw">pub </span>count: usize,
+<a href=#134 id=134 data-nosnippet>134</a>}
+<a href=#135 id=135 data-nosnippet>135</a>
+<a href=#136 id=136 data-nosnippet>136</a><span class="doccomment">/// The stats emit — every dimension counted over the same
+<a href=#137 id=137 data-nosnippet>137</a>/// universe; empty dimensions yield empty vecs (renderers skip
+<a href=#138 id=138 data-nosnippet>138</a>/// them).
+<a href=#139 id=139 data-nosnippet>139</a></span><span class="attr">#[derive(Debug, Default, PartialEq, Eq)]
+<a href=#140 id=140 data-nosnippet>140</a></span><span class="kw">pub struct </span>Stats {
+<a href=#141 id=141 data-nosnippet>141</a>    <span class="doccomment">/// By lifecycle status — canonical [`Status::ALL`] order.
+<a href=#142 id=142 data-nosnippet>142</a>    </span><span class="kw">pub </span>status: Vec&lt;Tally&gt;,
+<a href=#143 id=143 data-nosnippet>143</a>    <span class="doccomment">/// By priority — crit-first.
+<a href=#144 id=144 data-nosnippet>144</a>    </span><span class="kw">pub </span>priority: Vec&lt;Tally&gt;,
+<a href=#145 id=145 data-nosnippet>145</a>    <span class="doccomment">/// By owner — alphabetical, unclaimed last.
+<a href=#146 id=146 data-nosnippet>146</a>    </span><span class="kw">pub </span>owner: Vec&lt;Tally&gt;,
+<a href=#147 id=147 data-nosnippet>147</a>    <span class="doccomment">/// By epic — alphabetical, ungrouped last.
+<a href=#148 id=148 data-nosnippet>148</a>    </span><span class="kw">pub </span>epic: Vec&lt;Tally&gt;,
+<a href=#149 id=149 data-nosnippet>149</a>    <span class="doccomment">/// By milestone — alphabetical, ungrouped last.
+<a href=#150 id=150 data-nosnippet>150</a>    </span><span class="kw">pub </span>milestone: Vec&lt;Tally&gt;,
+<a href=#151 id=151 data-nosnippet>151</a>    <span class="doccomment">/// By cycle — alphabetical, ungrouped last.
+<a href=#152 id=152 data-nosnippet>152</a>    </span><span class="kw">pub </span>cycle: Vec&lt;Tally&gt;,
+<a href=#153 id=153 data-nosnippet>153</a>    <span class="doccomment">/// By label — every observed `#label`, alphabetical.
+<a href=#154 id=154 data-nosnippet>154</a>    </span><span class="kw">pub </span>label: Vec&lt;Tally&gt;,
+<a href=#155 id=155 data-nosnippet>155</a>}
+<a href=#156 id=156 data-nosnippet>156</a>
+<a href=#157 id=157 data-nosnippet>157</a><span class="kw">fn </span>tally_named&lt;<span class="lifetime">'a</span>&gt;(
+<a href=#158 id=158 data-nosnippet>158</a>    items: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Item&gt;,
+<a href=#159 id=159 data-nosnippet>159</a>    pick: <span class="kw">impl </span>Fn(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>Item) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
+<a href=#160 id=160 data-nosnippet>160</a>) -&gt; Vec&lt;Tally&gt; {
+<a href=#161 id=161 data-nosnippet>161</a>    <span class="kw">let </span><span class="kw-2">mut </span>named: BTreeMap&lt;<span class="kw-2">&amp;</span>str, usize&gt; = BTreeMap::new();
+<a href=#162 id=162 data-nosnippet>162</a>    <span class="kw">let </span><span class="kw-2">mut </span>ungrouped = <span class="number">0usize</span>;
+<a href=#163 id=163 data-nosnippet>163</a>    <span class="kw">for </span>i <span class="kw">in </span>items {
+<a href=#164 id=164 data-nosnippet>164</a>        <span class="kw">match </span>pick(i) {
+<a href=#165 id=165 data-nosnippet>165</a>            <span class="prelude-val">Some</span>(v) =&gt; <span class="kw-2">*</span>named.entry(v).or_default() += <span class="number">1</span>,
+<a href=#166 id=166 data-nosnippet>166</a>            <span class="prelude-val">None </span>=&gt; ungrouped += <span class="number">1</span>,
+<a href=#167 id=167 data-nosnippet>167</a>        }
+<a href=#168 id=168 data-nosnippet>168</a>    }
+<a href=#169 id=169 data-nosnippet>169</a>    <span class="kw">let </span><span class="kw-2">mut </span>out: Vec&lt;Tally&gt; = named
+<a href=#170 id=170 data-nosnippet>170</a>        .into_iter()
+<a href=#171 id=171 data-nosnippet>171</a>        .map(|(name, count)| Tally {
+<a href=#172 id=172 data-nosnippet>172</a>            name: name.to_string(),
+<a href=#173 id=173 data-nosnippet>173</a>            count,
+<a href=#174 id=174 data-nosnippet>174</a>        })
+<a href=#175 id=175 data-nosnippet>175</a>        .collect();
+<a href=#176 id=176 data-nosnippet>176</a>    <span class="kw">if </span>ungrouped &gt; <span class="number">0 </span>{
+<a href=#177 id=177 data-nosnippet>177</a>        out.push(Tally {
+<a href=#178 id=178 data-nosnippet>178</a>            name: UNGROUPED.to_string(),
+<a href=#179 id=179 data-nosnippet>179</a>            count: ungrouped,
+<a href=#180 id=180 data-nosnippet>180</a>        });
+<a href=#181 id=181 data-nosnippet>181</a>    }
+<a href=#182 id=182 data-nosnippet>182</a>    out
+<a href=#183 id=183 data-nosnippet>183</a>}
+<a href=#184 id=184 data-nosnippet>184</a>
+<a href=#185 id=185 data-nosnippet>185</a><span class="doccomment">/// Count-by-dimension tallies over the filtered universe.
+<a href=#186 id=186 data-nosnippet>186</a>/// Children count too when the caller fed them — stats are
+<a href=#187 id=187 data-nosnippet>187</a>/// counts, not rows.
+<a href=#188 id=188 data-nosnippet>188</a></span><span class="kw">pub fn </span>stats&lt;<span class="lifetime">'a</span>&gt;(items: <span class="kw-2">&amp;</span>[Scoped&lt;<span class="lifetime">'a</span>&gt;]) -&gt; Stats {
+<a href=#189 id=189 data-nosnippet>189</a>    <span class="kw">let </span><span class="kw-2">mut </span>status_counts = <span class="macro">vec!</span>[<span class="number">0usize</span>; Status::ALL.len()];
+<a href=#190 id=190 data-nosnippet>190</a>    <span class="kw">let </span><span class="kw-2">mut </span>pri_counts = <span class="macro">vec!</span>[<span class="number">0usize</span>; Priority::ALL.len()];
+<a href=#191 id=191 data-nosnippet>191</a>    <span class="kw">let </span><span class="kw-2">mut </span>labels: BTreeMap&lt;<span class="kw-2">&amp;</span>str, usize&gt; = BTreeMap::new();
+<a href=#192 id=192 data-nosnippet>192</a>    <span class="kw">for </span>s <span class="kw">in </span>items {
+<a href=#193 id=193 data-nosnippet>193</a>        status_counts[s.item.status <span class="kw">as </span>usize] += <span class="number">1</span>;
+<a href=#194 id=194 data-nosnippet>194</a>        pri_counts[s.item.priority <span class="kw">as </span>usize] += <span class="number">1</span>;
+<a href=#195 id=195 data-nosnippet>195</a>        <span class="kw">for </span>l <span class="kw">in </span><span class="kw-2">&amp;</span>s.item.labels {
+<a href=#196 id=196 data-nosnippet>196</a>            <span class="kw-2">*</span>labels.entry(l.as_str()).or_default() += <span class="number">1</span>;
+<a href=#197 id=197 data-nosnippet>197</a>        }
+<a href=#198 id=198 data-nosnippet>198</a>    }
+<a href=#199 id=199 data-nosnippet>199</a>    Stats {
+<a href=#200 id=200 data-nosnippet>200</a>        status: Status::ALL
+<a href=#201 id=201 data-nosnippet>201</a>            .iter()
+<a href=#202 id=202 data-nosnippet>202</a>            .enumerate()
+<a href=#203 id=203 data-nosnippet>203</a>            .filter(|(i, <span class="kw">_</span>)| status_counts[<span class="kw-2">*</span>i] &gt; <span class="number">0</span>)
+<a href=#204 id=204 data-nosnippet>204</a>            .map(|(<span class="kw">_</span>, s)| Tally {
+<a href=#205 id=205 data-nosnippet>205</a>                name: s.token().to_string(),
+<a href=#206 id=206 data-nosnippet>206</a>                count: status_counts[<span class="kw-2">*</span>s <span class="kw">as </span>usize],
+<a href=#207 id=207 data-nosnippet>207</a>            })
+<a href=#208 id=208 data-nosnippet>208</a>            .collect(),
+<a href=#209 id=209 data-nosnippet>209</a>        priority: Priority::ALL
+<a href=#210 id=210 data-nosnippet>210</a>            .iter()
+<a href=#211 id=211 data-nosnippet>211</a>            .rev()
+<a href=#212 id=212 data-nosnippet>212</a>            .filter(|p| pri_counts[<span class="kw-2">**</span>p <span class="kw">as </span>usize] &gt; <span class="number">0</span>)
+<a href=#213 id=213 data-nosnippet>213</a>            .map(|p| Tally {
+<a href=#214 id=214 data-nosnippet>214</a>                name: p.name().to_string(),
+<a href=#215 id=215 data-nosnippet>215</a>                count: pri_counts[<span class="kw-2">*</span>p <span class="kw">as </span>usize],
+<a href=#216 id=216 data-nosnippet>216</a>            })
+<a href=#217 id=217 data-nosnippet>217</a>            .collect(),
+<a href=#218 id=218 data-nosnippet>218</a>        owner: tally_named(items.iter().map(|s| s.item), |i| {
+<a href=#219 id=219 data-nosnippet>219</a>            i.owner.as_ref().map(|o| o.as_str())
+<a href=#220 id=220 data-nosnippet>220</a>        }),
+<a href=#221 id=221 data-nosnippet>221</a>        epic: tally_named(items.iter().map(|s| s.item), |i| i.epic.as_deref()),
+<a href=#222 id=222 data-nosnippet>222</a>        milestone: tally_named(items.iter().map(|s| s.item), |i| i.milestone.as_deref()),
+<a href=#223 id=223 data-nosnippet>223</a>        cycle: tally_named(items.iter().map(|s| s.item), |i| i.cycle.as_deref()),
+<a href=#224 id=224 data-nosnippet>224</a>        label: labels
+<a href=#225 id=225 data-nosnippet>225</a>            .into_iter()
+<a href=#226 id=226 data-nosnippet>226</a>            .map(|(name, count)| Tally {
+<a href=#227 id=227 data-nosnippet>227</a>                name: name.to_string(),
+<a href=#228 id=228 data-nosnippet>228</a>                count,
+<a href=#229 id=229 data-nosnippet>229</a>            })
+<a href=#230 id=230 data-nosnippet>230</a>            .collect(),
+<a href=#231 id=231 data-nosnippet>231</a>    }
+<a href=#232 id=232 data-nosnippet>232</a>}
+<a href=#233 id=233 data-nosnippet>233</a>
+<a href=#234 id=234 data-nosnippet>234</a><span class="doccomment">/// One day on a burnup curve.
+<a href=#235 id=235 data-nosnippet>235</a></span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+<a href=#236 id=236 data-nosnippet>236</a></span><span class="kw">pub struct </span>BurnupPoint {
+<a href=#237 id=237 data-nosnippet>237</a>    <span class="doccomment">/// The day.
+<a href=#238 id=238 data-nosnippet>238</a>    </span><span class="kw">pub </span>date: Date,
+<a href=#239 id=239 data-nosnippet>239</a>    <span class="doccomment">/// Items whose `done:` stamp is on or before `date`.
+<a href=#240 id=240 data-nosnippet>240</a>    </span><span class="kw">pub </span>done: u64,
+<a href=#241 id=241 data-nosnippet>241</a>    <span class="doccomment">/// The series' total scope — constant across the window.
+<a href=#242 id=242 data-nosnippet>242</a>    </span><span class="kw">pub </span>scope: u64,
+<a href=#243 id=243 data-nosnippet>243</a>}
+<a href=#244 id=244 data-nosnippet>244</a>
+<a href=#245 id=245 data-nosnippet>245</a><span class="doccomment">/// One burnup series — a cycle's window, or the whole ledger
+<a href=#246 id=246 data-nosnippet>246</a>/// (`cycle: None`) when items aren't cycled.
+<a href=#247 id=247 data-nosnippet>247</a></span><span class="attr">#[derive(Debug, PartialEq, Eq)]
+<a href=#248 id=248 data-nosnippet>248</a></span><span class="kw">pub struct </span>BurnupSeries&lt;<span class="lifetime">'a</span>&gt; {
+<a href=#249 id=249 data-nosnippet>249</a>    <span class="doccomment">/// The `[[cycles]]` name this series tracks; `None` for the
+<a href=#250 id=250 data-nosnippet>250</a>    /// uncycled remainder (always last when present).
+<a href=#251 id=251 data-nosnippet>251</a>    </span><span class="kw">pub </span>cycle: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
+<a href=#252 id=252 data-nosnippet>252</a>    <span class="doccomment">/// One point per day in the window, inclusive.
+<a href=#253 id=253 data-nosnippet>253</a>    </span><span class="kw">pub </span>points: Vec&lt;BurnupPoint&gt;,
+<a href=#254 id=254 data-nosnippet>254</a>}
+<a href=#255 id=255 data-nosnippet>255</a>
+<a href=#256 id=256 data-nosnippet>256</a><span class="doccomment">/// The burnup window — the `[[cycles]]` window covering `today`
+<a href=#257 id=257 data-nosnippet>257</a>/// when one exists (the in-flight iteration), else the trailing
+<a href=#258 id=258 data-nosnippet>258</a>/// 8 weeks. Rollover is manual: outside every declared window the
+<a href=#259 id=259 data-nosnippet>259</a>/// emit falls back rather than guessing.
+<a href=#260 id=260 data-nosnippet>260</a></span><span class="kw">pub fn </span>burnup_window(cycles: <span class="kw-2">&amp;</span>[CycleConfig], today: Date) -&gt; (Date, Date) {
+<a href=#261 id=261 data-nosnippet>261</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(c) = cycles.iter().find(|c| c.start &lt;= today &amp;&amp; today &lt;= c.end) {
+<a href=#262 id=262 data-nosnippet>262</a>        (c.start, c.end)
+<a href=#263 id=263 data-nosnippet>263</a>    } <span class="kw">else </span>{
+<a href=#264 id=264 data-nosnippet>264</a>        (today - Duration::days(<span class="number">56</span>), today)
+<a href=#265 id=265 data-nosnippet>265</a>    }
+<a href=#266 id=266 data-nosnippet>266</a>}
+<a href=#267 id=267 data-nosnippet>267</a>
+<a href=#268 id=268 data-nosnippet>268</a><span class="doccomment">/// Burnup over `[start, end]` inclusive — one series per observed
+<a href=#269 id=269 data-nosnippet>269</a>/// `cycle:` value plus one per declared-but-empty cycle, and a
+<a href=#270 id=270 data-nosnippet>270</a>/// `None` series for uncycled items (last). Scope counts every
+<a href=#271 id=271 data-nosnippet>271</a>/// item in the partition; `done` counts `done:`-stamped items
+<a href=#272 id=272 data-nosnippet>272</a>/// whose stamp falls on or before each day — unstamped archive
+<a href=#273 id=273 data-nosnippet>273</a>/// predates the field and never moves the curve.
+<a href=#274 id=274 data-nosnippet>274</a></span><span class="kw">pub fn </span>burnup&lt;<span class="lifetime">'a</span>&gt;(
+<a href=#275 id=275 data-nosnippet>275</a>    items: <span class="kw-2">&amp;</span>[Scoped&lt;<span class="lifetime">'a</span>&gt;],
+<a href=#276 id=276 data-nosnippet>276</a>    cycles: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[CycleConfig],
+<a href=#277 id=277 data-nosnippet>277</a>    window: (Date, Date),
+<a href=#278 id=278 data-nosnippet>278</a>) -&gt; Vec&lt;BurnupSeries&lt;<span class="lifetime">'a</span>&gt;&gt; {
+<a href=#279 id=279 data-nosnippet>279</a>    <span class="kw">let </span>(start, end) = window;
+<a href=#280 id=280 data-nosnippet>280</a>    <span class="kw">if </span>end &lt; start {
+<a href=#281 id=281 data-nosnippet>281</a>        <span class="kw">return </span>Vec::new();
+<a href=#282 id=282 data-nosnippet>282</a>    }
+<a href=#283 id=283 data-nosnippet>283</a>    <span class="comment">// partition: declared cycles first (sorted), then observed
+<a href=#284 id=284 data-nosnippet>284</a>    // undeclared names, then the uncycled remainder
+<a href=#285 id=285 data-nosnippet>285</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>by_cycle: BTreeMap&lt;<span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;, Vec&lt;<span class="kw-2">&amp;</span>Item&gt;&gt; = BTreeMap::new();
+<a href=#286 id=286 data-nosnippet>286</a>    <span class="kw">for </span>s <span class="kw">in </span>items {
+<a href=#287 id=287 data-nosnippet>287</a>        by_cycle
+<a href=#288 id=288 data-nosnippet>288</a>            .entry(s.item.cycle.as_deref())
+<a href=#289 id=289 data-nosnippet>289</a>            .or_default()
+<a href=#290 id=290 data-nosnippet>290</a>            .push(s.item);
+<a href=#291 id=291 data-nosnippet>291</a>    }
+<a href=#292 id=292 data-nosnippet>292</a>    <span class="kw">let </span><span class="kw-2">mut </span>series_cycles: Vec&lt;<span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;&gt; = Vec::new();
+<a href=#293 id=293 data-nosnippet>293</a>    <span class="kw">for </span>c <span class="kw">in </span>cycles {
+<a href=#294 id=294 data-nosnippet>294</a>        <span class="kw">let </span>name = c.name.as_str();
+<a href=#295 id=295 data-nosnippet>295</a>        <span class="kw">if </span>!series_cycles.contains(<span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(name)) {
+<a href=#296 id=296 data-nosnippet>296</a>            series_cycles.push(<span class="prelude-val">Some</span>(name));
+<a href=#297 id=297 data-nosnippet>297</a>        }
+<a href=#298 id=298 data-nosnippet>298</a>    }
+<a href=#299 id=299 data-nosnippet>299</a>    <span class="kw">for </span>key <span class="kw">in </span>by_cycle.keys() {
+<a href=#300 id=300 data-nosnippet>300</a>        <span class="kw">if </span>key.is_some() &amp;&amp; !series_cycles.contains(key) {
+<a href=#301 id=301 data-nosnippet>301</a>            series_cycles.push(<span class="kw-2">*</span>key);
+<a href=#302 id=302 data-nosnippet>302</a>        }
+<a href=#303 id=303 data-nosnippet>303</a>    }
+<a href=#304 id=304 data-nosnippet>304</a>    <span class="kw">if </span>by_cycle.contains_key(<span class="kw-2">&amp;</span><span class="prelude-val">None</span>) {
+<a href=#305 id=305 data-nosnippet>305</a>        series_cycles.push(<span class="prelude-val">None</span>);
+<a href=#306 id=306 data-nosnippet>306</a>    }
+<a href=#307 id=307 data-nosnippet>307</a>
+<a href=#308 id=308 data-nosnippet>308</a>    <span class="kw">let </span>days = (end - start).whole_days() <span class="kw">as </span>usize + <span class="number">1</span>;
+<a href=#309 id=309 data-nosnippet>309</a>    series_cycles
+<a href=#310 id=310 data-nosnippet>310</a>        .into_iter()
+<a href=#311 id=311 data-nosnippet>311</a>        .map(|cycle| {
+<a href=#312 id=312 data-nosnippet>312</a>            <span class="kw">let </span>members: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>Item] = by_cycle.get(<span class="kw-2">&amp;</span>cycle).map(Vec::as_slice).unwrap_or(<span class="kw-2">&amp;</span>[]);
+<a href=#313 id=313 data-nosnippet>313</a>            <span class="kw">let </span>scope = members.len() <span class="kw">as </span>u64;
+<a href=#314 id=314 data-nosnippet>314</a>            <span class="kw">let </span>stamps: Vec&lt;Date&gt; = members.iter().filter_map(|i| i.done).collect();
+<a href=#315 id=315 data-nosnippet>315</a>            <span class="kw">let </span>points = (<span class="number">0</span>..days)
+<a href=#316 id=316 data-nosnippet>316</a>                .map(|d| {
+<a href=#317 id=317 data-nosnippet>317</a>                    <span class="kw">let </span>date = start + Duration::days(d <span class="kw">as </span>i64);
+<a href=#318 id=318 data-nosnippet>318</a>                    BurnupPoint {
+<a href=#319 id=319 data-nosnippet>319</a>                        date,
+<a href=#320 id=320 data-nosnippet>320</a>                        done: stamps.iter().filter(|s| <span class="kw-2">**</span>s &lt;= date).count() <span class="kw">as </span>u64,
+<a href=#321 id=321 data-nosnippet>321</a>                        scope,
+<a href=#322 id=322 data-nosnippet>322</a>                    }
+<a href=#323 id=323 data-nosnippet>323</a>                })
+<a href=#324 id=324 data-nosnippet>324</a>                .collect();
+<a href=#325 id=325 data-nosnippet>325</a>            BurnupSeries { cycle, points }
+<a href=#326 id=326 data-nosnippet>326</a>        })
+<a href=#327 id=327 data-nosnippet>327</a>        .collect()
+<a href=#328 id=328 data-nosnippet>328</a>}
+<a href=#329 id=329 data-nosnippet>329</a>
+<a href=#330 id=330 data-nosnippet>330</a><span class="attr">#[cfg(test)]
+<a href=#331 id=331 data-nosnippet>331</a>#[allow(clippy::unwrap_used)]
+<a href=#332 id=332 data-nosnippet>332</a></span><span class="kw">mod </span>tests {
+<a href=#333 id=333 data-nosnippet>333</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#334 id=334 data-nosnippet>334</a>    <span class="kw">use crate</span>::{date, ItemId, ItemKind};
+<a href=#335 id=335 data-nosnippet>335</a>
+<a href=#336 id=336 data-nosnippet>336</a>    <span class="kw">fn </span>t(n: u32) -&gt; Item {
+<a href=#337 id=337 data-nosnippet>337</a>        Item::new(ItemId::new(ItemKind::Task, n), <span class="string">"x"</span>)
+<a href=#338 id=338 data-nosnippet>338</a>    }
+<a href=#339 id=339 data-nosnippet>339</a>
+<a href=#340 id=340 data-nosnippet>340</a>    <span class="kw">fn </span>d(s: <span class="kw-2">&amp;</span>str) -&gt; Date {
+<a href=#341 id=341 data-nosnippet>341</a>        date::parse(s).unwrap()
+<a href=#342 id=342 data-nosnippet>342</a>    }
+<a href=#343 id=343 data-nosnippet>343</a>
+<a href=#344 id=344 data-nosnippet>344</a>    <span class="kw">fn </span>scoped&lt;<span class="lifetime">'a</span>&gt;(items: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Item]) -&gt; Vec&lt;Scoped&lt;<span class="lifetime">'a</span>&gt;&gt; {
+<a href=#345 id=345 data-nosnippet>345</a>        items.iter().map(Scoped::new).collect()
+<a href=#346 id=346 data-nosnippet>346</a>    }
+<a href=#347 id=347 data-nosnippet>347</a>
+<a href=#348 id=348 data-nosnippet>348</a>    <span class="attr">#[test]
+<a href=#349 id=349 data-nosnippet>349</a>    </span><span class="kw">fn </span>timeline_lanes_order_and_specificity() {
+<a href=#350 id=350 data-nosnippet>350</a>        <span class="kw">let </span>items = <span class="macro">vec!</span>[
+<a href=#351 id=351 data-nosnippet>351</a>            t(<span class="number">1</span>).epic(<span class="string">"e1"</span>).due(d(<span class="string">"2026-01-05"</span>)),
+<a href=#352 id=352 data-nosnippet>352</a>            t(<span class="number">2</span>).epic(<span class="string">"e1"</span>).milestone(<span class="string">"m1"</span>).due(d(<span class="string">"2026-01-02"</span>)),
+<a href=#353 id=353 data-nosnippet>353</a>            t(<span class="number">3</span>).cycle(<span class="string">"s1"</span>)
+<a href=#354 id=354 data-nosnippet>354</a>                .milestone(<span class="string">"m1"</span>)
+<a href=#355 id=355 data-nosnippet>355</a>                .epic(<span class="string">"e1"</span>)
+<a href=#356 id=356 data-nosnippet>356</a>                .due(d(<span class="string">"2026-01-09"</span>)),
+<a href=#357 id=357 data-nosnippet>357</a>            t(<span class="number">4</span>),
+<a href=#358 id=358 data-nosnippet>358</a>            t(<span class="number">5</span>).epic(<span class="string">"e2"</span>),
+<a href=#359 id=359 data-nosnippet>359</a>        ];
+<a href=#360 id=360 data-nosnippet>360</a>        <span class="kw">let </span>lanes = timeline(scoped(<span class="kw-2">&amp;</span>items));
+<a href=#361 id=361 data-nosnippet>361</a>        <span class="kw">let </span>names: Vec&lt;(<span class="kw-2">&amp;</span>str, <span class="kw-2">&amp;</span>str)&gt; = lanes
+<a href=#362 id=362 data-nosnippet>362</a>            .iter()
+<a href=#363 id=363 data-nosnippet>363</a>            .map(|l| (l.kind.name(), l.name.as_str()))
+<a href=#364 id=364 data-nosnippet>364</a>            .collect();
+<a href=#365 id=365 data-nosnippet>365</a>        <span class="comment">// epic lanes first (e1 has only t1 — t2/t3 promoted),
+<a href=#366 id=366 data-nosnippet>366</a>        // then milestone m1 (t2), then cycle s1 (t3), ungrouped last
+<a href=#367 id=367 data-nosnippet>367</a>        </span><span class="macro">assert_eq!</span>(
+<a href=#368 id=368 data-nosnippet>368</a>            names,
+<a href=#369 id=369 data-nosnippet>369</a>            [
+<a href=#370 id=370 data-nosnippet>370</a>                (<span class="string">"epic"</span>, <span class="string">"e1"</span>),
+<a href=#371 id=371 data-nosnippet>371</a>                (<span class="string">"epic"</span>, <span class="string">"e2"</span>),
+<a href=#372 id=372 data-nosnippet>372</a>                (<span class="string">"milestone"</span>, <span class="string">"m1"</span>),
+<a href=#373 id=373 data-nosnippet>373</a>                (<span class="string">"cycle"</span>, <span class="string">"s1"</span>),
+<a href=#374 id=374 data-nosnippet>374</a>                (<span class="string">"ungrouped"</span>, UNGROUPED),
+<a href=#375 id=375 data-nosnippet>375</a>            ]
+<a href=#376 id=376 data-nosnippet>376</a>        );
+<a href=#377 id=377 data-nosnippet>377</a>        <span class="comment">// within e1: t1 only; due ordering inside lanes
+<a href=#378 id=378 data-nosnippet>378</a>        </span><span class="macro">assert_eq!</span>(lanes[<span class="number">0</span>].items[<span class="number">0</span>].item.id.to_string(), <span class="string">"T-001"</span>);
+<a href=#379 id=379 data-nosnippet>379</a>        <span class="macro">assert_eq!</span>(lanes[<span class="number">4</span>].items[<span class="number">0</span>].item.id.to_string(), <span class="string">"T-004"</span>);
+<a href=#380 id=380 data-nosnippet>380</a>    }
+<a href=#381 id=381 data-nosnippet>381</a>
+<a href=#382 id=382 data-nosnippet>382</a>    <span class="attr">#[test]
+<a href=#383 id=383 data-nosnippet>383</a>    </span><span class="kw">fn </span>stats_counts_every_dimension() {
+<a href=#384 id=384 data-nosnippet>384</a>        <span class="kw">let </span>items = <span class="macro">vec!</span>[
+<a href=#385 id=385 data-nosnippet>385</a>            t(<span class="number">1</span>).status(Status::Done)
+<a href=#386 id=386 data-nosnippet>386</a>                .priority(Priority::Critical)
+<a href=#387 id=387 data-nosnippet>387</a>                .owner(<span class="string">"devin"</span>.parse().unwrap())
+<a href=#388 id=388 data-nosnippet>388</a>                .epic(<span class="string">"e1"</span>)
+<a href=#389 id=389 data-nosnippet>389</a>                .cycle(<span class="string">"s1"</span>)
+<a href=#390 id=390 data-nosnippet>390</a>                .label(<span class="string">"bug"</span>),
+<a href=#391 id=391 data-nosnippet>391</a>            t(<span class="number">2</span>).priority(Priority::Low).label(<span class="string">"bug"</span>).label(<span class="string">"ui"</span>),
+<a href=#392 id=392 data-nosnippet>392</a>            t(<span class="number">3</span>),
+<a href=#393 id=393 data-nosnippet>393</a>        ];
+<a href=#394 id=394 data-nosnippet>394</a>        <span class="kw">let </span>s = stats(<span class="kw-2">&amp;</span>scoped(<span class="kw-2">&amp;</span>items));
+<a href=#395 id=395 data-nosnippet>395</a>        <span class="comment">// canonical status order — open before done
+<a href=#396 id=396 data-nosnippet>396</a>        </span><span class="macro">assert_eq!</span>(s.status[<span class="number">0</span>].name, <span class="string">"open"</span>);
+<a href=#397 id=397 data-nosnippet>397</a>        <span class="macro">assert_eq!</span>(s.status[<span class="number">0</span>].count, <span class="number">2</span>);
+<a href=#398 id=398 data-nosnippet>398</a>        <span class="macro">assert_eq!</span>(s.status[<span class="number">1</span>].name, <span class="string">"done"</span>);
+<a href=#399 id=399 data-nosnippet>399</a>        <span class="macro">assert_eq!</span>(s.status[<span class="number">1</span>].count, <span class="number">1</span>);
+<a href=#400 id=400 data-nosnippet>400</a>        <span class="macro">assert_eq!</span>(s.priority[<span class="number">0</span>].name, <span class="string">"critical"</span>); <span class="comment">// crit-first
+<a href=#401 id=401 data-nosnippet>401</a>        </span><span class="macro">assert_eq!</span>(s.priority[<span class="number">1</span>].name, <span class="string">"medium"</span>); <span class="comment">// rank order
+<a href=#402 id=402 data-nosnippet>402</a>        </span><span class="macro">assert_eq!</span>(s.priority[<span class="number">2</span>].name, <span class="string">"low"</span>);
+<a href=#403 id=403 data-nosnippet>403</a>        <span class="macro">assert_eq!</span>(s.owner.len(), <span class="number">2</span>); <span class="comment">// devin + ungrouped
+<a href=#404 id=404 data-nosnippet>404</a>        </span><span class="macro">assert_eq!</span>(s.epic[<span class="number">0</span>].name, <span class="string">"e1"</span>);
+<a href=#405 id=405 data-nosnippet>405</a>        <span class="macro">assert_eq!</span>(s.cycle[<span class="number">0</span>].name, <span class="string">"s1"</span>);
+<a href=#406 id=406 data-nosnippet>406</a>        <span class="macro">assert_eq!</span>(s.label.len(), <span class="number">2</span>); <span class="comment">// bug×2, ui×1
+<a href=#407 id=407 data-nosnippet>407</a>        </span><span class="macro">assert_eq!</span>(s.label[<span class="number">0</span>].name, <span class="string">"bug"</span>);
+<a href=#408 id=408 data-nosnippet>408</a>        <span class="macro">assert_eq!</span>(s.label[<span class="number">0</span>].count, <span class="number">2</span>);
+<a href=#409 id=409 data-nosnippet>409</a>    }
+<a href=#410 id=410 data-nosnippet>410</a>
+<a href=#411 id=411 data-nosnippet>411</a>    <span class="attr">#[test]
+<a href=#412 id=412 data-nosnippet>412</a>    </span><span class="kw">fn </span>burnup_counts_stamps_and_scope() {
+<a href=#413 id=413 data-nosnippet>413</a>        <span class="kw">let </span><span class="kw-2">mut </span>done1 = t(<span class="number">1</span>);
+<a href=#414 id=414 data-nosnippet>414</a>        done1.status = Status::Done;
+<a href=#415 id=415 data-nosnippet>415</a>        done1.done = <span class="prelude-val">Some</span>(d(<span class="string">"2026-01-03"</span>));
+<a href=#416 id=416 data-nosnippet>416</a>        <span class="kw">let </span><span class="kw-2">mut </span>done2 = t(<span class="number">2</span>);
+<a href=#417 id=417 data-nosnippet>417</a>        done2.status = Status::Done;
+<a href=#418 id=418 data-nosnippet>418</a>        done2.done = <span class="prelude-val">Some</span>(d(<span class="string">"2026-01-05"</span>));
+<a href=#419 id=419 data-nosnippet>419</a>        <span class="kw">let </span><span class="kw-2">mut </span>old = t(<span class="number">3</span>); <span class="comment">// archived pre-stamp: scope, never curve
+<a href=#420 id=420 data-nosnippet>420</a>        </span>old.status = Status::Done;
+<a href=#421 id=421 data-nosnippet>421</a>        <span class="kw">let </span>live = t(<span class="number">4</span>);
+<a href=#422 id=422 data-nosnippet>422</a>        <span class="kw">let </span>items = <span class="macro">vec!</span>[done1, done2, old, live];
+<a href=#423 id=423 data-nosnippet>423</a>        <span class="kw">let </span>cycles = <span class="macro">vec!</span>[CycleConfig {
+<a href=#424 id=424 data-nosnippet>424</a>            name: <span class="string">"s1"</span>.into(),
+<a href=#425 id=425 data-nosnippet>425</a>            start: d(<span class="string">"2026-01-01"</span>),
+<a href=#426 id=426 data-nosnippet>426</a>            end: d(<span class="string">"2026-01-07"</span>),
+<a href=#427 id=427 data-nosnippet>427</a>        }];
+<a href=#428 id=428 data-nosnippet>428</a>        <span class="kw">let </span>series = burnup(<span class="kw-2">&amp;</span>scoped(<span class="kw-2">&amp;</span>items), <span class="kw-2">&amp;</span>cycles, (d(<span class="string">"2026-01-01"</span>), d(<span class="string">"2026-01-07"</span>)));
+<a href=#429 id=429 data-nosnippet>429</a>        <span class="comment">// one declared-cycle series (empty: no items carry cycle s1)
+<a href=#430 id=430 data-nosnippet>430</a>        // plus the uncycled remainder
+<a href=#431 id=431 data-nosnippet>431</a>        </span><span class="macro">assert_eq!</span>(series.len(), <span class="number">2</span>);
+<a href=#432 id=432 data-nosnippet>432</a>        <span class="kw">let </span>uncycled = <span class="kw-2">&amp;</span>series[<span class="number">1</span>];
+<a href=#433 id=433 data-nosnippet>433</a>        <span class="macro">assert_eq!</span>(uncycled.cycle, <span class="prelude-val">None</span>);
+<a href=#434 id=434 data-nosnippet>434</a>        <span class="macro">assert_eq!</span>(uncycled.points.len(), <span class="number">7</span>);
+<a href=#435 id=435 data-nosnippet>435</a>        <span class="macro">assert_eq!</span>(uncycled.points[<span class="number">0</span>].scope, <span class="number">4</span>);
+<a href=#436 id=436 data-nosnippet>436</a>        <span class="macro">assert_eq!</span>(uncycled.points[<span class="number">0</span>].done, <span class="number">0</span>);
+<a href=#437 id=437 data-nosnippet>437</a>        <span class="macro">assert_eq!</span>(uncycled.points[<span class="number">2</span>].done, <span class="number">1</span>); <span class="comment">// 01-03 stamp
+<a href=#438 id=438 data-nosnippet>438</a>        </span><span class="macro">assert_eq!</span>(uncycled.points[<span class="number">4</span>].done, <span class="number">2</span>); <span class="comment">// 01-05 stamp
+<a href=#439 id=439 data-nosnippet>439</a>        </span><span class="macro">assert_eq!</span>(uncycled.points[<span class="number">6</span>].done, <span class="number">2</span>); <span class="comment">// old never counts
+<a href=#440 id=440 data-nosnippet>440</a>    </span>}
+<a href=#441 id=441 data-nosnippet>441</a>
+<a href=#442 id=442 data-nosnippet>442</a>    <span class="attr">#[test]
+<a href=#443 id=443 data-nosnippet>443</a>    </span><span class="kw">fn </span>burnup_window_prefers_covering_cycle() {
+<a href=#444 id=444 data-nosnippet>444</a>        <span class="kw">let </span>cycles = <span class="macro">vec!</span>[CycleConfig {
+<a href=#445 id=445 data-nosnippet>445</a>            name: <span class="string">"s1"</span>.into(),
+<a href=#446 id=446 data-nosnippet>446</a>            start: d(<span class="string">"2026-01-01"</span>),
+<a href=#447 id=447 data-nosnippet>447</a>            end: d(<span class="string">"2026-01-14"</span>),
+<a href=#448 id=448 data-nosnippet>448</a>        }];
+<a href=#449 id=449 data-nosnippet>449</a>        <span class="macro">assert_eq!</span>(
+<a href=#450 id=450 data-nosnippet>450</a>            burnup_window(<span class="kw-2">&amp;</span>cycles, d(<span class="string">"2026-01-10"</span>)),
+<a href=#451 id=451 data-nosnippet>451</a>            (d(<span class="string">"2026-01-01"</span>), d(<span class="string">"2026-01-14"</span>))
+<a href=#452 id=452 data-nosnippet>452</a>        );
+<a href=#453 id=453 data-nosnippet>453</a>        <span class="comment">// outside every window → trailing 8 weeks
+<a href=#454 id=454 data-nosnippet>454</a>        </span><span class="kw">let </span>(s, e) = burnup_window(<span class="kw-2">&amp;</span>cycles, d(<span class="string">"2026-03-01"</span>));
+<a href=#455 id=455 data-nosnippet>455</a>        <span class="macro">assert_eq!</span>(e, d(<span class="string">"2026-03-01"</span>));
+<a href=#456 id=456 data-nosnippet>456</a>        <span class="macro">assert_eq!</span>((e - s).whole_days(), <span class="number">56</span>);
+<a href=#457 id=457 data-nosnippet>457</a>    }
+<a href=#458 id=458 data-nosnippet>458</a>}
+</code></pre></div></section></main></body></html>

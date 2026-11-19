@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["plugin_nodes"],"struct":["PluginNode","RendererBinding","RendererRegistry"]};

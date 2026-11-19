@@ -1,0 +1,1051 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/cuora-cli/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="cuora" data-themes="" data-resource-suffix="" data-rustdoc-version="1.99.1 (58cf8f9c3 2026-10-13) (Arch Linux rust 1:1.99.1-1)" data-channel="1.99.1" data-search-js="search-cf4fc35e.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">cuora/</div>lib.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! cuora — the engine as a library. Everything that used to live
+<a href=#2 id=2 data-nosnippet>2</a>//! in the binary lives here: [`Cli`]/`Cmd`, config load, verb
+<a href=#3 id=3 data-nosnippet>3</a>//! dispatch, audit. `run()` is the compat CLI's whole body; drivers
+<a href=#4 id=4 data-nosnippet>4</a>//! (the `cuora` bin, tamias-driver-cuora's `run`/ops surfaces)
+<a href=#5 id=5 data-nosnippet>5</a>//! split it into [`parse`]/[`parse_from`] + [`dispatch`] — argv in,
+<a href=#6 id=6 data-nosnippet>6</a>//! exit code out.
+<a href=#7 id=7 data-nosnippet>7</a>//!
+<a href=#8 id=8 data-nosnippet>8</a>//! cuora — secrets broker for agents. Sealed, not spilled.
+<a href=#9 id=9 data-nosnippet>9</a>//!
+<a href=#10 id=10 data-nosnippet>10</a>//! Code and config carry `cuora://` references, never values; `cuora
+<a href=#11 id=11 data-nosnippet>11</a>//! run` materializes declared secrets as env vars in the child only.
+<a href=#12 id=12 data-nosnippet>12</a>//! Every materialization — and every denial/failure — emits an
+<a href=#13 id=13 data-nosnippet>13</a>//! audit event: ndjson on stderr, plus OTLP spans when
+<a href=#14 id=14 data-nosnippet>14</a>//! `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
+<a href=#15 id=15 data-nosnippet>15</a>//!
+<a href=#16 id=16 data-nosnippet>16</a>//! Values never enter via CLI args — `put`/`rotate` read stdin or a
+<a href=#17 id=17 data-nosnippet>17</a>//! hidden `/dev/tty` prompt (args land in shell history and
+<a href=#18 id=18 data-nosnippet>18</a>//! `/proc`). `get` is the escape hatch that prints a value to
+<a href=#19 id=19 data-nosnippet>19</a>//! stdout; `[guardrails]` can advisory-deny it for agents.
+<a href=#20 id=20 data-nosnippet>20</a>
+<a href=#21 id=21 data-nosnippet>21</a></span><span class="kw">use </span>std::collections::BTreeMap;
+<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span>std::io::{IsTerminal, Read, Write};
+<a href=#23 id=23 data-nosnippet>23</a>
+<a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span>clap::{Parser, Subcommand};
+<a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span>cuora_core::{Op, Ref, Secret};
+<a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span>cuora_ops::{env_var, AuditEvent, LoadOpts, Ops, OpsError, Outcome};
+<a href=#27 id=27 data-nosnippet>27</a>
+<a href=#28 id=28 data-nosnippet>28</a><span class="doccomment">/// cuora — secrets broker for agents: `cuora://` refs, redaction,
+<a href=#29 id=29 data-nosnippet>29</a>/// env-injection instead of plaintext.
+<a href=#30 id=30 data-nosnippet>30</a>///
+<a href=#31 id=31 data-nosnippet>31</a>/// Refs name logical secrets (`cuora://billing/stripe`); `--env`
+<a href=#32 id=32 data-nosnippet>32</a>/// picks the resolution context. `[secrets]` in cuora.toml bounds
+<a href=#33 id=33 data-nosnippet>33</a>/// what `run`/`env` may inject. `manifest`/`schema` describe the
+<a href=#34 id=34 data-nosnippet>34</a>/// surface for machines; every verb honors `--json`.
+<a href=#35 id=35 data-nosnippet>35</a></span><span class="attr">#[derive(Parser)]
+<a href=#36 id=36 data-nosnippet>36</a>#[command(name = <span class="string">"cuora"</span>, version, about, long_about)]
+<a href=#37 id=37 data-nosnippet>37</a></span><span class="kw">pub struct </span>Cli {
+<a href=#38 id=38 data-nosnippet>38</a>    <span class="doccomment">/// Emit JSON — stable machine shapes on every verb; errors are
+<a href=#39 id=39 data-nosnippet>39</a>    /// `{"error": "…"}` on stderr with a non-zero exit.
+<a href=#40 id=40 data-nosnippet>40</a>    </span><span class="attr">#[arg(long, global = <span class="bool-val">true</span>)]
+<a href=#41 id=41 data-nosnippet>41</a>    </span>json: bool,
+<a href=#42 id=42 data-nosnippet>42</a>
+<a href=#43 id=43 data-nosnippet>43</a>    <span class="doccomment">/// Env context — `dev`/`staging`/`prod`/custom. Overrides
+<a href=#44 id=44 data-nosnippet>44</a>    /// `CUORA_ENV`; default `dev`.
+<a href=#45 id=45 data-nosnippet>45</a>    </span><span class="attr">#[arg(long, global = <span class="bool-val">true</span>, value_name = <span class="string">"ENV"</span>)]
+<a href=#46 id=46 data-nosnippet>46</a>    </span>env: <span class="prelude-ty">Option</span>&lt;String&gt;,
+<a href=#47 id=47 data-nosnippet>47</a>
+<a href=#48 id=48 data-nosnippet>48</a>    <span class="doccomment">/// Config file, overriding the search
+<a href=#49 id=49 data-nosnippet>49</a>    /// ($CUORA_CONFIG → ./cuora.toml → ~/.config/cuora/cuora.toml).
+<a href=#50 id=50 data-nosnippet>50</a>    </span><span class="attr">#[arg(long, global = <span class="bool-val">true</span>, value_name = <span class="string">"PATH"</span>)]
+<a href=#51 id=51 data-nosnippet>51</a>    </span>config: <span class="prelude-ty">Option</span>&lt;String&gt;,
+<a href=#52 id=52 data-nosnippet>52</a>
+<a href=#53 id=53 data-nosnippet>53</a>    <span class="doccomment">/// Actor attribution for audit events (default $CUORA_ACTOR,
+<a href=#54 id=54 data-nosnippet>54</a>    /// else $USER).
+<a href=#55 id=55 data-nosnippet>55</a>    </span><span class="attr">#[arg(long, global = <span class="bool-val">true</span>, value_name = <span class="string">"ACTOR"</span>)]
+<a href=#56 id=56 data-nosnippet>56</a>    </span>actor: <span class="prelude-ty">Option</span>&lt;String&gt;,
+<a href=#57 id=57 data-nosnippet>57</a>
+<a href=#58 id=58 data-nosnippet>58</a>    <span class="attr">#[command(subcommand)]
+<a href=#59 id=59 data-nosnippet>59</a>    </span>command: Cmd,
+<a href=#60 id=60 data-nosnippet>60</a>}
+<a href=#61 id=61 data-nosnippet>61</a>
+<a href=#62 id=62 data-nosnippet>62</a><span class="attr">#[derive(Subcommand)]
+<a href=#63 id=63 data-nosnippet>63</a></span><span class="kw">enum </span>Cmd {
+<a href=#64 id=64 data-nosnippet>64</a>    <span class="doccomment">/// Bootstrap: initialize the shared age identity (the
+<a href=#65 id=65 data-nosnippet>65</a>    /// tardigrada identity — per-human/per-machine, NOT repo
+<a href=#66 id=66 data-nosnippet>66</a>    /// setup; vault access is `cuora check`'s job). Stores the
+<a href=#67 id=67 data-nosnippet>67</a>    /// identity per `[identity] backend` /
+<a href=#68 id=68 data-nosnippet>68</a>    /// `CUORA_IDENTITY_BACKEND` — `keyring` (default) fails closed
+<a href=#69 id=69 data-nosnippet>69</a>    /// when no session store is reachable, `auto` falls back to the
+<a href=#70 id=70 data-nosnippet>70</a>    /// keyfile with a note, `file` never probes. Imports an
+<a href=#71 id=71 data-nosnippet>71</a>    /// existing identity.txt rather than orphaning it. Manage or
+<a href=#72 id=72 data-nosnippet>72</a>    /// move the identity afterwards with `tardigrada`.
+<a href=#73 id=73 data-nosnippet>73</a>    </span>Init {
+<a href=#74 id=74 data-nosnippet>74</a>        <span class="doccomment">/// Force the identity keyfile even when a keyring is
+<a href=#75 id=75 data-nosnippet>75</a>        /// available — the headless/CI mode.
+<a href=#76 id=76 data-nosnippet>76</a>        </span><span class="attr">#[arg(long)]
+<a href=#77 id=77 data-nosnippet>77</a>        </span>with_file: bool,
+<a href=#78 id=78 data-nosnippet>78</a>    },
+<a href=#79 id=79 data-nosnippet>79</a>    <span class="doccomment">/// Store a secret. The value comes from stdin (`printf … | cuora
+<a href=#80 id=80 data-nosnippet>80</a>    /// put cuora://ns/name`) or a hidden terminal prompt — never
+<a href=#81 id=81 data-nosnippet>81</a>    /// args, which land in shell history and `/proc`.
+<a href=#82 id=82 data-nosnippet>82</a>    </span>Put {
+<a href=#83 id=83 data-nosnippet>83</a>        <span class="doccomment">/// `cuora://` ref, e.g. cuora://billing/stripe.
+<a href=#84 id=84 data-nosnippet>84</a>        </span>rref: String,
+<a href=#85 id=85 data-nosnippet>85</a>    },
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="doccomment">/// Print a secret's value to stdout — the escape hatch. Prefer
+<a href=#87 id=87 data-nosnippet>87</a>    /// `cuora run` so values never enter agent context; guardrails
+<a href=#88 id=88 data-nosnippet>88</a>    /// can deny this op.
+<a href=#89 id=89 data-nosnippet>89</a>    </span>Get {
+<a href=#90 id=90 data-nosnippet>90</a>        <span class="doccomment">/// `cuora://` ref.
+<a href=#91 id=91 data-nosnippet>91</a>        </span>rref: String,
+<a href=#92 id=92 data-nosnippet>92</a>    },
+<a href=#93 id=93 data-nosnippet>93</a>    <span class="doccomment">/// List the refs stored in the selected env — names only, never
+<a href=#94 id=94 data-nosnippet>94</a>    /// values.
+<a href=#95 id=95 data-nosnippet>95</a>    </span>List,
+<a href=#96 id=96 data-nosnippet>96</a>    <span class="doccomment">/// Remove a secret from the selected env.
+<a href=#97 id=97 data-nosnippet>97</a>    </span>Rm {
+<a href=#98 id=98 data-nosnippet>98</a>        <span class="doccomment">/// `cuora://` ref.
+<a href=#99 id=99 data-nosnippet>99</a>        </span>rref: String,
+<a href=#100 id=100 data-nosnippet>100</a>    },
+<a href=#101 id=101 data-nosnippet>101</a>    <span class="doccomment">/// Rotate a secret to a new value (stdin or hidden prompt, like
+<a href=#102 id=102 data-nosnippet>102</a>    /// `put`); bumps version + rotated_at.
+<a href=#103 id=103 data-nosnippet>103</a>    </span>Rotate {
+<a href=#104 id=104 data-nosnippet>104</a>        <span class="doccomment">/// `cuora://` ref.
+<a href=#105 id=105 data-nosnippet>105</a>        </span>rref: String,
+<a href=#106 id=106 data-nosnippet>106</a>    },
+<a href=#107 id=107 data-nosnippet>107</a>    <span class="doccomment">/// Run a command with declared secrets injected as env vars.
+<a href=#108 id=108 data-nosnippet>108</a>    ///
+<a href=#109 id=109 data-nosnippet>109</a>    /// Injection surface = `[secrets]` in cuora.toml plus `-s
+<a href=#110 id=110 data-nosnippet>110</a>    /// VAR=cuora://ref` ad-hoc pairs; nothing else is injectable.
+<a href=#111 id=111 data-nosnippet>111</a>    /// Two exec modes after `--`:
+<a href=#112 id=112 data-nosnippet>112</a>    ///
+<a href=#113 id=113 data-nosnippet>113</a>    /// `cuora run -- 'pnpm test | tee log'` — one string → `bash -c`
+<a href=#114 id=114 data-nosnippet>114</a>    ///
+<a href=#115 id=115 data-nosnippet>115</a>    /// `cuora run -- pnpm test --filter x` — argv → direct exec
+<a href=#116 id=116 data-nosnippet>116</a>    ///
+<a href=#117 id=117 data-nosnippet>117</a>    /// argv mode needs no shell quoting — prefer it when the
+<a href=#118 id=118 data-nosnippet>118</a>    /// command has arguments. Exit code is the child's.
+<a href=#119 id=119 data-nosnippet>119</a>    </span>Run {
+<a href=#120 id=120 data-nosnippet>120</a>        <span class="doccomment">/// Extra `VAR=cuora://ref` pairs to inject (refused when
+<a href=#121 id=121 data-nosnippet>121</a>        /// `[guardrails] deny_adhoc` is set).
+<a href=#122 id=122 data-nosnippet>122</a>        </span><span class="attr">#[arg(short = <span class="string">'s'</span>, long = <span class="string">"secret"</span>, value_name = <span class="string">"VAR=CUORA_REF"</span>)]
+<a href=#123 id=123 data-nosnippet>123</a>        </span>secrets: Vec&lt;String&gt;,
+<a href=#124 id=124 data-nosnippet>124</a>        <span class="doccomment">/// Command to run (after `--`). One arg → `bash -c`;
+<a href=#125 id=125 data-nosnippet>125</a>        /// several → `argv[0]` exec'd directly with the rest.
+<a href=#126 id=126 data-nosnippet>126</a>        </span><span class="attr">#[arg(last = <span class="bool-val">true</span>, required = <span class="bool-val">true</span>)]
+<a href=#127 id=127 data-nosnippet>127</a>        </span>cmd: Vec&lt;String&gt;,
+<a href=#128 id=128 data-nosnippet>128</a>    },
+<a href=#129 id=129 data-nosnippet>129</a>    <span class="doccomment">/// Print `export VAR='…'` lines for `eval "$(cuora env)"` — the
+<a href=#130 id=130 data-nosnippet>130</a>    /// human path (`run` is the agent path). Values print to
+<a href=#131 id=131 data-nosnippet>131</a>    /// stdout: `--json` emits a `VAR → value` map.
+<a href=#132 id=132 data-nosnippet>132</a>    </span>Env {
+<a href=#133 id=133 data-nosnippet>133</a>        <span class="doccomment">/// Extra `VAR=cuora://ref` pairs to resolve.
+<a href=#134 id=134 data-nosnippet>134</a>        </span><span class="attr">#[arg(short = <span class="string">'s'</span>, long = <span class="string">"secret"</span>, value_name = <span class="string">"VAR=CUORA_REF"</span>)]
+<a href=#135 id=135 data-nosnippet>135</a>        </span>secrets: Vec&lt;String&gt;,
+<a href=#136 id=136 data-nosnippet>136</a>    },
+<a href=#137 id=137 data-nosnippet>137</a>    <span class="doccomment">/// Validate config + the declared surface: `[envs]` routes
+<a href=#138 id=138 data-nosnippet>138</a>    /// point at declared vaults, vaults decrypt, every `[secrets]`
+<a href=#139 id=139 data-nosnippet>139</a>    /// ref resolves in its routed env. Vault probes run
+<a href=#140 id=140 data-nosnippet>140</a>    /// concurrently under a deadline (`CUORA_CHECK_TIMEOUT_MS`,
+<a href=#141 id=141 data-nosnippet>141</a>    /// default 10s) — a stalled backend is a finding, not a hang.
+<a href=#142 id=142 data-nosnippet>142</a>    /// Exit 1 on findings.
+<a href=#143 id=143 data-nosnippet>143</a>    </span>Check,
+<a href=#144 id=144 data-nosnippet>144</a>    <span class="doccomment">/// Rewrite stored records for a wire/config upgrade. Currently
+<a href=#145 id=145 data-nosnippet>145</a>    /// one transform: `--private-refs` re-keys every plaintext-named
+<a href=#146 id=146 data-nosnippet>146</a>    /// row in each env routed to a cf vault with
+<a href=#147 id=147 data-nosnippet>147</a>    /// `[vaults.*] private_refs = true` — ciphertext moves verbatim,
+<a href=#148 id=148 data-nosnippet>148</a>    /// old keys are deleted after the new rows land.
+<a href=#149 id=149 data-nosnippet>149</a>    </span>Migrate {
+<a href=#150 id=150 data-nosnippet>150</a>        <span class="doccomment">/// Re-key cf-vault rows under HMAC-derived storage keys,
+<a href=#151 id=151 data-nosnippet>151</a>        /// attaching the encrypted `name` blob (P-004).
+<a href=#152 id=152 data-nosnippet>152</a>        </span><span class="attr">#[arg(long)]
+<a href=#153 id=153 data-nosnippet>153</a>        </span>private_refs: bool,
+<a href=#154 id=154 data-nosnippet>154</a>    },
+<a href=#155 id=155 data-nosnippet>155</a>    <span class="doccomment">/// Push a stored secret to a write-only deploy target
+<a href=#156 id=156 data-nosnippet>156</a>    /// (`[deploy.NAME]` in cuora.toml, e.g. a CF Secrets Store).
+<a href=#157 id=157 data-nosnippet>157</a>    /// The vault is the source of truth; the sink never gives the
+<a href=#158 id=158 data-nosnippet>158</a>    /// value back. With one configured target, `--target` may be
+<a href=#159 id=159 data-nosnippet>159</a>    /// omitted.
+<a href=#160 id=160 data-nosnippet>160</a>    </span>Deploy {
+<a href=#161 id=161 data-nosnippet>161</a>        <span class="doccomment">/// `cuora://` ref to push.
+<a href=#162 id=162 data-nosnippet>162</a>        </span>rref: String,
+<a href=#163 id=163 data-nosnippet>163</a>        <span class="doccomment">/// Deploy target name (`[deploy.NAME]`); required when
+<a href=#164 id=164 data-nosnippet>164</a>        /// several are configured.
+<a href=#165 id=165 data-nosnippet>165</a>        </span><span class="attr">#[arg(long, value_name = <span class="string">"NAME"</span>)]
+<a href=#166 id=166 data-nosnippet>166</a>        </span>target: <span class="prelude-ty">Option</span>&lt;String&gt;,
+<a href=#167 id=167 data-nosnippet>167</a>    },
+<a href=#168 id=168 data-nosnippet>168</a>    <span class="doccomment">/// Serve the Vault port over ndjson — one JSON request per
+<a href=#169 id=169 data-nosnippet>169</a>    /// stdin line, one response per stdout line, audit events on
+<a href=#170 id=170 data-nosnippet>170</a>    /// stderr unchanged. For orchestrators embedding cuora
+<a href=#171 id=171 data-nosnippet>171</a>    /// (peregrin); with `[serve.pdp]` configured, a policy
+<a href=#172 id=172 data-nosnippet>172</a>    /// decision point is consulted before every vault-touching
+<a href=#173 id=173 data-nosnippet>173</a>    /// op. `{"op":"manifest"}` on the wire describes the protocol.
+<a href=#174 id=174 data-nosnippet>174</a>    </span>Serve,
+<a href=#175 id=175 data-nosnippet>175</a>    <span class="doccomment">/// Capabilities, JSON shapes, env vars, audit contract — agent
+<a href=#176 id=176 data-nosnippet>176</a>    /// self-discovery (always JSON).
+<a href=#177 id=177 data-nosnippet>177</a>    </span>Manifest,
+<a href=#178 id=178 data-nosnippet>178</a>    <span class="doccomment">/// JSON Schema for `cuora.toml`.
+<a href=#179 id=179 data-nosnippet>179</a>    </span>Schema,
+<a href=#180 id=180 data-nosnippet>180</a>    <span class="doccomment">/// Print the CLI reference as markdown (docs pipeline —
+<a href=#181 id=181 data-nosnippet>181</a>    /// `bun run docs:cli` pipes it to `docs/reference/cli.md`).
+<a href=#182 id=182 data-nosnippet>182</a>    </span><span class="attr">#[command(hide = <span class="bool-val">true</span>, name = <span class="string">"gen-cli-docs"</span>)]
+<a href=#183 id=183 data-nosnippet>183</a>    </span>GenCliDocs,
+<a href=#184 id=184 data-nosnippet>184</a>}
+<a href=#185 id=185 data-nosnippet>185</a>
+<a href=#186 id=186 data-nosnippet>186</a><span class="doccomment">/// Process argv → a parsed [`Cli`]. Split from [`dispatch`] so
+<a href=#187 id=187 data-nosnippet>187</a>/// drivers can parse *their* argv (a `run` verb, a re-exec)
+<a href=#188 id=188 data-nosnippet>188</a>/// without owning process args. Clap errors/help still exit the
+<a href=#189 id=189 data-nosnippet>189</a>/// process, same as argv parsing.
+<a href=#190 id=190 data-nosnippet>190</a></span><span class="kw">pub fn </span>parse() -&gt; Cli {
+<a href=#191 id=191 data-nosnippet>191</a>    Cli::parse()
+<a href=#192 id=192 data-nosnippet>192</a>}
+<a href=#193 id=193 data-nosnippet>193</a>
+<a href=#194 id=194 data-nosnippet>194</a><span class="doccomment">/// Same, from an argv iterator — `parse_from(["cuora", "list"])`.
+<a href=#195 id=195 data-nosnippet>195</a></span><span class="kw">pub fn </span>parse_from&lt;I, T&gt;(itr: I) -&gt; Cli
+<a href=#196 id=196 data-nosnippet>196</a><span class="kw">where
+<a href=#197 id=197 data-nosnippet>197</a>    </span>I: IntoIterator&lt;Item = T&gt;,
+<a href=#198 id=198 data-nosnippet>198</a>    T: Into&lt;std::ffi::OsString&gt; + Clone,
+<a href=#199 id=199 data-nosnippet>199</a>{
+<a href=#200 id=200 data-nosnippet>200</a>    Cli::parse_from(itr)
+<a href=#201 id=201 data-nosnippet>201</a>}
+<a href=#202 id=202 data-nosnippet>202</a>
+<a href=#203 id=203 data-nosnippet>203</a><span class="doccomment">/// The clap verb tree as a [`clap::Command`] — the ops manifest
+<a href=#204 id=204 data-nosnippet>204</a>/// derives itself from this, so a verb can't exist on the CLI and
+<a href=#205 id=205 data-nosnippet>205</a>/// be missing from the driver's wire surface.
+<a href=#206 id=206 data-nosnippet>206</a></span><span class="kw">pub fn </span>command() -&gt; clap::Command {
+<a href=#207 id=207 data-nosnippet>207</a>    &lt;Cli <span class="kw">as </span>clap::CommandFactory&gt;::command()
+<a href=#208 id=208 data-nosnippet>208</a>}
+<a href=#209 id=209 data-nosnippet>209</a>
+<a href=#210 id=210 data-nosnippet>210</a><span class="doccomment">/// One parsed command → exit code. The dispatch every driver
+<a href=#211 id=211 data-nosnippet>211</a>/// shares; argv parsing is a caller concern. Audit events stay
+<a href=#212 id=212 data-nosnippet>212</a>/// buffered — callers that own a process exit flush via
+<a href=#213 id=213 data-nosnippet>213</a>/// [`run`]/[`run_from`], which also own sigpipe + the flush.
+<a href=#214 id=214 data-nosnippet>214</a></span><span class="kw">pub fn </span>dispatch(cli: <span class="kw-2">&amp;</span>Cli) -&gt; i32 {
+<a href=#215 id=215 data-nosnippet>215</a>    <span class="kw">match </span><span class="kw-2">&amp;</span>cli.command {
+<a href=#216 id=216 data-nosnippet>216</a>        <span class="comment">// Pure introspection — before config load, no audit event.
+<a href=#217 id=217 data-nosnippet>217</a>        </span>Cmd::Manifest =&gt; json_out(<span class="kw-2">&amp;</span>manifest()),
+<a href=#218 id=218 data-nosnippet>218</a>        Cmd::GenCliDocs =&gt; out(<span class="kw-2">&amp;</span>clap_markdown::help_markdown::&lt;Cli&gt;()),
+<a href=#219 id=219 data-nosnippet>219</a>        Cmd::Schema =&gt; out(<span class="kw-2">&amp;</span>schema_json()),
+<a href=#220 id=220 data-nosnippet>220</a>        cmd =&gt; {
+<a href=#221 id=221 data-nosnippet>221</a>            <span class="kw">let </span>op = cmd_op(cmd);
+<a href=#222 id=222 data-nosnippet>222</a>            <span class="kw">let </span>rref = cmd_rref(cmd);
+<a href=#223 id=223 data-nosnippet>223</a>            <span class="kw">let </span>ops = <span class="kw">match </span>load(cli) {
+<a href=#224 id=224 data-nosnippet>224</a>                <span class="prelude-val">Ok</span>(ops) =&gt; ops,
+<a href=#225 id=225 data-nosnippet>225</a>                <span class="prelude-val">Err</span>(e) =&gt; {
+<a href=#226 id=226 data-nosnippet>226</a>                    audit_fallback(cli, op, rref, Outcome::Error);
+<a href=#227 id=227 data-nosnippet>227</a>                    <span class="kw">return </span>fail(cli, <span class="kw-2">&amp;</span>e.to_string());
+<a href=#228 id=228 data-nosnippet>228</a>                }
+<a href=#229 id=229 data-nosnippet>229</a>            };
+<a href=#230 id=230 data-nosnippet>230</a>            <span class="comment">// Advisory guardrails — accident prevention, not
+<a href=#231 id=231 data-nosnippet>231</a>            // policy; enforced before the op touches the vault.
+<a href=#232 id=232 data-nosnippet>232</a>            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(g) = ops.config().guardrails.as_ref() {
+<a href=#233 id=233 data-nosnippet>233</a>                <span class="kw">if </span>!g.allows(op) {
+<a href=#234 id=234 data-nosnippet>234</a>                    <span class="kw">let </span>rref = norm_rref(<span class="kw-2">&amp;</span>ops, rref);
+<a href=#235 id=235 data-nosnippet>235</a>                    ops.emit(op, rref.as_deref(), Outcome::Denied);
+<a href=#236 id=236 data-nosnippet>236</a>                    <span class="comment">// guardrails only exist when a config file
+<a href=#237 id=237 data-nosnippet>237</a>                    // loaded — config_path is always Some here
+<a href=#238 id=238 data-nosnippet>238</a>                    </span><span class="attr">#[allow(clippy::unwrap_used)]
+<a href=#239 id=239 data-nosnippet>239</a>                    </span><span class="kw">let </span>at = ops
+<a href=#240 id=240 data-nosnippet>240</a>                        .config_path()
+<a href=#241 id=241 data-nosnippet>241</a>                        .expect(<span class="string">"guardrails imply a loaded config file"</span>)
+<a href=#242 id=242 data-nosnippet>242</a>                        .display()
+<a href=#243 id=243 data-nosnippet>243</a>                        .to_string();
+<a href=#244 id=244 data-nosnippet>244</a>                    <span class="kw">return </span>fail(
+<a href=#245 id=245 data-nosnippet>245</a>                        cli,
+<a href=#246 id=246 data-nosnippet>246</a>                        <span class="kw-2">&amp;</span><span class="macro">format!</span>(
+<a href=#247 id=247 data-nosnippet>247</a>                            <span class="string">"op '{op}' denied by guardrails in {at} \
+<a href=#248 id=248 data-nosnippet>248</a>                             (advisory — remove/relax the rule to allow)"
+<a href=#249 id=249 data-nosnippet>249</a>                        </span>),
+<a href=#250 id=250 data-nosnippet>250</a>                    );
+<a href=#251 id=251 data-nosnippet>251</a>                }
+<a href=#252 id=252 data-nosnippet>252</a>            }
+<a href=#253 id=253 data-nosnippet>253</a>            <span class="kw">match </span>run_cmd(cmd, cli, <span class="kw-2">&amp;</span>ops) {
+<a href=#254 id=254 data-nosnippet>254</a>                <span class="prelude-val">Ok</span>(code) =&gt; code,
+<a href=#255 id=255 data-nosnippet>255</a>                <span class="prelude-val">Err</span>(e) =&gt; {
+<a href=#256 id=256 data-nosnippet>256</a>                    <span class="kw">let </span>rref = norm_rref(<span class="kw-2">&amp;</span>ops, rref);
+<a href=#257 id=257 data-nosnippet>257</a>                    ops.emit(op, rref.as_deref(), Outcome::Error);
+<a href=#258 id=258 data-nosnippet>258</a>                    fail(cli, <span class="kw-2">&amp;</span>e.to_string())
+<a href=#259 id=259 data-nosnippet>259</a>                }
+<a href=#260 id=260 data-nosnippet>260</a>            }
+<a href=#261 id=261 data-nosnippet>261</a>        }
+<a href=#262 id=262 data-nosnippet>262</a>    }
+<a href=#263 id=263 data-nosnippet>263</a>}
+<a href=#264 id=264 data-nosnippet>264</a>
+<a href=#265 id=265 data-nosnippet>265</a><span class="doccomment">/// The compat CLI body — parse process argv, dispatch, flush
+<a href=#266 id=266 data-nosnippet>266</a>/// audit, hand back the exit code. Owns the process-level
+<a href=#267 id=267 data-nosnippet>267</a>/// concerns the old `main` did: sigpipe reset before parse and
+<a href=#268 id=268 data-nosnippet>268</a>/// the one audit flush every exit path funnels through.
+<a href=#269 id=269 data-nosnippet>269</a></span><span class="kw">pub fn </span>run() -&gt; i32 {
+<a href=#270 id=270 data-nosnippet>270</a>    run_from(std::env::args_os())
+<a href=#271 id=271 data-nosnippet>271</a>}
+<a href=#272 id=272 data-nosnippet>272</a>
+<a href=#273 id=273 data-nosnippet>273</a><span class="doccomment">/// Same, from an argv iterator — the `run` passthrough entry
+<a href=#274 id=274 data-nosnippet>274</a>/// drivers re-exec (`tamias-driver-cuora run &lt;cuora argv&gt;`).
+<a href=#275 id=275 data-nosnippet>275</a></span><span class="kw">pub fn </span>run_from&lt;I, T&gt;(argv: I) -&gt; i32
+<a href=#276 id=276 data-nosnippet>276</a><span class="kw">where
+<a href=#277 id=277 data-nosnippet>277</a>    </span>I: IntoIterator&lt;Item = T&gt;,
+<a href=#278 id=278 data-nosnippet>278</a>    T: Into&lt;std::ffi::OsString&gt; + Clone,
+<a href=#279 id=279 data-nosnippet>279</a>{
+<a href=#280 id=280 data-nosnippet>280</a>    sigpipe::reset();
+<a href=#281 id=281 data-nosnippet>281</a>    <span class="kw">let </span>cli = parse_from(argv);
+<a href=#282 id=282 data-nosnippet>282</a>    <span class="kw">let </span>code = dispatch(<span class="kw-2">&amp;</span>cli);
+<a href=#283 id=283 data-nosnippet>283</a>    <span class="comment">// Buffered audit events export as OTLP spans here — every
+<a href=#284 id=284 data-nosnippet>284</a>    // exit path funnels through this one flush.
+<a href=#285 id=285 data-nosnippet>285</a>    </span>cuora_ops::audit::flush();
+<a href=#286 id=286 data-nosnippet>286</a>    code
+<a href=#287 id=287 data-nosnippet>287</a>}
+<a href=#288 id=288 data-nosnippet>288</a>
+<a href=#289 id=289 data-nosnippet>289</a><span class="doccomment">/// The [`Op`] a subcommand maps to — what guardrails and audit
+<a href=#290 id=290 data-nosnippet>290</a>/// record.
+<a href=#291 id=291 data-nosnippet>291</a></span><span class="kw">fn </span>cmd_op(cmd: <span class="kw-2">&amp;</span>Cmd) -&gt; Op {
+<a href=#292 id=292 data-nosnippet>292</a>    <span class="kw">match </span>cmd {
+<a href=#293 id=293 data-nosnippet>293</a>        Cmd::Init { .. } =&gt; Op::Init,
+<a href=#294 id=294 data-nosnippet>294</a>        Cmd::Put { .. } =&gt; Op::Put,
+<a href=#295 id=295 data-nosnippet>295</a>        Cmd::Get { .. } =&gt; Op::Get,
+<a href=#296 id=296 data-nosnippet>296</a>        Cmd::List =&gt; Op::List,
+<a href=#297 id=297 data-nosnippet>297</a>        Cmd::Rm { .. } =&gt; Op::Rm,
+<a href=#298 id=298 data-nosnippet>298</a>        Cmd::Rotate { .. } =&gt; Op::Rotate,
+<a href=#299 id=299 data-nosnippet>299</a>        Cmd::Run { .. } =&gt; Op::Run,
+<a href=#300 id=300 data-nosnippet>300</a>        Cmd::Env { .. } =&gt; Op::Env,
+<a href=#301 id=301 data-nosnippet>301</a>        Cmd::Check =&gt; Op::Check,
+<a href=#302 id=302 data-nosnippet>302</a>        Cmd::Migrate { .. } =&gt; Op::Migrate,
+<a href=#303 id=303 data-nosnippet>303</a>        Cmd::Deploy { .. } =&gt; Op::Deploy,
+<a href=#304 id=304 data-nosnippet>304</a>        Cmd::Serve =&gt; Op::Serve,
+<a href=#305 id=305 data-nosnippet>305</a>        Cmd::Manifest =&gt; Op::Manifest,
+<a href=#306 id=306 data-nosnippet>306</a>        Cmd::Schema =&gt; Op::Schema,
+<a href=#307 id=307 data-nosnippet>307</a>        <span class="comment">// Handled before ops load — this arm is only for
+<a href=#308 id=308 data-nosnippet>308</a>        // exhaustiveness, never reached.
+<a href=#309 id=309 data-nosnippet>309</a>        </span>Cmd::GenCliDocs =&gt; Op::Schema,
+<a href=#310 id=310 data-nosnippet>310</a>    }
+<a href=#311 id=311 data-nosnippet>311</a>}
+<a href=#312 id=312 data-nosnippet>312</a>
+<a href=#313 id=313 data-nosnippet>313</a><span class="doccomment">/// The raw ref arg for verbs that take one — for denied/error
+<a href=#314 id=314 data-nosnippet>314</a>/// audit events, before (or regardless of) parse.
+<a href=#315 id=315 data-nosnippet>315</a></span><span class="kw">fn </span>cmd_rref(cmd: <span class="kw-2">&amp;</span>Cmd) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+<a href=#316 id=316 data-nosnippet>316</a>    <span class="kw">match </span>cmd {
+<a href=#317 id=317 data-nosnippet>317</a>        Cmd::Put { rref }
+<a href=#318 id=318 data-nosnippet>318</a>        | Cmd::Get { rref }
+<a href=#319 id=319 data-nosnippet>319</a>        | Cmd::Rm { rref }
+<a href=#320 id=320 data-nosnippet>320</a>        | Cmd::Rotate { rref }
+<a href=#321 id=321 data-nosnippet>321</a>        | Cmd::Deploy { rref, .. } =&gt; <span class="prelude-val">Some</span>(rref),
+<a href=#322 id=322 data-nosnippet>322</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+<a href=#323 id=323 data-nosnippet>323</a>    }
+<a href=#324 id=324 data-nosnippet>324</a>}
+<a href=#325 id=325 data-nosnippet>325</a>
+<a href=#326 id=326 data-nosnippet>326</a><span class="doccomment">/// Normalize a requested ref to the resolved-path form success
+<a href=#327 id=327 data-nosnippet>327</a>/// events carry (`env pin` stripped, no scheme) so the audit
+<a href=#328 id=328 data-nosnippet>328</a>/// stream correlates regardless of outcome. Falls back to the raw
+<a href=#329 id=329 data-nosnippet>329</a>/// arg when it doesn't parse — the honest record of a bad request.
+<a href=#330 id=330 data-nosnippet>330</a></span><span class="kw">fn </span>norm_rref(ops: <span class="kw-2">&amp;</span>Ops, raw: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+<a href=#331 id=331 data-nosnippet>331</a>    raw.map(|s| {
+<a href=#332 id=332 data-nosnippet>332</a>        Ref::new(s)
+<a href=#333 id=333 data-nosnippet>333</a>            .ok()
+<a href=#334 id=334 data-nosnippet>334</a>            .and_then(|r| ops.resolve(<span class="kw-2">&amp;</span>r).ok())
+<a href=#335 id=335 data-nosnippet>335</a>            .map(|(<span class="kw">_</span>, r)| r.path().to_string())
+<a href=#336 id=336 data-nosnippet>336</a>            .unwrap_or_else(|| s.to_string())
+<a href=#337 id=337 data-nosnippet>337</a>    })
+<a href=#338 id=338 data-nosnippet>338</a>}
+<a href=#339 id=339 data-nosnippet>339</a>
+<a href=#340 id=340 data-nosnippet>340</a><span class="doccomment">/// Audit an op that never got an `Ops` (config/env/actor
+<a href=#341 id=341 data-nosnippet>341</a>/// resolution failed) — best-effort actor + env from flags and
+<a href=#342 id=342 data-nosnippet>342</a>/// process env.
+<a href=#343 id=343 data-nosnippet>343</a></span><span class="kw">fn </span>audit_fallback(cli: <span class="kw-2">&amp;</span>Cli, op: Op, rref: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;, outcome: Outcome) {
+<a href=#344 id=344 data-nosnippet>344</a>    <span class="kw">let </span>actor = cli
+<a href=#345 id=345 data-nosnippet>345</a>        .actor
+<a href=#346 id=346 data-nosnippet>346</a>        .clone()
+<a href=#347 id=347 data-nosnippet>347</a>        .or_else(|| env_var(<span class="string">"CUORA_ACTOR"</span>))
+<a href=#348 id=348 data-nosnippet>348</a>        .or_else(|| std::env::var(<span class="string">"USER"</span>).ok())
+<a href=#349 id=349 data-nosnippet>349</a>        .unwrap_or_else(|| <span class="string">"anon"</span>.into());
+<a href=#350 id=350 data-nosnippet>350</a>    <span class="kw">let </span>env = cli
+<a href=#351 id=351 data-nosnippet>351</a>        .env
+<a href=#352 id=352 data-nosnippet>352</a>        .clone()
+<a href=#353 id=353 data-nosnippet>353</a>        .or_else(|| env_var(<span class="string">"CUORA_ENV"</span>))
+<a href=#354 id=354 data-nosnippet>354</a>        .unwrap_or_else(|| <span class="string">"dev"</span>.into());
+<a href=#355 id=355 data-nosnippet>355</a>    <span class="kw">let </span>rref = rref.map(|s| {
+<a href=#356 id=356 data-nosnippet>356</a>        Ref::new(s)
+<a href=#357 id=357 data-nosnippet>357</a>            .map(|r| r.path().to_string())
+<a href=#358 id=358 data-nosnippet>358</a>            .unwrap_or_else(|<span class="kw">_</span>| s.to_string())
+<a href=#359 id=359 data-nosnippet>359</a>    });
+<a href=#360 id=360 data-nosnippet>360</a>    cuora_ops::audit::emit(<span class="kw-2">&amp;</span>AuditEvent::op(<span class="kw-2">&amp;</span>actor, op, rref.as_deref(), <span class="kw-2">&amp;</span>env, outcome));
+<a href=#361 id=361 data-nosnippet>361</a>}
+<a href=#362 id=362 data-nosnippet>362</a>
+<a href=#363 id=363 data-nosnippet>363</a><span class="kw">fn </span>load(cli: <span class="kw-2">&amp;</span>Cli) -&gt; <span class="prelude-ty">Result</span>&lt;Ops, OpsError&gt; {
+<a href=#364 id=364 data-nosnippet>364</a>    Ops::load(LoadOpts {
+<a href=#365 id=365 data-nosnippet>365</a>        config_path: cli.config.clone(),
+<a href=#366 id=366 data-nosnippet>366</a>        env: cli.env.clone(),
+<a href=#367 id=367 data-nosnippet>367</a>        actor: cli.actor.clone(),
+<a href=#368 id=368 data-nosnippet>368</a>    })
+<a href=#369 id=369 data-nosnippet>369</a>}
+<a href=#370 id=370 data-nosnippet>370</a>
+<a href=#371 id=371 data-nosnippet>371</a><span class="kw">fn </span>run_cmd(cmd: <span class="kw-2">&amp;</span>Cmd, cli: <span class="kw-2">&amp;</span>Cli, ops: <span class="kw-2">&amp;</span>Ops) -&gt; <span class="prelude-ty">Result</span>&lt;i32, OpsError&gt; {
+<a href=#372 id=372 data-nosnippet>372</a>    <span class="kw">match </span>cmd {
+<a href=#373 id=373 data-nosnippet>373</a>        Cmd::Init { with_file } =&gt; {
+<a href=#374 id=374 data-nosnippet>374</a>            <span class="kw">let </span>info = ops.init(<span class="kw-2">&amp;</span>cuora_ops::InitOpts {
+<a href=#375 id=375 data-nosnippet>375</a>                with_file: <span class="kw-2">*</span>with_file,
+<a href=#376 id=376 data-nosnippet>376</a>            })<span class="question-mark">?</span>;
+<a href=#377 id=377 data-nosnippet>377</a>            ops.emit(Op::Init, <span class="prelude-val">None</span>, Outcome::Ok);
+<a href=#378 id=378 data-nosnippet>378</a>            <span class="kw">if </span>cli.json {
+<a href=#379 id=379 data-nosnippet>379</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(json_out(<span class="kw-2">&amp;</span><span class="macro">serde_json::json!</span>({
+<a href=#380 id=380 data-nosnippet>380</a>                    <span class="string">"identity"</span>: info.identity,
+<a href=#381 id=381 data-nosnippet>381</a>                    <span class="string">"backend"</span>: info.identity_backend,
+<a href=#382 id=382 data-nosnippet>382</a>                    <span class="string">"created"</span>: info.identity_created,
+<a href=#383 id=383 data-nosnippet>383</a>                    <span class="string">"migrated"</span>: info.migrated,
+<a href=#384 id=384 data-nosnippet>384</a>                    <span class="string">"file_remains"</span>: info.file_remains,
+<a href=#385 id=385 data-nosnippet>385</a>                    <span class="string">"recipient"</span>: info.recipient,
+<a href=#386 id=386 data-nosnippet>386</a>                    <span class="string">"vault"</span>: info.vault_path,
+<a href=#387 id=387 data-nosnippet>387</a>                })));
+<a href=#388 id=388 data-nosnippet>388</a>            }
+<a href=#389 id=389 data-nosnippet>389</a>            <span class="macro">eprintln!</span>(
+<a href=#390 id=390 data-nosnippet>390</a>                <span class="string">"identity: {}{}"</span>,
+<a href=#391 id=391 data-nosnippet>391</a>                info.identity,
+<a href=#392 id=392 data-nosnippet>392</a>                <span class="kw">if </span>info.identity_created {
+<a href=#393 id=393 data-nosnippet>393</a>                    <span class="string">" (generated)"
+<a href=#394 id=394 data-nosnippet>394</a>                </span>} <span class="kw">else </span>{
+<a href=#395 id=395 data-nosnippet>395</a>                    <span class="string">""
+<a href=#396 id=396 data-nosnippet>396</a>                </span>}
+<a href=#397 id=397 data-nosnippet>397</a>            );
+<a href=#398 id=398 data-nosnippet>398</a>            <span class="comment">// Requires a session secret store holding no identity —
+<a href=#399 id=399 data-nosnippet>399</a>            // unreachable on headless CI where platform() always
+<a href=#400 id=400 data-nosnippet>400</a>            // fails; exercised at ops level where sources inject.
+<a href=#401 id=401 data-nosnippet>401</a>            </span><span class="attr">#[cfg(not(coverage))]
+<a href=#402 id=402 data-nosnippet>402</a>            </span><span class="kw">if </span>info.migrated {
+<a href=#403 id=403 data-nosnippet>403</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(p) = <span class="kw-2">&amp;</span>info.file_remains {
+<a href=#404 id=404 data-nosnippet>404</a>                    <span class="macro">eprintln!</span>(
+<a href=#405 id=405 data-nosnippet>405</a>                        <span class="string">"migrated:  imported into the keyring; {} kept as a \
+<a href=#406 id=406 data-nosnippet>406</a>                         backup — remove it when ready"</span>,
+<a href=#407 id=407 data-nosnippet>407</a>                        p.display()
+<a href=#408 id=408 data-nosnippet>408</a>                    );
+<a href=#409 id=409 data-nosnippet>409</a>                }
+<a href=#410 id=410 data-nosnippet>410</a>            }
+<a href=#411 id=411 data-nosnippet>411</a>            <span class="macro">eprintln!</span>(<span class="string">"recipient: {}"</span>, info.recipient);
+<a href=#412 id=412 data-nosnippet>412</a>            <span class="macro">eprintln!</span>(<span class="string">"vault:     {}"</span>, info.vault_path.display());
+<a href=#413 id=413 data-nosnippet>413</a>            <span class="prelude-val">Ok</span>(<span class="number">0</span>)
+<a href=#414 id=414 data-nosnippet>414</a>        }
+<a href=#415 id=415 data-nosnippet>415</a>        Cmd::Put { rref } =&gt; {
+<a href=#416 id=416 data-nosnippet>416</a>            <span class="kw">let </span>parsed = parse_ref(rref)<span class="question-mark">?</span>;
+<a href=#417 id=417 data-nosnippet>417</a>            <span class="kw">let </span>secret = read_secret(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"value for {rref}: "</span>))<span class="question-mark">?</span>;
+<a href=#418 id=418 data-nosnippet>418</a>            <span class="kw">let </span>rec = ops.put(<span class="kw-2">&amp;</span>parsed, secret)<span class="question-mark">?</span>;
+<a href=#419 id=419 data-nosnippet>419</a>            <span class="kw">if </span>cli.json {
+<a href=#420 id=420 data-nosnippet>420</a>                <span class="kw">let </span><span class="kw-2">mut </span>v = record_json(ops, <span class="kw-2">&amp;</span>parsed, <span class="kw-2">&amp;</span>rec);
+<a href=#421 id=421 data-nosnippet>421</a>                v[<span class="string">"ok"</span>] = <span class="bool-val">true</span>.into();
+<a href=#422 id=422 data-nosnippet>422</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(json_out(<span class="kw-2">&amp;</span>v));
+<a href=#423 id=423 data-nosnippet>423</a>            }
+<a href=#424 id=424 data-nosnippet>424</a>            <span class="macro">eprintln!</span>(<span class="string">"stored {rref} (v{})"</span>, rec.version);
+<a href=#425 id=425 data-nosnippet>425</a>            <span class="prelude-val">Ok</span>(<span class="number">0</span>)
+<a href=#426 id=426 data-nosnippet>426</a>        }
+<a href=#427 id=427 data-nosnippet>427</a>        Cmd::Get { rref } =&gt; {
+<a href=#428 id=428 data-nosnippet>428</a>            <span class="kw">let </span>parsed = parse_ref(rref)<span class="question-mark">?</span>;
+<a href=#429 id=429 data-nosnippet>429</a>            <span class="kw">match </span>ops.get(<span class="kw-2">&amp;</span>parsed)<span class="question-mark">? </span>{
+<a href=#430 id=430 data-nosnippet>430</a>                <span class="prelude-val">Some</span>(rec) =&gt; {
+<a href=#431 id=431 data-nosnippet>431</a>                    <span class="kw">if </span>cli.json {
+<a href=#432 id=432 data-nosnippet>432</a>                        <span class="kw">let </span><span class="kw-2">mut </span>v = record_json(ops, <span class="kw-2">&amp;</span>parsed, <span class="kw-2">&amp;</span>rec);
+<a href=#433 id=433 data-nosnippet>433</a>                        v[<span class="string">"value"</span>] = rec.value.expose().into();
+<a href=#434 id=434 data-nosnippet>434</a>                        <span class="kw">return </span><span class="prelude-val">Ok</span>(json_out(<span class="kw-2">&amp;</span>v));
+<a href=#435 id=435 data-nosnippet>435</a>                    }
+<a href=#436 id=436 data-nosnippet>436</a>                    <span class="kw">if </span>std::io::stdout().is_terminal() {
+<a href=#437 id=437 data-nosnippet>437</a>                        <span class="macro">eprintln!</span>(<span class="string">"note: secret value printed to terminal"</span>);
+<a href=#438 id=438 data-nosnippet>438</a>                    }
+<a href=#439 id=439 data-nosnippet>439</a>                    <span class="macro">println!</span>(<span class="string">"{}"</span>, rec.value.expose());
+<a href=#440 id=440 data-nosnippet>440</a>                    <span class="prelude-val">Ok</span>(<span class="number">0</span>)
+<a href=#441 id=441 data-nosnippet>441</a>                }
+<a href=#442 id=442 data-nosnippet>442</a>                <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Err</span>(OpsError::Msg(<span class="macro">format!</span>(
+<a href=#443 id=443 data-nosnippet>443</a>                    <span class="string">"{rref} is not stored in env {}"</span>,
+<a href=#444 id=444 data-nosnippet>444</a>                    ops.resolve(<span class="kw-2">&amp;</span>parsed)
+<a href=#445 id=445 data-nosnippet>445</a>                        .map(|(e, <span class="kw">_</span>)| e.as_str().to_string())
+<a href=#446 id=446 data-nosnippet>446</a>                        .unwrap_or_else(|<span class="kw">_</span>| ops.env().as_str().to_string())
+<a href=#447 id=447 data-nosnippet>447</a>                ))),
+<a href=#448 id=448 data-nosnippet>448</a>            }
+<a href=#449 id=449 data-nosnippet>449</a>        }
+<a href=#450 id=450 data-nosnippet>450</a>        Cmd::List =&gt; {
+<a href=#451 id=451 data-nosnippet>451</a>            <span class="kw">let </span>(env, refs) = ops.list(<span class="prelude-val">None</span>)<span class="question-mark">?</span>;
+<a href=#452 id=452 data-nosnippet>452</a>            ops.emit(Op::List, <span class="prelude-val">None</span>, Outcome::Ok);
+<a href=#453 id=453 data-nosnippet>453</a>            <span class="kw">if </span>cli.json {
+<a href=#454 id=454 data-nosnippet>454</a>                <span class="kw">let </span>(<span class="kw">_</span>, records) = ops.list_records(<span class="prelude-val">None</span>)<span class="question-mark">?</span>;
+<a href=#455 id=455 data-nosnippet>455</a>                <span class="kw">let </span>arr: Vec&lt;serde_json::Value&gt; = records
+<a href=#456 id=456 data-nosnippet>456</a>                    .iter()
+<a href=#457 id=457 data-nosnippet>457</a>                    .map(|(r, rec)| {
+<a href=#458 id=458 data-nosnippet>458</a>                        <span class="macro">serde_json::json!</span>({
+<a href=#459 id=459 data-nosnippet>459</a>                            <span class="string">"ref"</span>: r.to_string(),
+<a href=#460 id=460 data-nosnippet>460</a>                            <span class="string">"env"</span>: env.as_str(),
+<a href=#461 id=461 data-nosnippet>461</a>                            <span class="string">"version"</span>: rec.version,
+<a href=#462 id=462 data-nosnippet>462</a>                            <span class="string">"created_at"</span>: rec.created_at.to_string(),
+<a href=#463 id=463 data-nosnippet>463</a>                            <span class="string">"rotated_at"</span>: rec.rotated_at.map(|t| t.to_string()),
+<a href=#464 id=464 data-nosnippet>464</a>                        })
+<a href=#465 id=465 data-nosnippet>465</a>                    })
+<a href=#466 id=466 data-nosnippet>466</a>                    .collect();
+<a href=#467 id=467 data-nosnippet>467</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(json_out(<span class="kw-2">&amp;</span>serde_json::Value::Array(arr)));
+<a href=#468 id=468 data-nosnippet>468</a>            }
+<a href=#469 id=469 data-nosnippet>469</a>            <span class="kw">for </span>r <span class="kw">in </span>refs {
+<a href=#470 id=470 data-nosnippet>470</a>                <span class="macro">println!</span>(<span class="string">"{r}"</span>);
+<a href=#471 id=471 data-nosnippet>471</a>            }
+<a href=#472 id=472 data-nosnippet>472</a>            <span class="prelude-val">Ok</span>(<span class="number">0</span>)
+<a href=#473 id=473 data-nosnippet>473</a>        }
+<a href=#474 id=474 data-nosnippet>474</a>        Cmd::Rm { rref } =&gt; {
+<a href=#475 id=475 data-nosnippet>475</a>            <span class="kw">let </span>parsed = parse_ref(rref)<span class="question-mark">?</span>;
+<a href=#476 id=476 data-nosnippet>476</a>            <span class="kw">let </span>(env, <span class="kw">_</span>) = ops.resolve(<span class="kw-2">&amp;</span>parsed)<span class="question-mark">?</span>;
+<a href=#477 id=477 data-nosnippet>477</a>            <span class="kw">if </span>!ops.rm(<span class="kw-2">&amp;</span>parsed)<span class="question-mark">? </span>{
+<a href=#478 id=478 data-nosnippet>478</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(OpsError::Msg(<span class="macro">format!</span>(<span class="string">"{rref} is not stored in env {env}"</span>)));
+<a href=#479 id=479 data-nosnippet>479</a>            }
+<a href=#480 id=480 data-nosnippet>480</a>            <span class="kw">if </span>cli.json {
+<a href=#481 id=481 data-nosnippet>481</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(json_out(<span class="kw-2">&amp;</span><span class="macro">serde_json::json!</span>({
+<a href=#482 id=482 data-nosnippet>482</a>                    <span class="string">"ok"</span>: <span class="bool-val">true</span>,
+<a href=#483 id=483 data-nosnippet>483</a>                    <span class="string">"removed"</span>: <span class="bool-val">true</span>,
+<a href=#484 id=484 data-nosnippet>484</a>                    <span class="string">"ref"</span>: parsed.to_string(),
+<a href=#485 id=485 data-nosnippet>485</a>                    <span class="string">"env"</span>: env.as_str(),
+<a href=#486 id=486 data-nosnippet>486</a>                })));
+<a href=#487 id=487 data-nosnippet>487</a>            }
+<a href=#488 id=488 data-nosnippet>488</a>            <span class="macro">eprintln!</span>(<span class="string">"removed {rref}"</span>);
+<a href=#489 id=489 data-nosnippet>489</a>            <span class="prelude-val">Ok</span>(<span class="number">0</span>)
+<a href=#490 id=490 data-nosnippet>490</a>        }
+<a href=#491 id=491 data-nosnippet>491</a>        Cmd::Rotate { rref } =&gt; {
+<a href=#492 id=492 data-nosnippet>492</a>            <span class="kw">let </span>parsed = parse_ref(rref)<span class="question-mark">?</span>;
+<a href=#493 id=493 data-nosnippet>493</a>            <span class="kw">let </span>secret = read_secret(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"new value for {rref}: "</span>))<span class="question-mark">?</span>;
+<a href=#494 id=494 data-nosnippet>494</a>            <span class="kw">let </span>rec = ops.rotate(<span class="kw-2">&amp;</span>parsed, secret)<span class="question-mark">?</span>;
+<a href=#495 id=495 data-nosnippet>495</a>            <span class="kw">if </span>cli.json {
+<a href=#496 id=496 data-nosnippet>496</a>                <span class="kw">let </span><span class="kw-2">mut </span>v = record_json(ops, <span class="kw-2">&amp;</span>parsed, <span class="kw-2">&amp;</span>rec);
+<a href=#497 id=497 data-nosnippet>497</a>                v[<span class="string">"ok"</span>] = <span class="bool-val">true</span>.into();
+<a href=#498 id=498 data-nosnippet>498</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(json_out(<span class="kw-2">&amp;</span>v));
+<a href=#499 id=499 data-nosnippet>499</a>            }
+<a href=#500 id=500 data-nosnippet>500</a>            <span class="macro">eprintln!</span>(<span class="string">"rotated {rref} (v{})"</span>, rec.version);
+<a href=#501 id=501 data-nosnippet>501</a>            <span class="prelude-val">Ok</span>(<span class="number">0</span>)
+<a href=#502 id=502 data-nosnippet>502</a>        }
+<a href=#503 id=503 data-nosnippet>503</a>        Cmd::Run { secrets, cmd } =&gt; {
+<a href=#504 id=504 data-nosnippet>504</a>            <span class="kw">let </span>vars = ops.resolve_for_injection(Op::Run, <span class="kw-2">&amp;</span>parse_pairs(secrets)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+<a href=#505 id=505 data-nosnippet>505</a>            <span class="kw">let </span>exposed: Vec&lt;(String, String)&gt; = vars
+<a href=#506 id=506 data-nosnippet>506</a>                .iter()
+<a href=#507 id=507 data-nosnippet>507</a>                .map(|(k, v)| (k.clone(), v.expose().to_string()))
+<a href=#508 id=508 data-nosnippet>508</a>                .collect();
+<a href=#509 id=509 data-nosnippet>509</a>            <span class="kw">let </span>cwd = std::env::current_dir()<span class="question-mark">?</span>;
+<a href=#510 id=510 data-nosnippet>510</a>            <span class="comment">// One arg → `bash -c` (shell syntax); several → exec
+<a href=#511 id=511 data-nosnippet>511</a>            // argv[0] directly, no shell quoting.
+<a href=#512 id=512 data-nosnippet>512</a>            </span><span class="kw">let </span>status = <span class="kw">if </span>cmd.len() == <span class="number">1 </span>{
+<a href=#513 id=513 data-nosnippet>513</a>                cuora_shell::run_with_env(<span class="kw-2">&amp;</span>cwd, <span class="kw-2">&amp;</span>cmd[<span class="number">0</span>], <span class="kw-2">&amp;</span>exposed)<span class="question-mark">?
+<a href=#514 id=514 data-nosnippet>514</a>            </span>} <span class="kw">else </span>{
+<a href=#515 id=515 data-nosnippet>515</a>                cuora_shell::exec_with_env(<span class="kw-2">&amp;</span>cwd, cmd, <span class="kw-2">&amp;</span>exposed)<span class="question-mark">?
+<a href=#516 id=516 data-nosnippet>516</a>            </span>};
+<a href=#517 id=517 data-nosnippet>517</a>            <span class="prelude-val">Ok</span>(status.code().unwrap_or(<span class="number">1</span>))
+<a href=#518 id=518 data-nosnippet>518</a>        }
+<a href=#519 id=519 data-nosnippet>519</a>        Cmd::Env { secrets } =&gt; {
+<a href=#520 id=520 data-nosnippet>520</a>            <span class="kw">let </span>vars = ops.resolve_for_injection(Op::Env, <span class="kw-2">&amp;</span>parse_pairs(secrets)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+<a href=#521 id=521 data-nosnippet>521</a>            <span class="kw">if </span>cli.json {
+<a href=#522 id=522 data-nosnippet>522</a>                <span class="kw">let </span>map: BTreeMap&lt;<span class="kw-2">&amp;</span>String, <span class="kw-2">&amp;</span>str&gt; =
+<a href=#523 id=523 data-nosnippet>523</a>                    vars.iter().map(|(k, v)| (k, v.expose())).collect();
+<a href=#524 id=524 data-nosnippet>524</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(json_out(<span class="kw-2">&amp;</span><span class="macro">serde_json::json!</span>(map)));
+<a href=#525 id=525 data-nosnippet>525</a>            }
+<a href=#526 id=526 data-nosnippet>526</a>            <span class="kw">let </span>stdout = std::io::stdout();
+<a href=#527 id=527 data-nosnippet>527</a>            <span class="kw">let </span><span class="kw-2">mut </span>w = stdout.lock();
+<a href=#528 id=528 data-nosnippet>528</a>            <span class="kw">for </span>(k, v) <span class="kw">in </span><span class="kw-2">&amp;</span>vars {
+<a href=#529 id=529 data-nosnippet>529</a>                <span class="macro">writeln!</span>(w, <span class="string">"export {k}={}"</span>, sh_escape(v.expose()))<span class="question-mark">?</span>;
+<a href=#530 id=530 data-nosnippet>530</a>            }
+<a href=#531 id=531 data-nosnippet>531</a>            <span class="prelude-val">Ok</span>(<span class="number">0</span>)
+<a href=#532 id=532 data-nosnippet>532</a>        }
+<a href=#533 id=533 data-nosnippet>533</a>        Cmd::Check =&gt; {
+<a href=#534 id=534 data-nosnippet>534</a>            <span class="kw">let </span>report = ops.check();
+<a href=#535 id=535 data-nosnippet>535</a>            <span class="comment">// A check that found problems exits 1 — the audit
+<a href=#536 id=536 data-nosnippet>536</a>            // outcome mirrors it, not a blanket `ok`.
+<a href=#537 id=537 data-nosnippet>537</a>            </span>ops.emit(
+<a href=#538 id=538 data-nosnippet>538</a>                Op::Check,
+<a href=#539 id=539 data-nosnippet>539</a>                <span class="prelude-val">None</span>,
+<a href=#540 id=540 data-nosnippet>540</a>                <span class="kw">if </span>report.problems.is_empty() {
+<a href=#541 id=541 data-nosnippet>541</a>                    Outcome::Ok
+<a href=#542 id=542 data-nosnippet>542</a>                } <span class="kw">else </span>{
+<a href=#543 id=543 data-nosnippet>543</a>                    Outcome::Error
+<a href=#544 id=544 data-nosnippet>544</a>                },
+<a href=#545 id=545 data-nosnippet>545</a>            );
+<a href=#546 id=546 data-nosnippet>546</a>            <span class="kw">let </span>ok = report.problems.is_empty();
+<a href=#547 id=547 data-nosnippet>547</a>            <span class="kw">if </span>cli.json {
+<a href=#548 id=548 data-nosnippet>548</a>                <span class="kw">let </span>secrets: serde_json::Map&lt;String, serde_json::Value&gt; = report
+<a href=#549 id=549 data-nosnippet>549</a>                    .secrets
+<a href=#550 id=550 data-nosnippet>550</a>                    .iter()
+<a href=#551 id=551 data-nosnippet>551</a>                    .map(|s| {
+<a href=#552 id=552 data-nosnippet>552</a>                        (
+<a href=#553 id=553 data-nosnippet>553</a>                            s.var.clone(),
+<a href=#554 id=554 data-nosnippet>554</a>                            <span class="macro">serde_json::json!</span>({
+<a href=#555 id=555 data-nosnippet>555</a>                                <span class="string">"ref"</span>: s.rref,
+<a href=#556 id=556 data-nosnippet>556</a>                                <span class="string">"env"</span>: s.env,
+<a href=#557 id=557 data-nosnippet>557</a>                                <span class="string">"resolves"</span>: s.resolves,
+<a href=#558 id=558 data-nosnippet>558</a>                            }),
+<a href=#559 id=559 data-nosnippet>559</a>                        )
+<a href=#560 id=560 data-nosnippet>560</a>                    })
+<a href=#561 id=561 data-nosnippet>561</a>                    .collect();
+<a href=#562 id=562 data-nosnippet>562</a>                <span class="kw">let </span>vaults: Vec&lt;serde_json::Value&gt; = report
+<a href=#563 id=563 data-nosnippet>563</a>                    .vaults
+<a href=#564 id=564 data-nosnippet>564</a>                    .iter()
+<a href=#565 id=565 data-nosnippet>565</a>                    .map(|v| {
+<a href=#566 id=566 data-nosnippet>566</a>                        <span class="macro">serde_json::json!</span>({
+<a href=#567 id=567 data-nosnippet>567</a>                            <span class="string">"name"</span>: v.name,
+<a href=#568 id=568 data-nosnippet>568</a>                            <span class="string">"kind"</span>: v.kind,
+<a href=#569 id=569 data-nosnippet>569</a>                            <span class="string">"path"</span>: v.path,
+<a href=#570 id=570 data-nosnippet>570</a>                            <span class="string">"ok"</span>: v.ok,
+<a href=#571 id=571 data-nosnippet>571</a>                            <span class="string">"error"</span>: v.error,
+<a href=#572 id=572 data-nosnippet>572</a>                        })
+<a href=#573 id=573 data-nosnippet>573</a>                    })
+<a href=#574 id=574 data-nosnippet>574</a>                    .collect();
+<a href=#575 id=575 data-nosnippet>575</a>                <span class="kw">let </span>guardrails = report.guardrails.as_ref().map(|g| {
+<a href=#576 id=576 data-nosnippet>576</a>                    <span class="macro">serde_json::json!</span>({
+<a href=#577 id=577 data-nosnippet>577</a>                        <span class="string">"default"</span>: <span class="kw">match </span>g.default {
+<a href=#578 id=578 data-nosnippet>578</a>                            cuora_core::GuardDefault::Allow =&gt; <span class="string">"allow"</span>,
+<a href=#579 id=579 data-nosnippet>579</a>                            cuora_core::GuardDefault::Deny =&gt; <span class="string">"deny"</span>,
+<a href=#580 id=580 data-nosnippet>580</a>                        },
+<a href=#581 id=581 data-nosnippet>581</a>                        <span class="string">"allow"</span>: g.allow.iter().map(|o| o.as_str()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
+<a href=#582 id=582 data-nosnippet>582</a>                        <span class="string">"deny"</span>: g.deny.iter().map(|o| o.as_str()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
+<a href=#583 id=583 data-nosnippet>583</a>                        <span class="string">"deny_adhoc"</span>: g.deny_adhoc,
+<a href=#584 id=584 data-nosnippet>584</a>                    })
+<a href=#585 id=585 data-nosnippet>585</a>                });
+<a href=#586 id=586 data-nosnippet>586</a>                <span class="kw">let </span>code = json_out(<span class="kw-2">&amp;</span><span class="macro">serde_json::json!</span>({
+<a href=#587 id=587 data-nosnippet>587</a>                    <span class="string">"config"</span>: report.config_path,
+<a href=#588 id=588 data-nosnippet>588</a>                    <span class="string">"env"</span>: report.env.as_str(),
+<a href=#589 id=589 data-nosnippet>589</a>                    <span class="string">"vault"</span>: report.vault,
+<a href=#590 id=590 data-nosnippet>590</a>                    <span class="string">"vaults"</span>: vaults,
+<a href=#591 id=591 data-nosnippet>591</a>                    <span class="string">"secrets"</span>: secrets,
+<a href=#592 id=592 data-nosnippet>592</a>                    <span class="string">"guardrails"</span>: guardrails,
+<a href=#593 id=593 data-nosnippet>593</a>                    <span class="string">"errors"</span>: report.problems,
+<a href=#594 id=594 data-nosnippet>594</a>                }));
+<a href=#595 id=595 data-nosnippet>595</a>                <span class="macro">debug_assert_eq!</span>(code, <span class="number">0</span>);
+<a href=#596 id=596 data-nosnippet>596</a>            } <span class="kw">else </span>{
+<a href=#597 id=597 data-nosnippet>597</a>                <span class="kw">match </span><span class="kw-2">&amp;</span>report.config_path {
+<a href=#598 id=598 data-nosnippet>598</a>                    <span class="prelude-val">Some</span>(p) =&gt; <span class="macro">eprintln!</span>(<span class="string">"config: {}"</span>, p.display()),
+<a href=#599 id=599 data-nosnippet>599</a>                    <span class="prelude-val">None </span>=&gt; <span class="macro">eprintln!</span>(<span class="string">"config: (none found — defaults)"</span>),
+<a href=#600 id=600 data-nosnippet>600</a>                }
+<a href=#601 id=601 data-nosnippet>601</a>                <span class="macro">eprintln!</span>(<span class="string">"env: {} → vault {:?}"</span>, report.env, report.vault,);
+<a href=#602 id=602 data-nosnippet>602</a>                <span class="kw">for </span>v <span class="kw">in </span><span class="kw-2">&amp;</span>report.vaults {
+<a href=#603 id=603 data-nosnippet>603</a>                    <span class="kw">match </span><span class="kw-2">&amp;</span>v.error {
+<a href=#604 id=604 data-nosnippet>604</a>                        <span class="prelude-val">None </span>=&gt; <span class="macro">eprintln!</span>(<span class="string">"vault {:?} ({}): readable"</span>, v.name, v.kind),
+<a href=#605 id=605 data-nosnippet>605</a>                        <span class="prelude-val">Some</span>(e) =&gt; <span class="macro">eprintln!</span>(<span class="string">"vault {:?} ({}): {e}"</span>, v.name, v.kind),
+<a href=#606 id=606 data-nosnippet>606</a>                    }
+<a href=#607 id=607 data-nosnippet>607</a>                }
+<a href=#608 id=608 data-nosnippet>608</a>                <span class="kw">for </span>s <span class="kw">in </span><span class="kw-2">&amp;</span>report.secrets {
+<a href=#609 id=609 data-nosnippet>609</a>                    <span class="macro">eprintln!</span>(
+<a href=#610 id=610 data-nosnippet>610</a>                        <span class="string">"secret {} → {} (env {}): {}"</span>,
+<a href=#611 id=611 data-nosnippet>611</a>                        s.var,
+<a href=#612 id=612 data-nosnippet>612</a>                        s.rref,
+<a href=#613 id=613 data-nosnippet>613</a>                        s.env,
+<a href=#614 id=614 data-nosnippet>614</a>                        <span class="kw">if </span>s.resolves { <span class="string">"resolves" </span>} <span class="kw">else </span>{ <span class="string">"NOT STORED" </span>}
+<a href=#615 id=615 data-nosnippet>615</a>                    );
+<a href=#616 id=616 data-nosnippet>616</a>                }
+<a href=#617 id=617 data-nosnippet>617</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(g) = <span class="kw-2">&amp;</span>report.guardrails {
+<a href=#618 id=618 data-nosnippet>618</a>                    <span class="kw">let </span>deny: Vec&lt;<span class="kw">_</span>&gt; = g.deny.iter().map(|o| o.as_str()).collect();
+<a href=#619 id=619 data-nosnippet>619</a>                    <span class="macro">eprintln!</span>(<span class="string">"guardrails: configured (deny: {})"</span>, deny.join(<span class="string">", "</span>));
+<a href=#620 id=620 data-nosnippet>620</a>                }
+<a href=#621 id=621 data-nosnippet>621</a>                <span class="kw">if </span>report.problems.is_empty() {
+<a href=#622 id=622 data-nosnippet>622</a>                    <span class="macro">eprintln!</span>(<span class="string">"ok"</span>);
+<a href=#623 id=623 data-nosnippet>623</a>                } <span class="kw">else </span>{
+<a href=#624 id=624 data-nosnippet>624</a>                    <span class="kw">for </span>p <span class="kw">in </span><span class="kw-2">&amp;</span>report.problems {
+<a href=#625 id=625 data-nosnippet>625</a>                        <span class="macro">eprintln!</span>(<span class="string">"problem: {p}"</span>);
+<a href=#626 id=626 data-nosnippet>626</a>                    }
+<a href=#627 id=627 data-nosnippet>627</a>                }
+<a href=#628 id=628 data-nosnippet>628</a>            }
+<a href=#629 id=629 data-nosnippet>629</a>            <span class="prelude-val">Ok</span>(<span class="kw">if </span>ok { <span class="number">0 </span>} <span class="kw">else </span>{ <span class="number">1 </span>})
+<a href=#630 id=630 data-nosnippet>630</a>        }
+<a href=#631 id=631 data-nosnippet>631</a>        Cmd::Migrate { private_refs } =&gt; {
+<a href=#632 id=632 data-nosnippet>632</a>            <span class="kw">if </span>!private_refs {
+<a href=#633 id=633 data-nosnippet>633</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(OpsError::Msg(
+<a href=#634 id=634 data-nosnippet>634</a>                    <span class="string">"migrate needs a target — currently only `--private-refs`"</span>.into(),
+<a href=#635 id=635 data-nosnippet>635</a>                ));
+<a href=#636 id=636 data-nosnippet>636</a>            }
+<a href=#637 id=637 data-nosnippet>637</a>            <span class="kw">let </span>reports = ops.migrate_private_refs()<span class="question-mark">?</span>;
+<a href=#638 id=638 data-nosnippet>638</a>            ops.emit(Op::Migrate, <span class="prelude-val">None</span>, Outcome::Ok);
+<a href=#639 id=639 data-nosnippet>639</a>            <span class="kw">if </span>cli.json {
+<a href=#640 id=640 data-nosnippet>640</a>                <span class="kw">let </span>migrated: Vec&lt;serde_json::Value&gt; = reports
+<a href=#641 id=641 data-nosnippet>641</a>                    .iter()
+<a href=#642 id=642 data-nosnippet>642</a>                    .map(|r| {
+<a href=#643 id=643 data-nosnippet>643</a>                        <span class="macro">serde_json::json!</span>({
+<a href=#644 id=644 data-nosnippet>644</a>                            <span class="string">"vault"</span>: r.vault,
+<a href=#645 id=645 data-nosnippet>645</a>                            <span class="string">"env"</span>: r.env.as_str(),
+<a href=#646 id=646 data-nosnippet>646</a>                            <span class="string">"rewritten"</span>: r.rewritten,
+<a href=#647 id=647 data-nosnippet>647</a>                            <span class="string">"already_private"</span>: r.already_private,
+<a href=#648 id=648 data-nosnippet>648</a>                        })
+<a href=#649 id=649 data-nosnippet>649</a>                    })
+<a href=#650 id=650 data-nosnippet>650</a>                    .collect();
+<a href=#651 id=651 data-nosnippet>651</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(json_out(<span class="kw-2">&amp;</span><span class="macro">serde_json::json!</span>({
+<a href=#652 id=652 data-nosnippet>652</a>                    <span class="string">"ok"</span>: <span class="bool-val">true</span>,
+<a href=#653 id=653 data-nosnippet>653</a>                    <span class="string">"migrated"</span>: migrated,
+<a href=#654 id=654 data-nosnippet>654</a>                })));
+<a href=#655 id=655 data-nosnippet>655</a>            }
+<a href=#656 id=656 data-nosnippet>656</a>            <span class="kw">for </span>r <span class="kw">in </span><span class="kw-2">&amp;</span>reports {
+<a href=#657 id=657 data-nosnippet>657</a>                <span class="macro">eprintln!</span>(
+<a href=#658 id=658 data-nosnippet>658</a>                    <span class="string">"vault {:?} env {}: rewrote {} ref(s) ({} already private)"</span>,
+<a href=#659 id=659 data-nosnippet>659</a>                    r.vault,
+<a href=#660 id=660 data-nosnippet>660</a>                    r.env,
+<a href=#661 id=661 data-nosnippet>661</a>                    r.rewritten.len(),
+<a href=#662 id=662 data-nosnippet>662</a>                    r.already_private
+<a href=#663 id=663 data-nosnippet>663</a>                );
+<a href=#664 id=664 data-nosnippet>664</a>            }
+<a href=#665 id=665 data-nosnippet>665</a>            <span class="prelude-val">Ok</span>(<span class="number">0</span>)
+<a href=#666 id=666 data-nosnippet>666</a>        }
+<a href=#667 id=667 data-nosnippet>667</a>        Cmd::Deploy { rref, target } =&gt; {
+<a href=#668 id=668 data-nosnippet>668</a>            <span class="kw">let </span>parsed = parse_ref(rref)<span class="question-mark">?</span>;
+<a href=#669 id=669 data-nosnippet>669</a>            <span class="kw">let </span>report = ops.deploy(<span class="kw-2">&amp;</span>parsed, target.as_deref())<span class="question-mark">?</span>;
+<a href=#670 id=670 data-nosnippet>670</a>            <span class="kw">if </span>cli.json {
+<a href=#671 id=671 data-nosnippet>671</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(json_out(<span class="kw-2">&amp;</span><span class="macro">serde_json::json!</span>({
+<a href=#672 id=672 data-nosnippet>672</a>                    <span class="string">"ok"</span>: <span class="bool-val">true</span>,
+<a href=#673 id=673 data-nosnippet>673</a>                    <span class="string">"ref"</span>: report.rref.to_string(),
+<a href=#674 id=674 data-nosnippet>674</a>                    <span class="string">"env"</span>: report.env.as_str(),
+<a href=#675 id=675 data-nosnippet>675</a>                    <span class="string">"target"</span>: report.target,
+<a href=#676 id=676 data-nosnippet>676</a>                    <span class="string">"secret_name"</span>: report.secret_name,
+<a href=#677 id=677 data-nosnippet>677</a>                    <span class="string">"created"</span>: report.created,
+<a href=#678 id=678 data-nosnippet>678</a>                })));
+<a href=#679 id=679 data-nosnippet>679</a>            }
+<a href=#680 id=680 data-nosnippet>680</a>            <span class="macro">eprintln!</span>(
+<a href=#681 id=681 data-nosnippet>681</a>                <span class="string">"deployed {} → {:?} as {} ({})"</span>,
+<a href=#682 id=682 data-nosnippet>682</a>                report.rref,
+<a href=#683 id=683 data-nosnippet>683</a>                report.target,
+<a href=#684 id=684 data-nosnippet>684</a>                report.secret_name,
+<a href=#685 id=685 data-nosnippet>685</a>                <span class="kw">if </span>report.created { <span class="string">"created" </span>} <span class="kw">else </span>{ <span class="string">"updated" </span>}
+<a href=#686 id=686 data-nosnippet>686</a>            );
+<a href=#687 id=687 data-nosnippet>687</a>            <span class="prelude-val">Ok</span>(<span class="number">0</span>)
+<a href=#688 id=688 data-nosnippet>688</a>        }
+<a href=#689 id=689 data-nosnippet>689</a>        Cmd::Serve =&gt; {
+<a href=#690 id=690 data-nosnippet>690</a>            <span class="comment">// Trust-root warning: a `[serve.pdp] exec` line is
+<a href=#691 id=691 data-nosnippet>691</a>            // config that authorizes shell exec. When it arrives
+<a href=#692 id=692 data-nosnippet>692</a>            // via the *implicit* ./cuora.toml search — not a pinned
+<a href=#693 id=693 data-nosnippet>693</a>            // --config/$CUORA_CONFIG and not the user's home
+<a href=#694 id=694 data-nosnippet>694</a>            // config — the working directory itself is the trust
+<a href=#695 id=695 data-nosnippet>695</a>            // root, so say so loudly before serving.
+<a href=#696 id=696 data-nosnippet>696</a>            </span><span class="kw">let </span>implicit_local = cli.config.is_none()
+<a href=#697 id=697 data-nosnippet>697</a>                &amp;&amp; std::env::var_os(<span class="string">"CUORA_CONFIG"</span>).is_none()
+<a href=#698 id=698 data-nosnippet>698</a>                &amp;&amp; std::env::var_os(<span class="string">"ARCA_CONFIG"</span>).is_none()
+<a href=#699 id=699 data-nosnippet>699</a>                &amp;&amp; ops.config_path().is_some_and(|p| {
+<a href=#700 id=700 data-nosnippet>700</a>                    p == std::path::Path::new(<span class="string">"cuora.toml"</span>)
+<a href=#701 id=701 data-nosnippet>701</a>                        || p == std::path::Path::new(<span class="string">"arca.toml"</span>)
+<a href=#702 id=702 data-nosnippet>702</a>                });
+<a href=#703 id=703 data-nosnippet>703</a>            <span class="kw">if </span>implicit_local
+<a href=#704 id=704 data-nosnippet>704</a>                &amp;&amp; ops
+<a href=#705 id=705 data-nosnippet>705</a>                    .config()
+<a href=#706 id=706 data-nosnippet>706</a>                    .serve
+<a href=#707 id=707 data-nosnippet>707</a>                    .as_ref()
+<a href=#708 id=708 data-nosnippet>708</a>                    .and_then(|s| s.pdp.as_ref())
+<a href=#709 id=709 data-nosnippet>709</a>                    .is_some()
+<a href=#710 id=710 data-nosnippet>710</a>            {
+<a href=#711 id=711 data-nosnippet>711</a>                <span class="kw">let </span>config_name = ops
+<a href=#712 id=712 data-nosnippet>712</a>                    .config_path()
+<a href=#713 id=713 data-nosnippet>713</a>                    .map(|p| p.display().to_string())
+<a href=#714 id=714 data-nosnippet>714</a>                    .unwrap_or_else(|| <span class="string">"cuora.toml"</span>.into());
+<a href=#715 id=715 data-nosnippet>715</a>                <span class="macro">eprintln!</span>(
+<a href=#716 id=716 data-nosnippet>716</a>                    <span class="string">"warning: {config_name} declares [serve.pdp] exec — \
+<a href=#717 id=717 data-nosnippet>717</a>                     this config is a trust root authorizing shell execution \
+<a href=#718 id=718 data-nosnippet>718</a>                     and was found on the implicit search path. \
+<a href=#719 id=719 data-nosnippet>719</a>                     Pin it with --config or $CUORA_CONFIG if this is intended."
+<a href=#720 id=720 data-nosnippet>720</a>                </span>);
+<a href=#721 id=721 data-nosnippet>721</a>            }
+<a href=#722 id=722 data-nosnippet>722</a>            <span class="kw">let </span>stdin = std::io::stdin();
+<a href=#723 id=723 data-nosnippet>723</a>            <span class="kw">let </span>stdout = std::io::stdout();
+<a href=#724 id=724 data-nosnippet>724</a>            cuora_serve::run(ops, <span class="kw-2">&amp;mut </span>stdin.lock(), <span class="kw-2">&amp;mut </span>stdout.lock())<span class="question-mark">?</span>;
+<a href=#725 id=725 data-nosnippet>725</a>            ops.emit(Op::Serve, <span class="prelude-val">None</span>, Outcome::Ok);
+<a href=#726 id=726 data-nosnippet>726</a>            <span class="prelude-val">Ok</span>(<span class="number">0</span>)
+<a href=#727 id=727 data-nosnippet>727</a>        }
+<a href=#728 id=728 data-nosnippet>728</a>        <span class="comment">// Introspection verbs are handled before ops load — this
+<a href=#729 id=729 data-nosnippet>729</a>        // arm exists only for exhaustiveness and must never run.
+<a href=#730 id=730 data-nosnippet>730</a>        </span>Cmd::Manifest | Cmd::Schema | Cmd::GenCliDocs =&gt; {
+<a href=#731 id=731 data-nosnippet>731</a>            <span class="macro">eprintln!</span>(<span class="string">"internal error: introspection verb reached run_cmd"</span>);
+<a href=#732 id=732 data-nosnippet>732</a>            <span class="prelude-val">Ok</span>(<span class="number">1</span>)
+<a href=#733 id=733 data-nosnippet>733</a>        }
+<a href=#734 id=734 data-nosnippet>734</a>    }
+<a href=#735 id=735 data-nosnippet>735</a>}
+<a href=#736 id=736 data-nosnippet>736</a>
+<a href=#737 id=737 data-nosnippet>737</a><span class="kw">fn </span>parse_ref(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Ref, OpsError&gt; {
+<a href=#738 id=738 data-nosnippet>738</a>    <span class="prelude-val">Ok</span>(s.parse::&lt;Ref&gt;()<span class="question-mark">?</span>)
+<a href=#739 id=739 data-nosnippet>739</a>}
+<a href=#740 id=740 data-nosnippet>740</a>
+<a href=#741 id=741 data-nosnippet>741</a><span class="doccomment">/// `-s VAR=cuora://ref` pairs.
+<a href=#742 id=742 data-nosnippet>742</a></span><span class="kw">fn </span>parse_pairs(raw: <span class="kw-2">&amp;</span>[String]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;(String, String)&gt;, OpsError&gt; {
+<a href=#743 id=743 data-nosnippet>743</a>    raw.iter()
+<a href=#744 id=744 data-nosnippet>744</a>        .map(|s| {
+<a href=#745 id=745 data-nosnippet>745</a>            s.split_once(<span class="string">'='</span>)
+<a href=#746 id=746 data-nosnippet>746</a>                .map(|(k, v)| (k.to_string(), v.to_string()))
+<a href=#747 id=747 data-nosnippet>747</a>                .ok_or_else(|| OpsError::Msg(<span class="macro">format!</span>(<span class="string">"-s wants VAR=cuora://ref, got {s:?}"</span>)))
+<a href=#748 id=748 data-nosnippet>748</a>        })
+<a href=#749 id=749 data-nosnippet>749</a>        .collect()
+<a href=#750 id=750 data-nosnippet>750</a>}
+<a href=#751 id=751 data-nosnippet>751</a>
+<a href=#752 id=752 data-nosnippet>752</a><span class="doccomment">/// Upper bound on a piped `put`/`rotate` value — secrets are
+<a href=#753 id=753 data-nosnippet>753</a>/// kilobytes at most; anything larger is a mistake or an attack
+<a href=#754 id=754 data-nosnippet>754</a>/// on memory, not a credential.
+<a href=#755 id=755 data-nosnippet>755</a></span><span class="kw">const </span>MAX_STDIN_SECRET: u64 = <span class="number">1024 </span>* <span class="number">1024</span>;
+<a href=#756 id=756 data-nosnippet>756</a>
+<a href=#757 id=757 data-nosnippet>757</a><span class="doccomment">/// Secrets arrive on stdin (the scripted path) or a hidden
+<a href=#758 id=758 data-nosnippet>758</a>/// `/dev/tty` prompt (the human path) — never args. One trailing
+<a href=#759 id=759 data-nosnippet>759</a>/// line terminator is stripped; the rest is the value verbatim
+<a href=#760 id=760 data-nosnippet>760</a>/// (newlines allowed on the pipe path).
+<a href=#761 id=761 data-nosnippet>761</a></span><span class="kw">fn </span>read_secret(prompt: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Secret, OpsError&gt; {
+<a href=#762 id=762 data-nosnippet>762</a>    <span class="kw">let </span>stdin = std::io::stdin();
+<a href=#763 id=763 data-nosnippet>763</a>    <span class="kw">let </span>raw = <span class="kw">if </span>stdin.is_terminal() {
+<a href=#764 id=764 data-nosnippet>764</a>        rpassword::prompt_password(prompt)
+<a href=#765 id=765 data-nosnippet>765</a>            .map_err(|e| OpsError::Msg(<span class="macro">format!</span>(<span class="string">"read secret: {e}"</span>)))<span class="question-mark">?
+<a href=#766 id=766 data-nosnippet>766</a>    </span>} <span class="kw">else </span>{
+<a href=#767 id=767 data-nosnippet>767</a>        <span class="kw">let </span><span class="kw-2">mut </span>buf = String::new();
+<a href=#768 id=768 data-nosnippet>768</a>        <span class="comment">// Bounded read — an unbounded `read_to_string` lets an
+<a href=#769 id=769 data-nosnippet>769</a>        // endless pipe (`cuora put &lt; /dev/zero`) grow memory
+<a href=#770 id=770 data-nosnippet>770</a>        // without limit. 1 MiB is far past any real secret.
+<a href=#771 id=771 data-nosnippet>771</a>        </span>stdin
+<a href=#772 id=772 data-nosnippet>772</a>            .lock()
+<a href=#773 id=773 data-nosnippet>773</a>            .take(MAX_STDIN_SECRET + <span class="number">1</span>)
+<a href=#774 id=774 data-nosnippet>774</a>            .read_to_string(<span class="kw-2">&amp;mut </span>buf)
+<a href=#775 id=775 data-nosnippet>775</a>            .map_err(|e| OpsError::Msg(<span class="macro">format!</span>(<span class="string">"read stdin: {e}"</span>)))<span class="question-mark">?</span>;
+<a href=#776 id=776 data-nosnippet>776</a>        <span class="kw">if </span>buf.len() <span class="kw">as </span>u64 &gt; MAX_STDIN_SECRET {
+<a href=#777 id=777 data-nosnippet>777</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(OpsError::Msg(<span class="macro">format!</span>(
+<a href=#778 id=778 data-nosnippet>778</a>                <span class="string">"stdin secret exceeds {MAX_STDIN_SECRET} bytes"
+<a href=#779 id=779 data-nosnippet>779</a>            </span>)));
+<a href=#780 id=780 data-nosnippet>780</a>        }
+<a href=#781 id=781 data-nosnippet>781</a>        buf
+<a href=#782 id=782 data-nosnippet>782</a>    };
+<a href=#783 id=783 data-nosnippet>783</a>    <span class="kw">let </span>v = raw
+<a href=#784 id=784 data-nosnippet>784</a>        .strip_suffix(<span class="string">"\r\n"</span>)
+<a href=#785 id=785 data-nosnippet>785</a>        .or_else(|| raw.strip_suffix(<span class="string">'\n'</span>))
+<a href=#786 id=786 data-nosnippet>786</a>        .unwrap_or(<span class="kw-2">&amp;</span>raw);
+<a href=#787 id=787 data-nosnippet>787</a>    <span class="kw">if </span>v.is_empty() {
+<a href=#788 id=788 data-nosnippet>788</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(OpsError::Msg(<span class="string">"empty secret"</span>.into()));
+<a href=#789 id=789 data-nosnippet>789</a>    }
+<a href=#790 id=790 data-nosnippet>790</a>    <span class="prelude-val">Ok</span>(Secret::new(v))
+<a href=#791 id=791 data-nosnippet>791</a>}
+<a href=#792 id=792 data-nosnippet>792</a>
+<a href=#793 id=793 data-nosnippet>793</a><span class="doccomment">/// Shell single-quote escape for `cuora env` output — `'` becomes
+<a href=#794 id=794 data-nosnippet>794</a>/// `'\''`, so any value is safe inside the quotes.
+<a href=#795 id=795 data-nosnippet>795</a></span><span class="kw">fn </span>sh_escape(v: <span class="kw-2">&amp;</span>str) -&gt; String {
+<a href=#796 id=796 data-nosnippet>796</a>    <span class="macro">format!</span>(<span class="string">"'{}'"</span>, v.replace(<span class="string">'\''</span>, <span class="string">"'\\''"</span>))
+<a href=#797 id=797 data-nosnippet>797</a>}
+<a href=#798 id=798 data-nosnippet>798</a>
+<a href=#799 id=799 data-nosnippet>799</a><span class="doccomment">/// The canonical record shape: resolved ref + env plus record
+<a href=#800 id=800 data-nosnippet>800</a>/// metadata. Callers add `value`/`ok` as needed — never by
+<a href=#801 id=801 data-nosnippet>801</a>/// default.
+<a href=#802 id=802 data-nosnippet>802</a></span><span class="kw">fn </span>record_json(ops: <span class="kw-2">&amp;</span>Ops, parsed: <span class="kw-2">&amp;</span>Ref, rec: <span class="kw-2">&amp;</span>cuora_vault::SecretRecord) -&gt; serde_json::Value {
+<a href=#803 id=803 data-nosnippet>803</a>    <span class="kw">let </span>(env, r) = ops
+<a href=#804 id=804 data-nosnippet>804</a>        .resolve(parsed)
+<a href=#805 id=805 data-nosnippet>805</a>        .unwrap_or_else(|<span class="kw">_</span>| (ops.env().clone(), parsed.clone()));
+<a href=#806 id=806 data-nosnippet>806</a>    <span class="macro">serde_json::json!</span>({
+<a href=#807 id=807 data-nosnippet>807</a>        <span class="string">"ref"</span>: r.to_string(),
+<a href=#808 id=808 data-nosnippet>808</a>        <span class="string">"env"</span>: env.as_str(),
+<a href=#809 id=809 data-nosnippet>809</a>        <span class="string">"version"</span>: rec.version,
+<a href=#810 id=810 data-nosnippet>810</a>        <span class="string">"created_at"</span>: rec.created_at.to_string(),
+<a href=#811 id=811 data-nosnippet>811</a>        <span class="string">"rotated_at"</span>: rec.rotated_at.map(|t| t.to_string()),
+<a href=#812 id=812 data-nosnippet>812</a>    })
+<a href=#813 id=813 data-nosnippet>813</a>}
+<a href=#814 id=814 data-nosnippet>814</a>
+<a href=#815 id=815 data-nosnippet>815</a><span class="doccomment">/// The machine-readable capability doc — verbs, JSON shapes, env
+<a href=#816 id=816 data-nosnippet>816</a>/// vars, the audit contract. Keep honest: this is what the binary
+<a href=#817 id=817 data-nosnippet>817</a>/// actually does, not what it plans to.
+<a href=#818 id=818 data-nosnippet>818</a></span><span class="kw">fn </span>manifest() -&gt; serde_json::Value {
+<a href=#819 id=819 data-nosnippet>819</a>    <span class="macro">serde_json::json!</span>({
+<a href=#820 id=820 data-nosnippet>820</a>        <span class="string">"name"</span>: <span class="string">"cuora"</span>,
+<a href=#821 id=821 data-nosnippet>821</a>        <span class="string">"version"</span>: <span class="macro">env!</span>(<span class="string">"CARGO_PKG_VERSION"</span>),
+<a href=#822 id=822 data-nosnippet>822</a>        <span class="string">"description"</span>: <span class="string">"secrets broker for agents — cuora:// refs in code/config, env-var injection at run time, audit on stderr + OTLP spans when OTEL_EXPORTER_OTLP_ENDPOINT is set"</span>,
+<a href=#823 id=823 data-nosnippet>823</a>        <span class="string">"repository"</span>: <span class="string">"https://github.com/9aia/cuora"</span>,
+<a href=#824 id=824 data-nosnippet>824</a>        <span class="string">"protocol"</span>: <span class="string">"cuora/1"</span>,
+<a href=#825 id=825 data-nosnippet>825</a>        <span class="string">"ops"</span>: cuora_core::Op::ALL.iter().map(|o| o.as_str()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
+<a href=#826 id=826 data-nosnippet>826</a>        <span class="string">"verbs"</span>: {
+<a href=#827 id=827 data-nosnippet>827</a>            <span class="string">"init"</span>: <span class="string">"bootstrap the shared age identity (tardigrada namespace; legacy cuora/arca entries read as fallbacks) per [identity] backend / CUORA_IDENTITY_BACKEND — keyring (default, fail closed), auto (keyring → keyfile fallback), file (never probe); imports an existing keyfile; verify the vault opens"</span>,
+<a href=#828 id=828 data-nosnippet>828</a>            <span class="string">"put"</span>: <span class="string">"store a secret — value via stdin or hidden /dev/tty prompt, never args"</span>,
+<a href=#829 id=829 data-nosnippet>829</a>            <span class="string">"get"</span>: <span class="string">"print a secret's value (the escape hatch — prefer run)"</span>,
+<a href=#830 id=830 data-nosnippet>830</a>            <span class="string">"list"</span>: <span class="string">"refs stored in the selected env — names only, never values"</span>,
+<a href=#831 id=831 data-nosnippet>831</a>            <span class="string">"rm"</span>: <span class="string">"remove a secret"</span>,
+<a href=#832 id=832 data-nosnippet>832</a>            <span class="string">"rotate"</span>: <span class="string">"new value via stdin/prompt; version bump + rotated_at"</span>,
+<a href=#833 id=833 data-nosnippet>833</a>            <span class="string">"run"</span>: <span class="string">"inject [secrets]+`-s` into a child — one arg → bash -c, several → argv exec (no shell)"</span>,
+<a href=#834 id=834 data-nosnippet>834</a>            <span class="string">"env"</span>: <span class="string">"export lines for eval (human path); --json → VAR→value map"</span>,
+<a href=#835 id=835 data-nosnippet>835</a>            <span class="string">"check"</span>: <span class="string">"validate config, vault readability, declared-surface resolution; exit 1 on findings"</span>,
+<a href=#836 id=836 data-nosnippet>836</a>            <span class="string">"migrate"</span>: <span class="string">"rewrite stored records for a wire upgrade — `--private-refs` re-keys cf rows under derived keys"</span>,
+<a href=#837 id=837 data-nosnippet>837</a>            <span class="string">"deploy"</span>: <span class="string">"push a stored value to a write-only [deploy.NAME] target (sink, never a source)"</span>,
+<a href=#838 id=838 data-nosnippet>838</a>            <span class="string">"serve"</span>: <span class="string">"ndjson IPC mode for orchestrators — get/put/rm/rotate/list/check/manifest/shutdown on stdin→stdout, audit on stderr, optional [serve.pdp] policy consult"</span>,
+<a href=#839 id=839 data-nosnippet>839</a>            <span class="string">"manifest"</span>: <span class="string">"this document (always JSON; before config load, no audit event)"</span>,
+<a href=#840 id=840 data-nosnippet>840</a>            <span class="string">"schema"</span>: <span class="string">"JSON Schema for cuora.toml (before config load)"</span>,
+<a href=#841 id=841 data-nosnippet>841</a>            <span class="string">"gen-cli-docs"</span>: <span class="string">"hidden — the CLI reference as markdown (docs pipeline)"</span>,
+<a href=#842 id=842 data-nosnippet>842</a>        },
+<a href=#843 id=843 data-nosnippet>843</a>        <span class="string">"flags"</span>: {
+<a href=#844 id=844 data-nosnippet>844</a>            <span class="string">"--json"</span>: <span class="string">"stable shapes below; errors are {\"error\": \"…\"} on stderr, non-zero exit"</span>,
+<a href=#845 id=845 data-nosnippet>845</a>            <span class="string">"--env ENV"</span>: <span class="string">"resolution context (dev/staging/prod/custom; overrides CUORA_ENV)"</span>,
+<a href=#846 id=846 data-nosnippet>846</a>            <span class="string">"--config PATH"</span>: <span class="string">"config override (else $CUORA_CONFIG → ./cuora.toml → ~/.config/cuora/cuora.toml)"</span>,
+<a href=#847 id=847 data-nosnippet>847</a>            <span class="string">"--actor ACTOR"</span>: <span class="string">"audit attribution (else CUORA_ACTOR → $USER → anon)"</span>,
+<a href=#848 id=848 data-nosnippet>848</a>            <span class="string">"-s VAR=cuora://ref"</span>: <span class="string">"ad-hoc injection pair on run/env (repeatable; refused under [guardrails] deny_adhoc)"</span>,
+<a href=#849 id=849 data-nosnippet>849</a>            <span class="string">"--with-file"</span>: <span class="string">"on `cuora init` — force the identity keyfile, skip the keyring"</span>,
+<a href=#850 id=850 data-nosnippet>850</a>            <span class="string">"--target NAME"</span>: <span class="string">"deploy target on `cuora deploy` (required when several [deploy.*] tables exist)"</span>,
+<a href=#851 id=851 data-nosnippet>851</a>            <span class="string">"--private-refs"</span>: <span class="string">"on `cuora migrate` — re-key cf-vault rows under HMAC-derived keys"</span>,
+<a href=#852 id=852 data-nosnippet>852</a>        },
+<a href=#853 id=853 data-nosnippet>853</a>        <span class="string">"json_shapes"</span>: {
+<a href=#854 id=854 data-nosnippet>854</a>            <span class="string">"init"</span>: {<span class="string">"identity"</span>: <span class="string">"path|keyring locator"</span>, <span class="string">"backend"</span>: <span class="string">"file|keyring"</span>, <span class="string">"created"</span>: <span class="bool-val">true</span>, <span class="string">"migrated"</span>: <span class="bool-val">false</span>, <span class="string">"file_remains"</span>: <span class="string">"path|null"</span>, <span class="string">"recipient"</span>: <span class="string">"age1…"</span>, <span class="string">"vault"</span>: <span class="string">"path"</span>},
+<a href=#855 id=855 data-nosnippet>855</a>            <span class="string">"put"</span>: {<span class="string">"ok"</span>: <span class="bool-val">true</span>, <span class="string">"ref"</span>: <span class="string">"cuora://ns/name"</span>, <span class="string">"env"</span>: <span class="string">"dev"</span>, <span class="string">"version"</span>: <span class="number">1</span>, <span class="string">"created_at"</span>: <span class="string">"rfc3339"</span>, <span class="string">"rotated_at"</span>: <span class="string">"rfc3339|null"</span>},
+<a href=#856 id=856 data-nosnippet>856</a>            <span class="string">"rotate"</span>: <span class="string">"same as put"</span>,
+<a href=#857 id=857 data-nosnippet>857</a>            <span class="string">"get"</span>: {<span class="string">"ref"</span>: <span class="string">"cuora://ns/name"</span>, <span class="string">"env"</span>: <span class="string">"dev"</span>, <span class="string">"value"</span>: <span class="string">"plaintext"</span>, <span class="string">"version"</span>: <span class="number">1</span>, <span class="string">"created_at"</span>: <span class="string">"rfc3339"</span>, <span class="string">"rotated_at"</span>: <span class="string">"rfc3339|null"</span>},
+<a href=#858 id=858 data-nosnippet>858</a>            <span class="string">"list"</span>: [{<span class="string">"ref"</span>: <span class="string">"cuora://ns/name"</span>, <span class="string">"env"</span>: <span class="string">"dev"</span>, <span class="string">"version"</span>: <span class="number">1</span>, <span class="string">"created_at"</span>: <span class="string">"rfc3339"</span>, <span class="string">"rotated_at"</span>: <span class="string">"rfc3339|null"</span>}],
+<a href=#859 id=859 data-nosnippet>859</a>            <span class="string">"rm"</span>: {<span class="string">"ok"</span>: <span class="bool-val">true</span>, <span class="string">"removed"</span>: <span class="bool-val">true</span>, <span class="string">"ref"</span>: <span class="string">"cuora://ns/name"</span>, <span class="string">"env"</span>: <span class="string">"dev"</span>},
+<a href=#860 id=860 data-nosnippet>860</a>            <span class="string">"env"</span>: {<span class="string">"VAR"</span>: <span class="string">"plaintext value"</span>},
+<a href=#861 id=861 data-nosnippet>861</a>            <span class="string">"check"</span>: {
+<a href=#862 id=862 data-nosnippet>862</a>                <span class="string">"config"</span>: <span class="string">"path|null"</span>, <span class="string">"env"</span>: <span class="string">"dev"</span>, <span class="string">"vault"</span>: <span class="string">"local"</span>,
+<a href=#863 id=863 data-nosnippet>863</a>                <span class="string">"vaults"</span>: [{<span class="string">"name"</span>: <span class="string">"local"</span>, <span class="string">"kind"</span>: <span class="string">"age"</span>, <span class="string">"path"</span>: <span class="string">"path|null"</span>, <span class="string">"ok"</span>: <span class="bool-val">true</span>, <span class="string">"error"</span>: <span class="string">"…|null"</span>}],
+<a href=#864 id=864 data-nosnippet>864</a>                <span class="string">"secrets"</span>: {<span class="string">"VAR"</span>: {<span class="string">"ref"</span>: <span class="string">"cuora://ns/name"</span>, <span class="string">"env"</span>: <span class="string">"dev"</span>, <span class="string">"resolves"</span>: <span class="bool-val">true</span>}},
+<a href=#865 id=865 data-nosnippet>865</a>                <span class="string">"guardrails"</span>: {<span class="string">"default"</span>: <span class="string">"allow|deny"</span>, <span class="string">"allow"</span>: [<span class="string">"run"</span>], <span class="string">"deny"</span>: [<span class="string">"get"</span>], <span class="string">"deny_adhoc"</span>: <span class="bool-val">false</span>},
+<a href=#866 id=866 data-nosnippet>866</a>                <span class="string">"errors"</span>: [<span class="string">"finding…"</span>],
+<a href=#867 id=867 data-nosnippet>867</a>            },
+<a href=#868 id=868 data-nosnippet>868</a>            <span class="string">"deploy"</span>: {<span class="string">"ok"</span>: <span class="bool-val">true</span>, <span class="string">"ref"</span>: <span class="string">"cuora://ns/name"</span>, <span class="string">"env"</span>: <span class="string">"dev"</span>, <span class="string">"target"</span>: <span class="string">"prod"</span>, <span class="string">"secret_name"</span>: <span class="string">"dev_ns_name"</span>, <span class="string">"created"</span>: <span class="bool-val">true</span>},
+<a href=#869 id=869 data-nosnippet>869</a>            <span class="string">"migrate"</span>: {<span class="string">"ok"</span>: <span class="bool-val">true</span>, <span class="string">"migrated"</span>: [{<span class="string">"vault"</span>: <span class="string">"cloud"</span>, <span class="string">"env"</span>: <span class="string">"prod"</span>, <span class="string">"rewritten"</span>: [<span class="string">"ns/name"</span>], <span class="string">"already_private"</span>: <span class="number">0</span>}]},
+<a href=#870 id=870 data-nosnippet>870</a>            <span class="string">"run"</span>: <span class="string">"passthrough — child stdout/stderr/exit code; --json changes nothing"</span>,
+<a href=#871 id=871 data-nosnippet>871</a>            <span class="string">"error"</span>: {<span class="string">"error"</span>: <span class="string">"message (stderr, non-zero exit)"</span>},
+<a href=#872 id=872 data-nosnippet>872</a>        },
+<a href=#873 id=873 data-nosnippet>873</a>        <span class="string">"run_modes"</span>: {
+<a href=#874 id=874 data-nosnippet>874</a>            <span class="string">"shell"</span>: <span class="string">"cuora run -- 'cmd | pipeline' — a single arg runs via bash -c"</span>,
+<a href=#875 id=875 data-nosnippet>875</a>            <span class="string">"argv"</span>: <span class="string">"cuora run -- prog arg… — multiple args exec argv[0] directly, no shell"</span>,
+<a href=#876 id=876 data-nosnippet>876</a>        },
+<a href=#877 id=877 data-nosnippet>877</a>        <span class="string">"env_vars"</span>: {
+<a href=#878 id=878 data-nosnippet>878</a>            <span class="string">"CUORA_CONFIG"</span>: <span class="string">"config file override"</span>,
+<a href=#879 id=879 data-nosnippet>879</a>            <span class="string">"CUORA_ENV"</span>: <span class="string">"env context (default dev)"</span>,
+<a href=#880 id=880 data-nosnippet>880</a>            <span class="string">"CUORA_ACTOR"</span>: <span class="string">"audit actor attribution"</span>,
+<a href=#881 id=881 data-nosnippet>881</a>            <span class="string">"CUORA_IDENTITY_FILE"</span>: <span class="string">"explicit identity keyfile path — pins file mode, skipping the session keyring"</span>,
+<a href=#882 id=882 data-nosnippet>882</a>            <span class="string">"CUORA_IDENTITY_BACKEND"</span>: <span class="string">"keyring (default, fail closed — no file fallback) | auto (keyring → keyfile fallback, headless) | file (never probe the keyring); wins over [identity] backend"</span>,
+<a href=#883 id=883 data-nosnippet>883</a>            <span class="string">"CUORA_CF_TOKEN"</span>: <span class="string">"default cf-vault bearer env var ([vaults.*] token_env overrides the name)"</span>,
+<a href=#884 id=884 data-nosnippet>884</a>            <span class="string">"CLOUDFLARE_API_TOKEN"</span>: <span class="string">"default deploy-token env var ([deploy.*] token_env overrides the name)"</span>,
+<a href=#885 id=885 data-nosnippet>885</a>            <span class="string">"CUORA_AUDIT_STDERR"</span>: <span class="string">"0/false/off/no silences the stderr ndjson audit wire (OTLP-only mode); unset keeps it"</span>,
+<a href=#886 id=886 data-nosnippet>886</a>            <span class="string">"OTEL_EXPORTER_OTLP_ENDPOINT"</span>: <span class="string">"OTLP/HTTP collector base — audit events export as cuora.&lt;op&gt; spans to &lt;endpoint&gt;/v1/traces (JSON)"</span>,
+<a href=#887 id=887 data-nosnippet>887</a>            <span class="string">"OTEL_EXPORTER_OTLP_HEADERS"</span>: <span class="string">"k=v,k2=v2 auth headers for the OTLP endpoint (values percent-decoded)"</span>,
+<a href=#888 id=888 data-nosnippet>888</a>            <span class="string">"OTEL_EXPORTER_OTLP_TIMEOUT"</span>: <span class="string">"export timeout in ms (default 10000)"</span>,
+<a href=#889 id=889 data-nosnippet>889</a>            <span class="string">"OTEL_SERVICE_NAME"</span>: <span class="string">"service.name resource attribute on exported spans (default cuora)"</span>,
+<a href=#890 id=890 data-nosnippet>890</a>            <span class="string">"OTEL_SDK_DISABLED"</span>: <span class="string">"true/1 disables OTLP export entirely"</span>,
+<a href=#891 id=891 data-nosnippet>891</a>        },
+<a href=#892 id=892 data-nosnippet>892</a>        <span class="string">"config"</span>: {
+<a href=#893 id=893 data-nosnippet>893</a>            <span class="string">"search"</span>: [<span class="string">"--config"</span>, <span class="string">"$CUORA_CONFIG"</span>, <span class="string">"$ARCA_CONFIG"</span>, <span class="string">"./cuora.toml"</span>, <span class="string">"./arca.toml"</span>, <span class="string">"~/.config/cuora/cuora.toml"</span>, <span class="string">"~/.config/arca/arca.toml"</span>],
+<a href=#894 id=894 data-nosnippet>894</a>            <span class="string">"legacy_aliases"</span>: <span class="string">"pre-rename names (ARCA_*, arca://, arca.toml, ~/.config/arca/) are accepted as fallbacks — CUORA_* names win when both are set"</span>,
+<a href=#895 id=895 data-nosnippet>895</a>            <span class="string">"tables"</span>: [<span class="string">"vaults"</span>, <span class="string">"envs"</span>, <span class="string">"secrets"</span>, <span class="string">"deploy"</span>, <span class="string">"guardrails"</span>, <span class="string">"serve"</span>, <span class="string">"identity"</span>],
+<a href=#896 id=896 data-nosnippet>896</a>            <span class="string">"schema"</span>: <span class="string">"cuora schema"</span>,
+<a href=#897 id=897 data-nosnippet>897</a>            <span class="string">"env_pin"</span>: <span class="string">"cuora://prod/ns/name pins the env regardless of context"</span>,
+<a href=#898 id=898 data-nosnippet>898</a>        },
+<a href=#899 id=899 data-nosnippet>899</a>        <span class="string">"vault_kinds"</span>: [<span class="string">"age"</span>, <span class="string">"cf"</span>],
+<a href=#900 id=900 data-nosnippet>900</a>        <span class="string">"deploy_kinds"</span>: [<span class="string">"cf-secrets-store"</span>],
+<a href=#901 id=901 data-nosnippet>901</a>        <span class="string">"serve"</span>: {
+<a href=#902 id=902 data-nosnippet>902</a>            <span class="string">"wire"</span>: <span class="string">"one JSON request per stdin line → one JSON response per stdout line; audit stays on stderr"</span>,
+<a href=#903 id=903 data-nosnippet>903</a>            <span class="string">"ops"</span>: [<span class="string">"get"</span>, <span class="string">"put"</span>, <span class="string">"rm"</span>, <span class="string">"rotate"</span>, <span class="string">"list"</span>, <span class="string">"check"</span>, <span class="string">"manifest"</span>, <span class="string">"shutdown"</span>],
+<a href=#904 id=904 data-nosnippet>904</a>            <span class="string">"request"</span>: {<span class="string">"id"</span>: <span class="string">"any — echoed"</span>, <span class="string">"op"</span>: <span class="string">"…"</span>, <span class="string">"ref"</span>: <span class="string">"cuora://…"</span>, <span class="string">"env"</span>: <span class="string">"…"</span>, <span class="string">"value"</span>: <span class="string">"…"</span>, <span class="string">"actor"</span>: <span class="string">"claimed"</span>, <span class="string">"attestation"</span>: <span class="string">"opaque→PDP"</span>},
+<a href=#905 id=905 data-nosnippet>905</a>            <span class="string">"error_codes"</span>: [<span class="string">"bad_request"</span>, <span class="string">"unknown_op"</span>, <span class="string">"denied"</span>, <span class="string">"pdp_unreachable"</span>, <span class="string">"not_found"</span>, <span class="string">"op_error"</span>],
+<a href=#906 id=906 data-nosnippet>906</a>            <span class="string">"pdp"</span>: <span class="string">"[serve.pdp] exec = \"cmd…\" — sh -c per consulted op (get/put/rm/rotate/list/check; timeout_ms deadline, default 5000); request on stdin, {allow,reason?,obligations?} on stdout; unreachable fails CLOSED unless allow_on_error; child env is scrubbed to the cuora-shell allowlist"</span>,
+<a href=#907 id=907 data-nosnippet>907</a>            <span class="string">"details"</span>: <span class="string">"send {\"op\":\"manifest\"} on the wire for the full protocol doc"</span>,
+<a href=#908 id=908 data-nosnippet>908</a>        },
+<a href=#909 id=909 data-nosnippet>909</a>        <span class="string">"audit"</span>: {
+<a href=#910 id=910 data-nosnippet>910</a>            <span class="string">"wire"</span>: <span class="string">"ndjson lines on stderr (default; CUORA_AUDIT_STDERR=0 silences) + OTLP/HTTP JSON spans to $OTEL_EXPORTER_OTLP_ENDPOINT/v1/traces when set — span per event named cuora.&lt;op&gt;, attributes cuora.op/cuora.rref/cuora.env/cuora.actor/cuora.outcome (+cuora.policy.* on serve)"</span>,
+<a href=#911 id=911 data-nosnippet>911</a>            <span class="string">"event"</span>: {<span class="string">"ts"</span>: <span class="string">"rfc3339"</span>, <span class="string">"actor"</span>: <span class="string">"…"</span>, <span class="string">"op"</span>: <span class="string">"…"</span>, <span class="string">"rref"</span>: <span class="string">"…|absent when op-scoped"</span>, <span class="string">"env"</span>: <span class="string">"…"</span>, <span class="string">"outcome"</span>: <span class="string">"ok|denied|error"</span>, <span class="string">"policy?"</span>: <span class="string">"{allow, reason?, obligations?} — serve-path PDP verdicts only"</span>},
+<a href=#912 id=912 data-nosnippet>912</a>            <span class="string">"shape"</span>: <span class="string">"per-ref event per materialized/mutated ref (put/get/rotate/rm/deploy, run/env); op-scoped event for init/list/check/serve; denied on guardrail refusal; error on op failure; manifest/schema emit none; a run child's exit code is not an cuora failure"</span>,
+<a href=#913 id=913 data-nosnippet>913</a>            <span class="string">"surfaces"</span>: <span class="string">"serve flushes OTLP per request; CLI verbs flush once at exit; export failures warn once, never fail the op"</span>,
+<a href=#914 id=914 data-nosnippet>914</a>        },
+<a href=#915 id=915 data-nosnippet>915</a>        <span class="string">"notes"</span>: [
+<a href=#916 id=916 data-nosnippet>916</a>            <span class="string">"values never enter via CLI args — put/rotate read stdin or a hidden /dev/tty prompt"</span>,
+<a href=#917 id=917 data-nosnippet>917</a>            <span class="string">"[secrets] bounds what run/env may inject (least privilege); -s covers one-offs"</span>,
+<a href=#918 id=918 data-nosnippet>918</a>            <span class="string">"guardrails are advisory — accident prevention, not policy; CUORA_ACTOR is self-claimed"</span>,
+<a href=#919 id=919 data-nosnippet>919</a>            <span class="string">"run children start from an empty environment — only a small allowlist plus injected [secrets] cross; parent credentials (CUORA_*, deploy tokens) never leak"</span>,
+<a href=#920 id=920 data-nosnippet>920</a>            <span class="string">"list never carries values; get/env are the only surfaces that print them"</span>,
+<a href=#921 id=921 data-nosnippet>921</a>            <span class="string">"cf vaults store per-secret age ciphertext on a self-hosted Worker + D1 — the worker never sees plaintext"</span>,
+<a href=#922 id=922 data-nosnippet>922</a>            <span class="string">"cf wire is cuora-vault-cf/2: CuoraHmac signed requests (token never travels) with per-env scopes; bearer still accepted during migration"</span>,
+<a href=#923 id=923 data-nosnippet>923</a>            <span class="string">"[vaults.*] private_refs = true hides ref names from the cf store — HMAC-derived keys + encrypted name blobs; `cuora migrate --private-refs` rewrites existing rows"</span>,
+<a href=#924 id=924 data-nosnippet>924</a>            <span class="string">"deploy targets are write-only sinks — the value crosses to the sink in plaintext, never fetched back"</span>,
+<a href=#925 id=925 data-nosnippet>925</a>        ],
+<a href=#926 id=926 data-nosnippet>926</a>    })
+<a href=#927 id=927 data-nosnippet>927</a>}
+<a href=#928 id=928 data-nosnippet>928</a>
+<a href=#929 id=929 data-nosnippet>929</a><span class="kw">fn </span>out(s: <span class="kw-2">&amp;</span>str) -&gt; i32 {
+<a href=#930 id=930 data-nosnippet>930</a>    <span class="macro">println!</span>(<span class="string">"{s}"</span>);
+<a href=#931 id=931 data-nosnippet>931</a>    <span class="number">0
+<a href=#932 id=932 data-nosnippet>932</a></span>}
+<a href=#933 id=933 data-nosnippet>933</a>
+<a href=#934 id=934 data-nosnippet>934</a><span class="doccomment">/// Serializing a `serde_json::Value` cannot fail — the expect
+<a href=#935 id=935 data-nosnippet>935</a>/// documents that invariant rather than guarding a real path.
+<a href=#936 id=936 data-nosnippet>936</a></span><span class="attr">#[allow(clippy::unwrap_used)]
+<a href=#937 id=937 data-nosnippet>937</a></span><span class="kw">fn </span>json_out(v: <span class="kw-2">&amp;</span>serde_json::Value) -&gt; i32 {
+<a href=#938 id=938 data-nosnippet>938</a>    out(<span class="kw-2">&amp;</span>serde_json::to_string_pretty(v).expect(<span class="string">"Value serializes"</span>))
+<a href=#939 id=939 data-nosnippet>939</a>}
+<a href=#940 id=940 data-nosnippet>940</a>
+<a href=#941 id=941 data-nosnippet>941</a><span class="doccomment">/// The `cuora schema` payload — generated schema serializes
+<a href=#942 id=942 data-nosnippet>942</a>/// infallibly, same invariant as [`json_out`].
+<a href=#943 id=943 data-nosnippet>943</a></span><span class="attr">#[allow(clippy::unwrap_used)]
+<a href=#944 id=944 data-nosnippet>944</a></span><span class="kw">fn </span>schema_json() -&gt; String {
+<a href=#945 id=945 data-nosnippet>945</a>    serde_json::to_string_pretty(<span class="kw-2">&amp;</span><span class="macro">schemars::schema_for!</span>(cuora_core::Config))
+<a href=#946 id=946 data-nosnippet>946</a>        .expect(<span class="string">"generated schema serializes"</span>)
+<a href=#947 id=947 data-nosnippet>947</a>}
+<a href=#948 id=948 data-nosnippet>948</a>
+<a href=#949 id=949 data-nosnippet>949</a><span class="doccomment">/// Error path honoring `--json`: `{"error": …}` on stderr for
+<a href=#950 id=950 data-nosnippet>950</a>/// machines, `cuora: …` for humans.
+<a href=#951 id=951 data-nosnippet>951</a></span><span class="kw">fn </span>fail(cli: <span class="kw-2">&amp;</span>Cli, msg: <span class="kw-2">&amp;</span>str) -&gt; i32 {
+<a href=#952 id=952 data-nosnippet>952</a>    <span class="kw">if </span>cli.json {
+<a href=#953 id=953 data-nosnippet>953</a>        <span class="macro">eprintln!</span>(<span class="string">"{}"</span>, <span class="macro">serde_json::json!</span>({ <span class="string">"error"</span>: msg }));
+<a href=#954 id=954 data-nosnippet>954</a>    } <span class="kw">else </span>{
+<a href=#955 id=955 data-nosnippet>955</a>        <span class="macro">eprintln!</span>(<span class="string">"cuora: {msg}"</span>);
+<a href=#956 id=956 data-nosnippet>956</a>    }
+<a href=#957 id=957 data-nosnippet>957</a>    <span class="number">1
+<a href=#958 id=958 data-nosnippet>958</a></span>}
+<a href=#959 id=959 data-nosnippet>959</a>
+<a href=#960 id=960 data-nosnippet>960</a><span class="attr">#[cfg(test)]
+<a href=#961 id=961 data-nosnippet>961</a>#[allow(clippy::unwrap_used)]
+<a href=#962 id=962 data-nosnippet>962</a></span><span class="kw">mod </span>tests {
+<a href=#963 id=963 data-nosnippet>963</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#964 id=964 data-nosnippet>964</a>
+<a href=#965 id=965 data-nosnippet>965</a>    <span class="attr">#[test]
+<a href=#966 id=966 data-nosnippet>966</a>    </span><span class="kw">fn </span>cmd_op_maps_every_variant() {
+<a href=#967 id=967 data-nosnippet>967</a>        <span class="comment">// Introspection verbs return before ops load — cmd_op only
+<a href=#968 id=968 data-nosnippet>968</a>        // ever sees them if the dispatch order above is broken, but
+<a href=#969 id=969 data-nosnippet>969</a>        // the match still has to be total. All other arms map 1:1
+<a href=#970 id=970 data-nosnippet>970</a>        // to the audit [`Op`].
+<a href=#971 id=971 data-nosnippet>971</a>        </span><span class="kw">let </span>cases = [
+<a href=#972 id=972 data-nosnippet>972</a>            (Cmd::Init { with_file: <span class="bool-val">false </span>}, Op::Init),
+<a href=#973 id=973 data-nosnippet>973</a>            (
+<a href=#974 id=974 data-nosnippet>974</a>                Cmd::Put {
+<a href=#975 id=975 data-nosnippet>975</a>                    rref: <span class="string">"cuora://a/b"</span>.into(),
+<a href=#976 id=976 data-nosnippet>976</a>                },
+<a href=#977 id=977 data-nosnippet>977</a>                Op::Put,
+<a href=#978 id=978 data-nosnippet>978</a>            ),
+<a href=#979 id=979 data-nosnippet>979</a>            (
+<a href=#980 id=980 data-nosnippet>980</a>                Cmd::Get {
+<a href=#981 id=981 data-nosnippet>981</a>                    rref: <span class="string">"cuora://a/b"</span>.into(),
+<a href=#982 id=982 data-nosnippet>982</a>                },
+<a href=#983 id=983 data-nosnippet>983</a>                Op::Get,
+<a href=#984 id=984 data-nosnippet>984</a>            ),
+<a href=#985 id=985 data-nosnippet>985</a>            (Cmd::List, Op::List),
+<a href=#986 id=986 data-nosnippet>986</a>            (
+<a href=#987 id=987 data-nosnippet>987</a>                Cmd::Rm {
+<a href=#988 id=988 data-nosnippet>988</a>                    rref: <span class="string">"cuora://a/b"</span>.into(),
+<a href=#989 id=989 data-nosnippet>989</a>                },
+<a href=#990 id=990 data-nosnippet>990</a>                Op::Rm,
+<a href=#991 id=991 data-nosnippet>991</a>            ),
+<a href=#992 id=992 data-nosnippet>992</a>            (
+<a href=#993 id=993 data-nosnippet>993</a>                Cmd::Rotate {
+<a href=#994 id=994 data-nosnippet>994</a>                    rref: <span class="string">"cuora://a/b"</span>.into(),
+<a href=#995 id=995 data-nosnippet>995</a>                },
+<a href=#996 id=996 data-nosnippet>996</a>                Op::Rotate,
+<a href=#997 id=997 data-nosnippet>997</a>            ),
+<a href=#998 id=998 data-nosnippet>998</a>            (
+<a href=#999 id=999 data-nosnippet>999</a>                Cmd::Run {
+<a href=#1000 id=1000 data-nosnippet>1000</a>                    secrets: <span class="macro">vec!</span>[],
+<a href=#1001 id=1001 data-nosnippet>1001</a>                    cmd: <span class="macro">vec!</span>[<span class="string">"true"</span>.into()],
+<a href=#1002 id=1002 data-nosnippet>1002</a>                },
+<a href=#1003 id=1003 data-nosnippet>1003</a>                Op::Run,
+<a href=#1004 id=1004 data-nosnippet>1004</a>            ),
+<a href=#1005 id=1005 data-nosnippet>1005</a>            (Cmd::Env { secrets: <span class="macro">vec!</span>[] }, Op::Env),
+<a href=#1006 id=1006 data-nosnippet>1006</a>            (Cmd::Check, Op::Check),
+<a href=#1007 id=1007 data-nosnippet>1007</a>            (Cmd::Migrate { private_refs: <span class="bool-val">true </span>}, Op::Migrate),
+<a href=#1008 id=1008 data-nosnippet>1008</a>            (
+<a href=#1009 id=1009 data-nosnippet>1009</a>                Cmd::Deploy {
+<a href=#1010 id=1010 data-nosnippet>1010</a>                    rref: <span class="string">"cuora://a/b"</span>.into(),
+<a href=#1011 id=1011 data-nosnippet>1011</a>                    target: <span class="prelude-val">None</span>,
+<a href=#1012 id=1012 data-nosnippet>1012</a>                },
+<a href=#1013 id=1013 data-nosnippet>1013</a>                Op::Deploy,
+<a href=#1014 id=1014 data-nosnippet>1014</a>            ),
+<a href=#1015 id=1015 data-nosnippet>1015</a>            (Cmd::Serve, Op::Serve),
+<a href=#1016 id=1016 data-nosnippet>1016</a>            (Cmd::Manifest, Op::Manifest),
+<a href=#1017 id=1017 data-nosnippet>1017</a>            (Cmd::Schema, Op::Schema),
+<a href=#1018 id=1018 data-nosnippet>1018</a>            (Cmd::GenCliDocs, Op::Schema),
+<a href=#1019 id=1019 data-nosnippet>1019</a>        ];
+<a href=#1020 id=1020 data-nosnippet>1020</a>        <span class="kw">for </span>(cmd, op) <span class="kw">in </span>cases {
+<a href=#1021 id=1021 data-nosnippet>1021</a>            <span class="macro">assert_eq!</span>(cmd_op(<span class="kw-2">&amp;</span>cmd), op);
+<a href=#1022 id=1022 data-nosnippet>1022</a>        }
+<a href=#1023 id=1023 data-nosnippet>1023</a>    }
+<a href=#1024 id=1024 data-nosnippet>1024</a>
+<a href=#1025 id=1025 data-nosnippet>1025</a>    <span class="attr">#[test]
+<a href=#1026 id=1026 data-nosnippet>1026</a>    </span><span class="kw">fn </span>run_cmd_folded_arm_covers_introspection_verbs() {
+<a href=#1027 id=1027 data-nosnippet>1027</a>        <span class="comment">// The folded arm documents the dispatch invariant — an
+<a href=#1028 id=1028 data-nosnippet>1028</a>        // introspection verb reaching run_cmd shares one arm rather
+<a href=#1029 id=1029 data-nosnippet>1029</a>        // than owning a dead region. Whatever it returns, the arm is
+<a href=#1030 id=1030 data-nosnippet>1030</a>        // exercised; it must never panic.
+<a href=#1031 id=1031 data-nosnippet>1031</a>        </span><span class="kw">let </span>cli = Cli {
+<a href=#1032 id=1032 data-nosnippet>1032</a>            json: <span class="bool-val">false</span>,
+<a href=#1033 id=1033 data-nosnippet>1033</a>            env: <span class="prelude-val">None</span>,
+<a href=#1034 id=1034 data-nosnippet>1034</a>            config: <span class="prelude-val">None</span>,
+<a href=#1035 id=1035 data-nosnippet>1035</a>            actor: <span class="prelude-val">None</span>,
+<a href=#1036 id=1036 data-nosnippet>1036</a>            command: Cmd::Manifest,
+<a href=#1037 id=1037 data-nosnippet>1037</a>        };
+<a href=#1038 id=1038 data-nosnippet>1038</a>        <span class="kw">let </span>home = tempfile::tempdir().unwrap();
+<a href=#1039 id=1039 data-nosnippet>1039</a>        temp_env::with_vars(
+<a href=#1040 id=1040 data-nosnippet>1040</a>            [
+<a href=#1041 id=1041 data-nosnippet>1041</a>                (<span class="string">"HOME"</span>, <span class="prelude-val">Some</span>(home.path().to_str().unwrap())),
+<a href=#1042 id=1042 data-nosnippet>1042</a>                (<span class="string">"CUORA_CONFIG"</span>, <span class="prelude-val">None</span>::&lt;<span class="kw-2">&amp;</span>str&gt;),
+<a href=#1043 id=1043 data-nosnippet>1043</a>            ],
+<a href=#1044 id=1044 data-nosnippet>1044</a>            || {
+<a href=#1045 id=1045 data-nosnippet>1045</a>                <span class="kw">let </span>ops = Ops::load(LoadOpts::default()).unwrap();
+<a href=#1046 id=1046 data-nosnippet>1046</a>                <span class="kw">let _ </span>= run_cmd(<span class="kw-2">&amp;</span>Cmd::Manifest, <span class="kw-2">&amp;</span>cli, <span class="kw-2">&amp;</span>ops);
+<a href=#1047 id=1047 data-nosnippet>1047</a>            },
+<a href=#1048 id=1048 data-nosnippet>1048</a>        );
+<a href=#1049 id=1049 data-nosnippet>1049</a>    }
+<a href=#1050 id=1050 data-nosnippet>1050</a>}
+</code></pre></div></section></main></body></html>

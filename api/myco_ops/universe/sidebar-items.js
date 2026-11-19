@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["RepoSource"],"fn":["repos"],"struct":["UniverseRepo"]};

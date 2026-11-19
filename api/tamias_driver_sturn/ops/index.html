@@ -6,7 +6,7 @@ stdout and never touches the serve loop’s ndjson stream — and
 every mutation keeps the engine’s own write-path semantics (WAL
 append, actor from config/<code>$STURN_ACTOR</code>, claim fencing).</p>
 <p><code>ops</code> answers the ops manifest as JSON — <em>derived from the
-engine’s own clap tree</em> (<a href="../../sturn/fn.command.html" title="fn sturn::command"><code>sturn::command</code></a>), so a verb can’t
+engine’s own clap tree</em> ([<code>sturn::command</code>]), so a verb can’t
 exist on the CLI and be missing here: leaf subcommands flatten
 into dotted names (<code>ws new</code> → <code>cli.ws.new</code>), declared args
 become typed params (<code>arg</code>/<code>opt</code>/<code>flag</code>), and doc strings ride

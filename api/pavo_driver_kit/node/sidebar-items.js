@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["base","column","column_gap","embed","expandable_tree","field","field_kind","form","form_submit","graph","kv","markdown","pair","panel","row","row_gap","select_field","sortable_table","table","table_column","tree","tree_item","vertex"],"struct":["Base"]};

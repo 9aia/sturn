@@ -3,7 +3,7 @@ coordination state.</p>
 <p>Verbs (the tamias driver contract):</p>
 <ul>
 <li>
-<p><code>manifest</code> — print the <a href="pavo_protocol::DriverManifest"><code>DriverManifest</code></a> JSON (discovery
+<p><code>manifest</code> — print the <a href="../pavo_protocol/manifest/struct.DriverManifest.html" title="struct pavo_protocol::manifest::DriverManifest"><code>DriverManifest</code></a> JSON (discovery
 probe; never touches repo state).</p>
 </li>
 <li>
@@ -12,7 +12,7 @@ probe; never touches repo state).</p>
 <li>
 <p><code>ops</code> — the engine ops manifest: every <code>sturn</code> CLI verb as a
 <code>cli.&lt;verb&gt;</code> wire query, derived from the engine’s own clap
-tree (<a href="../sturn/fn.command.html" title="fn sturn::command"><code>sturn::command</code></a>).</p>
+tree ([<code>sturn::command</code>]).</p>
 </li>
 <li>
 <p><code>run &lt;argv&gt;</code> — engine passthrough: <code>tamias-driver-sturn run claims</code> ≡ <code>sturn claims</code>. Also the child side of <code>cli.*</code> wire

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Origin"],"fn":["builtins","named_views","named_views_lenient","resolve","resolve_lenient","validate_repo_views"],"struct":["NamedView"]};

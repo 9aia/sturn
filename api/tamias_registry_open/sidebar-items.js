@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["add_registry","config_target","effective_limits","effective_retention","get_registry","load_config","open_registry","publish_plan","registry_json","registry_target","remove_registry","search"],"struct":["PublishPlan"]};

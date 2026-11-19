@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["find_config","find_mimus","load","overrides","parse_config","resolve","violations_json"],"struct":["Snapshot"]};

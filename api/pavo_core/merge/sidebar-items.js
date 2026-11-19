@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["merge_chrome"],"struct":["Chrome","SlotEntry"]};

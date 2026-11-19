@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["serve_http","serve_http_with_limits"],"struct":["LocalRegistry"]};

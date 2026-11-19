@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["actor","backlog_doc","date","done_doc","file_kind","group_name","handoff_entry","item_file","item_id","item_kind","label","line_item","line_note","priority","project_meta","section_name","session","status","title","todo_doc"]};

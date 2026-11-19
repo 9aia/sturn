@@ -1,0 +1,48 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="cuora-vault-cf — the Cloudflare Worker + D1 vault impl."><title>cuora_vault_cf - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="cuora_vault_cf" data-themes="" data-resource-suffix="" data-rustdoc-version="1.99.1 (58cf8f9c3 2026-10-13) (Arch Linux rust 1:1.99.1-1)" data-channel="1.99.1" data-search-js="search-cf4fc35e.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate cuora_vault_cf</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../cuora_vault_cf/index.html">cuora_<wbr>vault_<wbr>cf</a><span class="version">1.0.4</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#wire-protocol-cuora-vault-cf2" title="Wire protocol (`cuora-vault-cf/2`)">Wire protocol (<code>cuora-vault-cf/2</code>)</a></li></ul><h3><a href="#structs">Crate Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1>Crate <span>cuora_<wbr>vault_<wbr>cf</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/cuora_vault_cf/lib.rs.html#1-1310">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>cuora-vault-cf — the Cloudflare Worker + D1 vault impl.</p>
+<p>A [<code>Vault</code>] over HTTPS: a self-hosted Worker (source in
+<code>worker/</code>) fronts a D1 table of opaque rows —
+<code>(env, key) → {ciphertext, name, version, created_at, rotated_at}</code>. <strong>The Worker never sees plaintext.</strong> Each value is
+age-encrypted client-side to the configured recipients <em>before</em>
+it leaves the process; the store holds and returns base64
+ciphertext only. This is the same crypto boundary as
+<code>cuora-vault-age</code> (ADR-0001) — a remote store is just a different
+persistence medium — but with <em>per-secret</em> ciphertext so rows
+map 1:1 to D1.</p>
+<h3 id="wire-protocol-cuora-vault-cf2"><a class="doc-anchor" href="#wire-protocol-cuora-vault-cf2">§</a>Wire protocol (<code>cuora-vault-cf/2</code>)</h3>
+<p>Two auth schemes; the Worker accepts both during migration
+(P-003):</p>
+<ul>
+<li><code>Authorization: Bearer &lt;token&gt;</code> — legacy; the token travels on
+every request.</li>
+<li><code>Authorization: CuoraHmac &lt;token_id&gt;, &lt;ts&gt;, &lt;nonce&gt;, &lt;sig&gt;</code> — the
+token <em>signs</em> instead of traveling:
+<code>sig = hex HMAC-SHA256(token, method+"\n"+path+"\n"+ts+"\n"+nonce+"\n"+sha256hex(body))</code>,
+<code>ts</code> unix seconds within a ±60s replay window. The <code>nonce</code>
+makes identical requests inside one second sign differently —
+a legit retry isn’t a replay against the worker’s <code>used_sig</code>
+table (the pre-nonce 3-field form stays accepted during
+migration).</li>
+</ul>
+<p>Tokens are scoped per env on the Worker side
+(<code>CUORA_VAULT_TOKENS</code> maps <code>token_id → {env → {read, write}}</code>);
+config carries <code>cuora://</code> refs resolved into values before the
+vault is built — never inline tokens.</p>
+<div><table><thead><tr><th>Verb</th><th>Path</th><th>Body → Response</th></tr></thead><tbody>
+<tr><td><code>GET</code></td><td><code>/v1/{env}</code></td><td><code>{"refs": [{"key": "a/b", "name": blob|null}, …]}</code></td></tr>
+<tr><td><code>GET</code></td><td><code>/v1/{env}/{key}</code></td><td><code>{"ciphertext": "&lt;b64&gt;", "name": blob|null, "version": n, "created_at": rfc3339, "rotated_at": rfc3339|null}</code></td></tr>
+<tr><td><code>PUT</code></td><td><code>/v1/{env}/{key}</code></td><td><code>{"ciphertext": "&lt;b64&gt;", "name": blob|null, "rotate": bool}</code> → record metadata; <code>rotate:true</code> on a missing key → 404</td></tr>
+<tr><td><code>DELETE</code></td><td><code>/v1/{env}/{key}</code></td><td><code>{"removed": bool}</code></td></tr>
+</tbody></table>
+</div>
+<p><code>{key}</code> is the storage key: the bare ref path (<code>billing/stripe</code>)
+or — with <code>private_refs</code> (P-004) — <code>hex HMAC-SHA256(k, env+"/"+ref)</code>
+where <code>k</code> is derived from the age identity. Private rows carry a
+<code>name</code> blob (age ciphertext of the real ref) so <code>list</code> can map
+keys back; a store compromise then yields ciphertext and opaque
+hex, not which secrets exist.</p>
+<p>Bookkeeping is <strong>server-side</strong>: the Worker bumps <code>version</code>,
+preserves <code>created_at</code>, and stamps <code>rotated_at</code> on rotate, so
+concurrent writers can’t race client-computed versions.</p>
+<p>HTTP uses <code>ureq</code> (blocking, no async runtime) per AGENTS.md.</p>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.CfVault.html" title="struct cuora_vault_cf::CfVault">CfVault</a></dt><dd>A [<code>Vault</code>] backed by the Worker + D1 service.</dd><dt><a class="struct" href="struct.CfVaultConfig.html" title="struct cuora_vault_cf::CfVaultConfig">CfVault<wbr>Config</a></dt><dd>A resolved cf-vault configuration — mirrors <code>[vaults.&lt;name&gt;] kind = "cf"</code> after ops has resolved <code>cuora://</code> token refs into
+credential values (no refs, no plaintext tokens in config).</dd><dt><a class="struct" href="struct.MigrateReport.html" title="struct cuora_vault_cf::MigrateReport">Migrate<wbr>Report</a></dt><dd>What <a href="struct.CfVault.html#method.migrate_private_refs" title="method cuora_vault_cf::CfVault::migrate_private_refs"><code>CfVault::migrate_private_refs</code></a> did.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.Auth.html" title="enum cuora_vault_cf::Auth">Auth</a></dt><dd>How the client authenticates a request.</dd></dl></section></div></main></body></html>

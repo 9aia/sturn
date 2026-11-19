@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["ENV_OTEL_ENDPOINT","ENV_OTEL_SERVICE_NAME"],"fn":["enabled","init","record_response","server_span","trace_headers"],"struct":["TelemetryGuard"]};

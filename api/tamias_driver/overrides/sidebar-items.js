@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["OVERRIDES_ENV","OVERRIDES_ROOT_ENV"],"fn":["clear_overrides","merged_overrides","overrides_root","package_dir","package_overrides","parse_set_arg","set_override","unset_override"]};

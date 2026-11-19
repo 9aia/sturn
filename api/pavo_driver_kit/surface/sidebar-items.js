@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ManifestError","ParamKind"],"mod":["cli","client","mcp"],"struct":["OpOutcome","OpSpec","OpsManifest","ParamSpec"],"trait":["Surface"]};

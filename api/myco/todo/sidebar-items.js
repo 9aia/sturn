@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["add_item","cancel_item","defer_item","doc_items","done_item","h_add","h_cancel","h_defer","h_done","h_list","list_items"]};

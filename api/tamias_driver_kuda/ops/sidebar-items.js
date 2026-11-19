@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["READ_ONLY","SKIP_PARAMS","SURFACES"],"fn":["argv","kind","manifest","op_cmd","op_of","param_json","push_param","run_op","scalar","skipped","values","verbs"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["add_item","h_add","h_list","h_promote","promote_item"]};

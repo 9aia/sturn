@@ -1,0 +1,53 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="cuora-serve — `cuora serve`: the ndjson request/response surface orchestrators (peregrin) embed (P-005)."><title>cuora_serve - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="cuora_serve" data-themes="" data-resource-suffix="" data-rustdoc-version="1.99.1 (58cf8f9c3 2026-10-13) (Arch Linux rust 1:1.99.1-1)" data-channel="1.99.1" data-search-js="search-cf4fc35e.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate cuora_serve</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../cuora_serve/index.html">cuora_<wbr>serve</a><span class="version">1.0.4</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#structs">Crate Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#constants" title="Constants">Constants</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1>Crate <span>cuora_<wbr>serve</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/cuora_serve/lib.rs.html#1-1257">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>cuora-serve — <code>cuora serve</code>: the ndjson request/response surface
+orchestrators (peregrin) embed (P-005).</p>
+<p>One JSON request per <strong>stdin</strong> line, one JSON response per
+<strong>stdout</strong> line; the audit wire stays on <strong>stderr</strong> (plus OTLP
+span export when <code>OTEL_EXPORTER_OTLP_ENDPOINT</code> is set) — three
+separate fds, so a reply never rides the event stream
+and an event never answers a request. A thin front over
+<code>cuora-ops</code> — every vault access goes through
+[<code>Ops</code>], so env-pin resolution, <code>[envs]</code> routing, and the
+audit events are the same ones the CLI emits.</p>
+<p>Protocol <code>cuora-serve/1</code>:</p>
+<div class="example-wrap"><pre class="language-json"><code>{&quot;id&quot;: 1, &quot;op&quot;: &quot;get&quot;, &quot;ref&quot;: &quot;cuora://billing/stripe&quot;,
+ &quot;env&quot;: &quot;prod&quot;, &quot;actor&quot;: &quot;agent:peregrin&quot;, &quot;attestation&quot;: &quot;…&quot;}</code></pre></div>
+<p>→ <code>{"id": 1, "ok": true, "result": {…}}</code> or
+<code>{"id": 1, "ok": false, "error": {"code": "…", "message": "…"}}</code>.
+<code>id</code> is echoed verbatim — any JSON value, absent → <code>null</code>.</p>
+<p>Ops: <code>get</code>/<code>put</code>/<code>rm</code>/<code>rotate</code>/<code>list</code>/<code>check</code> (each consults
+the configured <code>[serve.pdp]</code> first — <code>list</code> decrypts record
+metadata and <code>check</code> probes vaults including scoped-token
+gets, so they are materializations too), <code>manifest</code> (this
+protocol’s self-description), and <code>shutdown</code> (clean exit).
+<code>run</code>/<code>env</code>/<code>deploy</code>/<code>init</code> stay single-shot CLI verbs —
+serve covers the port peregrin needs in-process.</p>
+<p>Hard bounds on the wire: a request line over
+<a href="constant.MAX_LINE_BYTES.html" title="constant cuora_serve::MAX_LINE_BYTES"><code>MAX_LINE_BYTES</code></a> (4 MiB) answers <code>bad_request</code> and the
+reader resyncs to the next line; <code>actor</code> (256 B),
+<code>attestation</code> (64 KiB), <code>ref</code> (1 KiB), <code>value</code> (64 KiB), and
+<code>id</code> (4 KiB serialized) are each capped. Blank or
+whitespace-only lines get <strong>no reply</strong> — keep-alive whitespace
+is legal and unanswered.</p>
+<p>Policy: requests carry <em>advisory</em> actor claims — <code>actor</code> is the
+attribution string audit records, <code>attestation</code> an opaque blob
+passed to the PDP verbatim. cuora verifies neither; signing is
+the PDP’s side (P-005 is the boundary contract, not the
+enforcement). A configured PDP that denies — or that can’t be
+reached under the default fail-closed posture — turns into a
+<code>denied</code>/<code>pdp_unreachable</code> error, a <code>denied</code> audit event, and
+no vault access. <code>manifest</code> and <code>shutdown</code> are protocol
+meta-ops: they skip guardrails and the PDP consult by design
+(gating session lifecycle is the embedder’s spawn decision,
+not a materialization).</p>
+<p>Values cross this wire deliberately: <code>get</code> returns them,
+<code>put</code>/<code>rotate</code> take them — the parent owns the channel exactly
+like it owns <code>cuora get</code>’s stdout.</p>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.ExecPdp.html" title="struct cuora_serve::ExecPdp">ExecPdp</a></dt><dd>The exec-driver PDP — one <code>sh -c</code> spawn per decision.</dd><dt><a class="struct" href="struct.PdpRequest.html" title="struct cuora_serve::PdpRequest">PdpRequest</a></dt><dd>What serve asks the PDP — one materialization decision.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.Decision.html" title="enum cuora_serve::Decision">Decision</a></dt><dd>What the PDP answered.</dd></dl><h2 id="constants" class="section-header">Constants<a href="#constants" class="anchor">§</a></h2><dl class="item-table"><dt><a class="constant" href="constant.MAX_LINE_BYTES.html" title="constant cuora_serve::MAX_LINE_BYTES">MAX_<wbr>LINE_<wbr>BYTES</a></dt><dd>The most one request line may be — 4 MiB. Legitimate requests
+are bytes-to-kilobytes; an unbounded <code>read_line</code> lets a broken
+or hostile embedder exhaust memory, so an oversized line is a
+<code>bad_request</code> and the reader resyncs to the next line.</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.run.html" title="fn cuora_serve::run">run</a></dt><dd>Serve the ndjson loop on <code>reader</code>/<code>writer</code> against the loaded
+[<code>Ops</code>] — the <code>cuora serve</code> verb’s whole job. Runs until EOF or
+a <code>shutdown</code> request. A malformed, non-UTF-8, or oversized
+line is a <code>bad_request</code> response, never a crash and never the
+end of the loop; only a real stdout/reader I/O failure
+propagates.</dd></dl></section></div></main></body></html>

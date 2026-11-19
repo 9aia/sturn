@@ -1,0 +1,229 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/kuda-driver/src/repo.rs`."><title>repo.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="tamias_driver_kuda" data-themes="" data-resource-suffix="" data-rustdoc-version="1.99.1 (58cf8f9c3 2026-10-13) (Arch Linux rust 1:1.99.1-1)" data-channel="1.99.1" data-search-js="search-cf4fc35e.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">tamias_driver_kuda/</div>repo.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Repo context — resolve which kuda-indexed repo this request is
+<a href=#2 id=2 data-nosnippet>2</a>//! about, load its config, cards, and L2 store.
+<a href=#3 id=3 data-nosnippet>3</a>//!
+<a href=#4 id=4 data-nosnippet>4</a>//! Resolution order for the repo root:
+<a href=#5 id=5 data-nosnippet>5</a>//! 1. `root` / `dir` / `path` param on the wire request (JSON string).
+<a href=#6 id=6 data-nosnippet>6</a>//! 2. `$KUDA_DRIVER_ROOT` env var.
+<a href=#7 id=7 data-nosnippet>7</a>//! 3. Walk up from the process cwd to the nearest dir containing
+<a href=#8 id=8 data-nosnippet>8</a>//!    `.kuda/` or `kuda.toml` — pavo spawns drivers with the user's
+<a href=#9 id=9 data-nosnippet>9</a>//!    cwd, so `pavo view kuda:graph` inside repo X reads X's index.
+<a href=#10 id=10 data-nosnippet>10</a>//! 4. The cwd itself (queries then report "not indexed" honestly).
+<a href=#11 id=11 data-nosnippet>11</a>
+<a href=#12 id=12 data-nosnippet>12</a></span><span class="kw">use </span>kuda_core::{Config, ModuleCard, RepoCard};
+<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>kuda_store_sqlite::SqliteStore;
+<a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>lasius_vcs::Vcs;
+<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>serde_json::{Map, Value};
+<a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span>std::path::{Path, PathBuf};
+<a href=#17 id=17 data-nosnippet>17</a>
+<a href=#18 id=18 data-nosnippet>18</a><span class="doccomment">/// Everything a query needs for one repo — opened lazily per wire
+<a href=#19 id=19 data-nosnippet>19</a>/// request (sqlite open is cheap; cards parse on demand).
+<a href=#20 id=20 data-nosnippet>20</a></span><span class="kw">pub struct </span>Ctx {
+<a href=#21 id=21 data-nosnippet>21</a>    <span class="doccomment">/// Repo root the context was resolved against.
+<a href=#22 id=22 data-nosnippet>22</a>    </span><span class="kw">pub </span>root: PathBuf,
+<a href=#23 id=23 data-nosnippet>23</a>    <span class="doccomment">/// Parsed `kuda.toml` (defaults when absent/unparseable).
+<a href=#24 id=24 data-nosnippet>24</a>    </span><span class="kw">pub </span>cfg: Config,
+<a href=#25 id=25 data-nosnippet>25</a>    <span class="doccomment">/// `.kuda/index.yaml` L0 card, when present and parseable.
+<a href=#26 id=26 data-nosnippet>26</a>    </span><span class="kw">pub </span>repo_card: <span class="prelude-ty">Option</span>&lt;RepoCard&gt;,
+<a href=#27 id=27 data-nosnippet>27</a>    <span class="doccomment">/// L2 store — `None` when `.kuda/index.sqlite` doesn't exist
+<a href=#28 id=28 data-nosnippet>28</a>    /// (never created: the view/query side stays read-only;
+<a href=#29 id=29 data-nosnippet>29</a>    /// `cli.sync` mutates through the `run` re-exec, not `Ctx`).
+<a href=#30 id=30 data-nosnippet>30</a>    </span><span class="kw">pub </span>store: <span class="prelude-ty">Option</span>&lt;SqliteStore&gt;,
+<a href=#31 id=31 data-nosnippet>31</a>    <span class="doccomment">/// `git rev-parse HEAD` at open time (empty when not a repo).
+<a href=#32 id=32 data-nosnippet>32</a>    </span><span class="kw">pub </span>head: String,
+<a href=#33 id=33 data-nosnippet>33</a>}
+<a href=#34 id=34 data-nosnippet>34</a>
+<a href=#35 id=35 data-nosnippet>35</a><span class="kw">impl </span>Ctx {
+<a href=#36 id=36 data-nosnippet>36</a>    <span class="doccomment">/// Open a context for `root`. Never fails hard — missing pieces
+<a href=#37 id=37 data-nosnippet>37</a>    /// surface as `None`/empty so views degrade to error payloads.
+<a href=#38 id=38 data-nosnippet>38</a>    </span><span class="kw">pub fn </span>open(root: PathBuf) -&gt; <span class="self">Self </span>{
+<a href=#39 id=39 data-nosnippet>39</a>        <span class="kw">let </span>cfg = load_config(<span class="kw-2">&amp;</span>root);
+<a href=#40 id=40 data-nosnippet>40</a>        <span class="kw">let </span>cards_dir = cards_dir(<span class="kw-2">&amp;</span>root, <span class="kw-2">&amp;</span>cfg);
+<a href=#41 id=41 data-nosnippet>41</a>        <span class="kw">let </span>repo_card = std::fs::read_to_string(cards_dir.join(<span class="string">"index.yaml"</span>))
+<a href=#42 id=42 data-nosnippet>42</a>            .ok()
+<a href=#43 id=43 data-nosnippet>43</a>            .and_then(|t| kuda_cards::parse_repo_card(<span class="kw-2">&amp;</span>t).ok());
+<a href=#44 id=44 data-nosnippet>44</a>        <span class="kw">let </span>store_path = root.join(<span class="kw-2">&amp;</span>cfg.store.path);
+<a href=#45 id=45 data-nosnippet>45</a>        <span class="kw">let </span>store = store_path
+<a href=#46 id=46 data-nosnippet>46</a>            .is_file()
+<a href=#47 id=47 data-nosnippet>47</a>            .then(|| SqliteStore::open(<span class="kw-2">&amp;</span>store_path).ok())
+<a href=#48 id=48 data-nosnippet>48</a>            .flatten();
+<a href=#49 id=49 data-nosnippet>49</a>        <span class="kw">let </span>head = lasius_vcs_git::GitVcs.head(<span class="kw-2">&amp;</span>root).unwrap_or_default();
+<a href=#50 id=50 data-nosnippet>50</a>        <span class="self">Self </span>{
+<a href=#51 id=51 data-nosnippet>51</a>            root,
+<a href=#52 id=52 data-nosnippet>52</a>            cfg,
+<a href=#53 id=53 data-nosnippet>53</a>            repo_card,
+<a href=#54 id=54 data-nosnippet>54</a>            store,
+<a href=#55 id=55 data-nosnippet>55</a>            head,
+<a href=#56 id=56 data-nosnippet>56</a>        }
+<a href=#57 id=57 data-nosnippet>57</a>    }
+<a href=#58 id=58 data-nosnippet>58</a>
+<a href=#59 id=59 data-nosnippet>59</a>    <span class="doccomment">/// `.kuda/modules/` dir for this context.
+<a href=#60 id=60 data-nosnippet>60</a>    </span><span class="kw">pub fn </span>modules_dir(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; PathBuf {
+<a href=#61 id=61 data-nosnippet>61</a>        cards_dir(<span class="kw-2">&amp;</span><span class="self">self</span>.root, <span class="kw-2">&amp;</span><span class="self">self</span>.cfg).join(<span class="string">"modules"</span>)
+<a href=#62 id=62 data-nosnippet>62</a>    }
+<a href=#63 id=63 data-nosnippet>63</a>
+<a href=#64 id=64 data-nosnippet>64</a>    <span class="doccomment">/// All parseable module cards, sorted by name. Unparseable files
+<a href=#65 id=65 data-nosnippet>65</a>    /// are skipped (they surface as drift "error" rows only when the
+<a href=#66 id=66 data-nosnippet>66</a>    /// file itself can't be read as YAML at all — parse failures are
+<a href=#67 id=67 data-nosnippet>67</a>    /// counted separately by callers that care).
+<a href=#68 id=68 data-nosnippet>68</a>    </span><span class="kw">pub fn </span>module_cards(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;(String, ModuleCard)&gt; {
+<a href=#69 id=69 data-nosnippet>69</a>        <span class="kw">let </span><span class="kw-2">mut </span>out = Vec::new();
+<a href=#70 id=70 data-nosnippet>70</a>        <span class="kw">let </span><span class="prelude-val">Ok</span>(entries) = std::fs::read_dir(<span class="self">self</span>.modules_dir()) <span class="kw">else </span>{
+<a href=#71 id=71 data-nosnippet>71</a>            <span class="kw">return </span>out;
+<a href=#72 id=72 data-nosnippet>72</a>        };
+<a href=#73 id=73 data-nosnippet>73</a>        <span class="kw">for </span>e <span class="kw">in </span>entries.flatten() {
+<a href=#74 id=74 data-nosnippet>74</a>            <span class="kw">let </span>p = e.path();
+<a href=#75 id=75 data-nosnippet>75</a>            <span class="kw">if </span>p.extension()
+<a href=#76 id=76 data-nosnippet>76</a>                .map(|x| x == <span class="string">"yaml" </span>|| x == <span class="string">"yml"</span>)
+<a href=#77 id=77 data-nosnippet>77</a>                .unwrap_or(<span class="bool-val">false</span>)
+<a href=#78 id=78 data-nosnippet>78</a>            {
+<a href=#79 id=79 data-nosnippet>79</a>                <span class="kw">if let </span><span class="prelude-val">Ok</span>(text) = std::fs::read_to_string(<span class="kw-2">&amp;</span>p) {
+<a href=#80 id=80 data-nosnippet>80</a>                    <span class="kw">if let </span><span class="prelude-val">Ok</span>(card) = kuda_cards::parse_module_card(<span class="kw-2">&amp;</span>text) {
+<a href=#81 id=81 data-nosnippet>81</a>                        out.push((card.name.clone(), card));
+<a href=#82 id=82 data-nosnippet>82</a>                    }
+<a href=#83 id=83 data-nosnippet>83</a>                }
+<a href=#84 id=84 data-nosnippet>84</a>            }
+<a href=#85 id=85 data-nosnippet>85</a>        }
+<a href=#86 id=86 data-nosnippet>86</a>        out.sort_by(|a, b| a.<span class="number">0</span>.cmp(<span class="kw-2">&amp;</span>b.<span class="number">0</span>));
+<a href=#87 id=87 data-nosnippet>87</a>        out
+<a href=#88 id=88 data-nosnippet>88</a>    }
+<a href=#89 id=89 data-nosnippet>89</a>
+<a href=#90 id=90 data-nosnippet>90</a>    <span class="doccomment">/// True when the context has anything kuda-shaped at all.
+<a href=#91 id=91 data-nosnippet>91</a>    </span><span class="kw">pub fn </span>indexed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#92 id=92 data-nosnippet>92</a>        <span class="self">self</span>.repo_card.is_some() || <span class="self">self</span>.store.is_some() || <span class="self">self</span>.modules_dir().is_dir()
+<a href=#93 id=93 data-nosnippet>93</a>    }
+<a href=#94 id=94 data-nosnippet>94</a>}
+<a href=#95 id=95 data-nosnippet>95</a>
+<a href=#96 id=96 data-nosnippet>96</a><span class="doccomment">/// Resolve the repo root for one request. `params` are the merged
+<a href=#97 id=97 data-nosnippet>97</a>/// view/query params; string values under `root`/`dir`/`path` win.
+<a href=#98 id=98 data-nosnippet>98</a></span><span class="kw">pub fn </span>resolve_root(params: <span class="kw-2">&amp;</span>Map&lt;String, Value&gt;) -&gt; PathBuf {
+<a href=#99 id=99 data-nosnippet>99</a>    <span class="kw">for </span>key <span class="kw">in </span>[<span class="string">"root"</span>, <span class="string">"dir"</span>, <span class="string">"path"</span>] {
+<a href=#100 id=100 data-nosnippet>100</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(s) = params.get(key).and_then(Value::as_str) {
+<a href=#101 id=101 data-nosnippet>101</a>            <span class="kw">let </span>p = PathBuf::from(s);
+<a href=#102 id=102 data-nosnippet>102</a>            <span class="kw">return </span>std::fs::canonicalize(<span class="kw-2">&amp;</span>p).unwrap_or(p);
+<a href=#103 id=103 data-nosnippet>103</a>        }
+<a href=#104 id=104 data-nosnippet>104</a>    }
+<a href=#105 id=105 data-nosnippet>105</a>    <span class="kw">if let </span><span class="prelude-val">Ok</span>(r) = std::env::var(<span class="string">"KUDA_DRIVER_ROOT"</span>) {
+<a href=#106 id=106 data-nosnippet>106</a>        <span class="kw">if </span>!r.is_empty() {
+<a href=#107 id=107 data-nosnippet>107</a>            <span class="kw">let </span>p = PathBuf::from(r);
+<a href=#108 id=108 data-nosnippet>108</a>            <span class="kw">return </span>std::fs::canonicalize(<span class="kw-2">&amp;</span>p).unwrap_or(p);
+<a href=#109 id=109 data-nosnippet>109</a>        }
+<a href=#110 id=110 data-nosnippet>110</a>    }
+<a href=#111 id=111 data-nosnippet>111</a>    <span class="kw">let </span>cwd = std::env::current_dir().unwrap_or_else(|<span class="kw">_</span>| PathBuf::from(<span class="string">"."</span>));
+<a href=#112 id=112 data-nosnippet>112</a>    <span class="comment">// Walk up: nearest ancestor with `.kuda/` or `kuda.toml`.
+<a href=#113 id=113 data-nosnippet>113</a>    </span><span class="kw">for </span>dir <span class="kw">in </span>cwd.ancestors() {
+<a href=#114 id=114 data-nosnippet>114</a>        <span class="kw">if </span>dir.join(<span class="string">".kuda"</span>).is_dir() || dir.join(<span class="string">"kuda.toml"</span>).is_file() {
+<a href=#115 id=115 data-nosnippet>115</a>            <span class="kw">return </span>dir.to_path_buf();
+<a href=#116 id=116 data-nosnippet>116</a>        }
+<a href=#117 id=117 data-nosnippet>117</a>    }
+<a href=#118 id=118 data-nosnippet>118</a>    cwd
+<a href=#119 id=119 data-nosnippet>119</a>}
+<a href=#120 id=120 data-nosnippet>120</a>
+<a href=#121 id=121 data-nosnippet>121</a><span class="doccomment">/// Parse `&lt;root&gt;/kuda.toml` into a `Config`; defaults on absence or
+<a href=#122 id=122 data-nosnippet>122</a>/// parse failure (the driver never refuses to serve).
+<a href=#123 id=123 data-nosnippet>123</a></span><span class="kw">fn </span>load_config(root: <span class="kw-2">&amp;</span>Path) -&gt; Config {
+<a href=#124 id=124 data-nosnippet>124</a>    <span class="kw">let </span>p = root.join(<span class="string">"kuda.toml"</span>);
+<a href=#125 id=125 data-nosnippet>125</a>    <span class="kw">if </span>!p.is_file() {
+<a href=#126 id=126 data-nosnippet>126</a>        <span class="kw">return </span>Config::default();
+<a href=#127 id=127 data-nosnippet>127</a>    }
+<a href=#128 id=128 data-nosnippet>128</a>    kuda_config::parse_file(<span class="kw-2">&amp;</span>p).unwrap_or_else(|e| {
+<a href=#129 id=129 data-nosnippet>129</a>        <span class="macro">eprintln!</span>(<span class="string">"kuda-driver: {e} — defaults in use"</span>);
+<a href=#130 id=130 data-nosnippet>130</a>        Config::default()
+<a href=#131 id=131 data-nosnippet>131</a>    })
+<a href=#132 id=132 data-nosnippet>132</a>}
+<a href=#133 id=133 data-nosnippet>133</a>
+<a href=#134 id=134 data-nosnippet>134</a><span class="kw">fn </span>cards_dir(root: <span class="kw-2">&amp;</span>Path, cfg: <span class="kw-2">&amp;</span>Config) -&gt; PathBuf {
+<a href=#135 id=135 data-nosnippet>135</a>    <span class="kw">if </span>cfg.cards.dir.is_absolute() {
+<a href=#136 id=136 data-nosnippet>136</a>        cfg.cards.dir.clone()
+<a href=#137 id=137 data-nosnippet>137</a>    } <span class="kw">else </span>{
+<a href=#138 id=138 data-nosnippet>138</a>        root.join(<span class="kw-2">&amp;</span>cfg.cards.dir)
+<a href=#139 id=139 data-nosnippet>139</a>    }
+<a href=#140 id=140 data-nosnippet>140</a>}
+<a href=#141 id=141 data-nosnippet>141</a>
+<a href=#142 id=142 data-nosnippet>142</a><span class="doccomment">/// `kuda status` drift for one card — recompute the git-blob hash of
+<a href=#143 id=143 data-nosnippet>143</a>/// every provenance file and compare. Mirrors `status()` in
+<a href=#144 id=144 data-nosnippet>144</a>/// `kuda-cli`: stale on any hash mismatch or a file-count change.
+<a href=#145 id=145 data-nosnippet>145</a></span><span class="kw">pub fn </span>card_drift(root: <span class="kw-2">&amp;</span>Path, card: <span class="kw-2">&amp;</span>ModuleCard) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#146 id=146 data-nosnippet>146</a>    <span class="kw">let </span>hashes: Vec&lt;String&gt; = card
+<a href=#147 id=147 data-nosnippet>147</a>        .provenance
+<a href=#148 id=148 data-nosnippet>148</a>        .files
+<a href=#149 id=149 data-nosnippet>149</a>        .iter()
+<a href=#150 id=150 data-nosnippet>150</a>        .map(|f| blob_hash(<span class="kw-2">&amp;</span>root.join(f)))
+<a href=#151 id=151 data-nosnippet>151</a>        .collect();
+<a href=#152 id=152 data-nosnippet>152</a>    <span class="kw">let </span>stale = card
+<a href=#153 id=153 data-nosnippet>153</a>        .provenance
+<a href=#154 id=154 data-nosnippet>154</a>        .hashes
+<a href=#155 id=155 data-nosnippet>155</a>        .iter()
+<a href=#156 id=156 data-nosnippet>156</a>        .zip(<span class="kw-2">&amp;</span>hashes)
+<a href=#157 id=157 data-nosnippet>157</a>        .any(|(a, b)| a != b)
+<a href=#158 id=158 data-nosnippet>158</a>        || card.provenance.files.len() != hashes.len();
+<a href=#159 id=159 data-nosnippet>159</a>    <span class="kw">if </span>stale {
+<a href=#160 id=160 data-nosnippet>160</a>        <span class="string">"drifted"
+<a href=#161 id=161 data-nosnippet>161</a>    </span>} <span class="kw">else </span>{
+<a href=#162 id=162 data-nosnippet>162</a>        <span class="string">"fresh"
+<a href=#163 id=163 data-nosnippet>163</a>    </span>}
+<a href=#164 id=164 data-nosnippet>164</a>}
+<a href=#165 id=165 data-nosnippet>165</a>
+<a href=#166 id=166 data-nosnippet>166</a><span class="doccomment">/// git blob hash — identical values to `git hash-object`
+<a href=#167 id=167 data-nosnippet>167</a>/// ("blob &amp;lt;len&amp;gt;\0" + bytes), same recipe as `kuda status`.
+<a href=#168 id=168 data-nosnippet>168</a></span><span class="kw">fn </span>blob_hash(path: <span class="kw-2">&amp;</span>Path) -&gt; String {
+<a href=#169 id=169 data-nosnippet>169</a>    <span class="kw">use </span>sha1::Digest;
+<a href=#170 id=170 data-nosnippet>170</a>    <span class="kw">let </span><span class="prelude-val">Ok</span>(bytes) = std::fs::read(path) <span class="kw">else </span>{
+<a href=#171 id=171 data-nosnippet>171</a>        <span class="kw">return </span>String::new();
+<a href=#172 id=172 data-nosnippet>172</a>    };
+<a href=#173 id=173 data-nosnippet>173</a>    <span class="kw">let </span><span class="kw-2">mut </span>h = sha1::Sha1::new();
+<a href=#174 id=174 data-nosnippet>174</a>    h.update(<span class="macro">format!</span>(<span class="string">"blob {}\0"</span>, bytes.len()).as_bytes());
+<a href=#175 id=175 data-nosnippet>175</a>    h.update(<span class="kw-2">&amp;</span>bytes);
+<a href=#176 id=176 data-nosnippet>176</a>    h.finalize().iter().map(|b| <span class="macro">format!</span>(<span class="string">"{b:02x}"</span>)).collect()
+<a href=#177 id=177 data-nosnippet>177</a>}
+<a href=#178 id=178 data-nosnippet>178</a>
+<a href=#179 id=179 data-nosnippet>179</a><span class="doccomment">/// Filename-safe module name → card file stem (same rule as
+<a href=#180 id=180 data-nosnippet>180</a>/// `kuda card`: keep alnum, `-`, `_`, `.`; fold the rest to `_`).
+<a href=#181 id=181 data-nosnippet>181</a></span><span class="kw">pub fn </span>safe(name: <span class="kw-2">&amp;</span>str) -&gt; String {
+<a href=#182 id=182 data-nosnippet>182</a>    name.chars()
+<a href=#183 id=183 data-nosnippet>183</a>        .map(|c| {
+<a href=#184 id=184 data-nosnippet>184</a>            <span class="kw">if </span>c.is_ascii_alphanumeric() || <span class="macro">matches!</span>(c, <span class="string">'-' </span>| <span class="string">'_' </span>| <span class="string">'.'</span>) {
+<a href=#185 id=185 data-nosnippet>185</a>                c
+<a href=#186 id=186 data-nosnippet>186</a>            } <span class="kw">else </span>{
+<a href=#187 id=187 data-nosnippet>187</a>                <span class="string">'_'
+<a href=#188 id=188 data-nosnippet>188</a>            </span>}
+<a href=#189 id=189 data-nosnippet>189</a>        })
+<a href=#190 id=190 data-nosnippet>190</a>        .collect()
+<a href=#191 id=191 data-nosnippet>191</a>}
+<a href=#192 id=192 data-nosnippet>192</a>
+<a href=#193 id=193 data-nosnippet>193</a><span class="attr">#[cfg(test)]
+<a href=#194 id=194 data-nosnippet>194</a></span><span class="kw">mod </span>tests {
+<a href=#195 id=195 data-nosnippet>195</a>    <span class="attr">#![allow(clippy::unwrap_used)]
+<a href=#196 id=196 data-nosnippet>196</a>    </span><span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#197 id=197 data-nosnippet>197</a>    <span class="kw">use </span>serde_json::json;
+<a href=#198 id=198 data-nosnippet>198</a>
+<a href=#199 id=199 data-nosnippet>199</a>    <span class="attr">#[test]
+<a href=#200 id=200 data-nosnippet>200</a>    </span><span class="kw">fn </span>safe_folds_unsafe_chars() {
+<a href=#201 id=201 data-nosnippet>201</a>        <span class="macro">assert_eq!</span>(safe(<span class="string">"kuda-core"</span>), <span class="string">"kuda-core"</span>);
+<a href=#202 id=202 data-nosnippet>202</a>        <span class="macro">assert_eq!</span>(safe(<span class="string">"a/b c"</span>), <span class="string">"a_b_c"</span>);
+<a href=#203 id=203 data-nosnippet>203</a>    }
+<a href=#204 id=204 data-nosnippet>204</a>
+<a href=#205 id=205 data-nosnippet>205</a>    <span class="attr">#[test]
+<a href=#206 id=206 data-nosnippet>206</a>    </span><span class="kw">fn </span>resolve_root_prefers_params() {
+<a href=#207 id=207 data-nosnippet>207</a>        <span class="kw">let </span>tmp = std::env::temp_dir().join(<span class="macro">format!</span>(<span class="string">"kuda-drv-{}"</span>, std::process::id()));
+<a href=#208 id=208 data-nosnippet>208</a>        std::fs::create_dir_all(<span class="kw-2">&amp;</span>tmp).unwrap();
+<a href=#209 id=209 data-nosnippet>209</a>        <span class="kw">let </span><span class="kw-2">mut </span>params = Map::new();
+<a href=#210 id=210 data-nosnippet>210</a>        params.insert(<span class="string">"root"</span>.into(), <span class="macro">json!</span>(tmp.to_string_lossy()));
+<a href=#211 id=211 data-nosnippet>211</a>        <span class="kw">let </span>r = resolve_root(<span class="kw-2">&amp;</span>params);
+<a href=#212 id=212 data-nosnippet>212</a>        <span class="macro">assert_eq!</span>(r, std::fs::canonicalize(<span class="kw-2">&amp;</span>tmp).unwrap());
+<a href=#213 id=213 data-nosnippet>213</a>        <span class="kw">let _ </span>= std::fs::remove_dir_all(<span class="kw-2">&amp;</span>tmp);
+<a href=#214 id=214 data-nosnippet>214</a>    }
+<a href=#215 id=215 data-nosnippet>215</a>
+<a href=#216 id=216 data-nosnippet>216</a>    <span class="attr">#[test]
+<a href=#217 id=217 data-nosnippet>217</a>    </span><span class="kw">fn </span>unindexed_ctx_reports_not_indexed() {
+<a href=#218 id=218 data-nosnippet>218</a>        <span class="kw">let </span>tmp = std::env::temp_dir().join(<span class="macro">format!</span>(<span class="string">"kuda-drv-empty-{}"</span>, std::process::id()));
+<a href=#219 id=219 data-nosnippet>219</a>        std::fs::create_dir_all(<span class="kw-2">&amp;</span>tmp).unwrap();
+<a href=#220 id=220 data-nosnippet>220</a>        <span class="kw">let </span>ctx = Ctx::open(tmp.clone());
+<a href=#221 id=221 data-nosnippet>221</a>        <span class="macro">assert!</span>(!ctx.indexed());
+<a href=#222 id=222 data-nosnippet>222</a>        <span class="macro">assert!</span>(ctx.repo_card.is_none());
+<a href=#223 id=223 data-nosnippet>223</a>        <span class="macro">assert!</span>(ctx.store.is_none());
+<a href=#224 id=224 data-nosnippet>224</a>        <span class="kw">let </span>q = <span class="kw">crate</span>::queries::run_query(<span class="kw-2">&amp;</span>ctx, <span class="string">"status"</span>, <span class="kw-2">&amp;</span>Map::new());
+<a href=#225 id=225 data-nosnippet>225</a>        <span class="macro">assert!</span>(q.get(<span class="string">"error"</span>).is_some(), <span class="string">"{q}"</span>);
+<a href=#226 id=226 data-nosnippet>226</a>        <span class="kw">let _ </span>= std::fs::remove_dir_all(<span class="kw-2">&amp;</span>tmp);
+<a href=#227 id=227 data-nosnippet>227</a>    }
+<a href=#228 id=228 data-nosnippet>228</a>}
+</code></pre></div></section></main></body></html>
