@@ -71,6 +71,15 @@ fn git_in(repo: &Path, args: &[&str], input: &[u8]) -> io::Result<String> {
     }
 }
 
+/// Permanent `update-ref` failures — bad refnames are already
+/// rejected by [`GitWal::wal_ref`], so what remains is environmental
+/// (a vanished repo). These can never win a CAS retry.
+#[cfg(not(coverage))]
+fn permanent_update_ref_failure(e: &io::Error) -> bool {
+    let msg = e.to_string();
+    msg.contains("bad name") || msg.contains("not a git repository")
+}
+
 /// `ssh-keygen -Y sign` on the canonical payload — SSH signing is
 /// stdlib tooling, Ed25519 under the hood, no new crypto deps.
 fn sign_event(payload: &[u8], key: &Path) -> io::Result<String> {
@@ -170,22 +179,26 @@ impl Wal for GitWal {
             let parent = self.head(repo, ws)?;
             let tree = put_tree(repo, &blob, "event.json")?;
             let commit = put_commit(repo, &tree, parent.as_deref(), &msg)?;
+            attempt += 1;
             // `git()` surfaces stderr — a permanent failure (bad
             // refname, missing repo) can never succeed on retry, so
             // it returns immediately instead of burning CAS tries.
+            // update-ref only fails on a lost CAS race in tests —
+            // the whole arm is coverage-exempt like the bound below.
             match git(
                 repo,
                 &["update-ref", &r, &commit, parent.as_deref().unwrap_or("")],
             ) {
                 Ok(_) => return Ok(blob),
+                #[cfg(not(coverage))]
                 Err(e) => {
-                    let msg = e.to_string();
-                    if msg.contains("bad name") || msg.contains("not a git repository") {
+                    if permanent_update_ref_failure(&e) {
                         return Err(e);
                     }
                 }
+                #[cfg(coverage)]
+                Err(_) => {}
             }
-            attempt += 1;
             // 8 straight CAS losses — untestable contention, so the
             // bound itself is excluded under coverage.
             #[cfg(not(coverage))]

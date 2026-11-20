@@ -3385,6 +3385,32 @@ mod tests {
             panic!("wrong variant")
         };
         assert_eq!(name, "repo-x");
+
+        // Arms with no name slots pass through untouched.
+        for mut cmd in [Cmd::Ws { cmd: WsCmd::Ls }, Cmd::Claims, Cmd::Init] {
+            resolve(&mut cmd).unwrap();
+        }
+    }
+
+    #[test]
+    fn ws_default_falls_back_when_basename_unsable() {
+        // canonicalize fails → repo_id → "repo"; either way the
+        // fallback chain still lands on a valid ws name.
+        let cli = Cli {
+            repo: Some(PathBuf::from("/no/such/dir-xyz")),
+            config: Some("/no/such.toml".into()),
+            cmd: Cmd::Claims,
+        };
+        assert_eq!(dispatch(&cli), 1);
+        // A basename that isn't a valid ws name (space) → "repo".
+        let repo = repo("bad name");
+        let bogus = repo.join("no-such.toml").to_string_lossy().into_owned();
+        let cli = Cli {
+            repo: Some(repo),
+            config: Some(bogus),
+            cmd: Cmd::Claims,
+        };
+        assert_eq!(dispatch(&cli), 0);
     }
 
     #[test]
