@@ -179,6 +179,28 @@ fn compact_without_snapshot_is_noop() {
 }
 
 #[test]
+fn invalid_ws_name_fails_fast_not_cas() {
+    // `refs/sturn/wal/.` is an invalid refname — the append must
+    // fail immediately with a clear error, not retry update-ref
+    // into the "lost CAS race" loop.
+    let repo = repo("badws");
+    let wal = GitWal::default();
+    for bad in [".", "", "a b", "a..b", ".hidden", "x.lock"] {
+        let err = wal
+            .append(&repo, bad, &ev(Op::Intent { text: "t".into() }))
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("invalid workspace name"),
+            "{bad:?}: {err}"
+        );
+        assert!(wal.head(&repo, bad).is_err(), "{bad:?} head should err");
+        assert!(wal.events(&repo, bad).is_err(), "{bad:?} events should err");
+    }
+    // And nothing was written — no stray refs.
+    assert!(wal.workspaces(&repo).unwrap().is_empty());
+}
+
+#[test]
 fn custom_ref_prefix() {
     let repo = repo("prefix");
     let wal = GitWal {

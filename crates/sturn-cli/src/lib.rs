@@ -46,7 +46,7 @@ pub struct Cli {
     cmd: Cmd,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 enum Cmd {
     /// Wire a repo for sturn — writes sturn.toml if absent.
     Init,
@@ -320,7 +320,7 @@ enum Cmd {
     },
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 enum WsCmd {
     /// Create a workspace — zero materialization, just a ref.
     New {
@@ -364,7 +364,7 @@ enum WsCmd {
     },
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 enum DeployCmd {
     /// Write + enable the systemd user unit for `sturn daemon`.
     Service,
@@ -372,13 +372,13 @@ enum DeployCmd {
     Env,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 enum DestroySub {
     /// Disable + remove the systemd user unit.
     Service,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 enum ServiceCmd {
     /// Enable + start the daemon unit now and at login.
     Enable,
@@ -517,6 +517,68 @@ fn post_op(cli: &Cli) {
     }
 }
 
+/// `--ws` raw → canonical workspace name. `.`/empty mean "this
+/// repo's workspace" → `default`. Names that can't be a git
+/// refname fail here — before any update-ref, never as the
+/// invalid `refs/sturn/wal/.`.
+fn resolve_ws_name(raw: &str, default: &str) -> Result<String, String> {
+    let name = match raw.trim() {
+        "" | "." => default.to_string(),
+        s => s.to_string(),
+    };
+    if sturn_core::valid_ws_name(&name) {
+        Ok(name)
+    } else {
+        Err(format!("invalid workspace name {raw:?}"))
+    }
+}
+
+/// Visit every workspace-name slot in `cmd` — the `--ws` flags,
+/// the `snap` name list, the optional `--ws` filters, and the `ws`
+/// subcommand targets. Resolution runs once in `execute` so no
+/// verb can emit `refs/sturn/wal/.`.
+fn each_ws(
+    cmd: &mut Cmd,
+    f: &mut impl FnMut(&mut String) -> Result<(), String>,
+) -> Result<(), String> {
+    match cmd {
+        Cmd::Claim { ws, .. }
+        | Cmd::Release { ws, .. }
+        | Cmd::Write { ws, .. }
+        | Cmd::Rename { ws, .. }
+        | Cmd::Delete { ws, .. }
+        | Cmd::Intent { ws, .. }
+        | Cmd::Review { ws, .. }
+        | Cmd::Ask { ws, .. }
+        | Cmd::Answer { ws, .. }
+        | Cmd::Cancel { ws, .. }
+        | Cmd::Join { ws }
+        | Cmd::Leave { ws }
+        | Cmd::Exec { ws, .. }
+        | Cmd::Mount { ws, .. } => f(ws)?,
+        Cmd::Compact { ws } | Cmd::Log { ws, .. } | Cmd::Diff { ws, .. } | Cmd::Verify { ws } => {
+            if let Some(w) = ws {
+                f(w)?;
+            }
+        }
+        Cmd::Snap { ws, .. } => {
+            for w in ws {
+                f(w)?;
+            }
+        }
+        Cmd::Ws { cmd } => match cmd {
+            WsCmd::New { name, .. }
+            | WsCmd::Read { name, .. }
+            | WsCmd::Paths { name, .. }
+            | WsCmd::Grep { name, .. }
+            | WsCmd::Hydrate { name, .. } => f(name)?,
+            WsCmd::Ls => {}
+        },
+        _ => {}
+    }
+    Ok(())
+}
+
 /// The compat CLI body — parse argv, dispatch, hand back the code.
 pub fn run() -> i32 {
     dispatch(&parse())
@@ -550,6 +612,29 @@ fn execute(cli: &Cli) -> Result<(), String> {
             .and_then(|p| p.file_name().map(|s| s.to_string_lossy().into_owned()))
             .unwrap_or_else(|| "repo".into())
     });
+    // `--ws .`/empty resolve here, once, for every verb: the repo's
+    // canonical name — canonical dir basename first (the same
+    // identity `repo.id` falls back to, but resolved through `.`,
+    // which has no file_name of its own), then the configured repo
+    // id, then "repo". The fallback chain always lands on a valid
+    // ws name or resolution fails outright.
+    let ws_default = repo
+        .canonicalize()
+        .ok()
+        .and_then(|p| p.file_name().map(|s| s.to_string_lossy().into_owned()))
+        .filter(|s| sturn_core::valid_ws_name(s))
+        .unwrap_or_else(|| {
+            if sturn_core::valid_ws_name(&repo_id) {
+                repo_id.clone()
+            } else {
+                "repo".into()
+            }
+        });
+    let mut cmd = cli.cmd.clone();
+    each_ws(&mut cmd, &mut |w| {
+        *w = resolve_ws_name(w, &ws_default)?;
+        Ok(())
+    })?;
     let branch = cfg
         .as_ref()
         .map(|c| c.repo.branch.clone())
@@ -582,7 +667,7 @@ fn execute(cli: &Cli) -> Result<(), String> {
         });
     let poll_ms = cfg.as_ref().map(|c| c.bus.poll_ms).unwrap_or(100);
 
-    match &cli.cmd {
+    match &cmd {
         Cmd::Init => {
             if !Path::new(".git").exists() && !repo.join(".git").exists() {
                 return Err("not a git repo — run inside one".into());
@@ -3227,6 +3312,130 @@ mod tests {
         std::env::remove_var("STURN_POST_OP");
         std::thread::sleep(Duration::from_millis(50));
         assert!(!s4.exists());
+    }
+
+    #[test]
+    fn ws_name_resolution() {
+        // `.`/empty mean "this repo's workspace" → the default.
+        assert_eq!(resolve_ws_name(".", "repo-x").unwrap(), "repo-x");
+        assert_eq!(resolve_ws_name("", "repo-x").unwrap(), "repo-x");
+        assert_eq!(resolve_ws_name("   ", "repo-x").unwrap(), "repo-x");
+        // Real names pass through untouched.
+        assert_eq!(resolve_ws_name("agent-1", "repo-x").unwrap(), "agent-1");
+        assert_eq!(resolve_ws_name("a/b", "repo-x").unwrap(), "a/b");
+        // Refname breakers fail before any git write.
+        for bad in ["..", "a b", "a..b", ".hidden", "x.lock", "a/b/"] {
+            assert!(resolve_ws_name(bad, "repo-x").is_err(), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn each_ws_covers_every_name_slot() {
+        let mut cmd = Cmd::Claim {
+            uri: "x".into(),
+            ws: ".".into(),
+            ttl: 1,
+            force: false,
+        };
+        each_ws(&mut cmd, &mut |w| {
+            *w = resolve_ws_name(w, "repo-x")?;
+            Ok(())
+        })
+        .unwrap();
+        let Cmd::Claim { ws, .. } = &cmd else {
+            panic!("wrong variant")
+        };
+        assert_eq!(ws, "repo-x");
+
+        // Option slots, the snap list, and ws-subcommand targets too.
+        let resolve = |cmd: &mut Cmd| {
+            each_ws(cmd, &mut |w| {
+                *w = resolve_ws_name(w, "repo-x")?;
+                Ok(())
+            })
+        };
+        let mut cmd = Cmd::Compact {
+            ws: Some(".".into()),
+        };
+        resolve(&mut cmd).unwrap();
+        assert!(matches!(&cmd, Cmd::Compact { ws } if ws.as_deref() == Some("repo-x")));
+
+        let mut cmd = Cmd::Snap {
+            ws: vec![".".into(), "keep".into()],
+            message: "m".into(),
+            branch: None,
+        };
+        resolve(&mut cmd).unwrap();
+        let Cmd::Snap { ws, .. } = &cmd else {
+            panic!("wrong variant")
+        };
+        assert_eq!(ws, &vec!["repo-x".to_string(), "keep".to_string()]);
+
+        let mut cmd = Cmd::Ws {
+            cmd: WsCmd::Read {
+                name: ".".into(),
+                path: "p".into(),
+            },
+        };
+        resolve(&mut cmd).unwrap();
+        let Cmd::Ws {
+            cmd: WsCmd::Read { name, .. },
+        } = &cmd
+        else {
+            panic!("wrong variant")
+        };
+        assert_eq!(name, "repo-x");
+    }
+
+    #[test]
+    fn dot_ws_claim_lands_on_repo_named_log() {
+        // Regression: `sturn claim "…" --ws .` used to emit
+        // `refs/sturn/wal/.` — an invalid refname — and die in the
+        // CAS retry loop. `.` now resolves to the repo's name.
+        let repo = repo("dotws");
+        let bogus = repo.join("no-such.toml").to_string_lossy().into_owned();
+        let cli = Cli {
+            repo: Some(repo.clone()),
+            config: Some(bogus),
+            cmd: Cmd::Claim {
+                uri: "net:1".into(),
+                ws: ".".into(),
+                ttl: 60,
+                force: false,
+            },
+        };
+        assert_eq!(dispatch(&cli), 0);
+        let expected = repo
+            .canonicalize()
+            .unwrap()
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let wal = sturn_wal_git::GitWal::default();
+        assert_eq!(wal.workspaces(&repo).unwrap(), vec![expected.clone()]);
+        let events = wal.events(&repo, &expected).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].ws, expected);
+    }
+
+    #[test]
+    fn invalid_ws_fails_before_git_write() {
+        let repo = repo("badws-cli");
+        let bogus = repo.join("no-such.toml").to_string_lossy().into_owned();
+        let cli = Cli {
+            repo: Some(repo.clone()),
+            config: Some(bogus),
+            cmd: Cmd::Claim {
+                uri: "net:1".into(),
+                ws: "a b".into(),
+                ttl: 60,
+                force: false,
+            },
+        };
+        assert_eq!(dispatch(&cli), 1);
+        let wal = sturn_wal_git::GitWal::default();
+        assert!(wal.workspaces(&repo).unwrap().is_empty());
     }
 
     #[test]

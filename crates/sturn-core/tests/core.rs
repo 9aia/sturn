@@ -48,6 +48,37 @@ fn write_path(m: &Merge, idx: usize) -> &str {
     }
 }
 
+// --- valid_ws_name --------------------------------------------------------
+
+#[test]
+fn ws_name_accepts_ordinary_names() {
+    for name in [
+        "agent-7",
+        "devin-prheal-ci",
+        "9aia/sturn",
+        "a/b/c",
+        "x.locky",
+        "ünïcode",
+        "-dash",
+        "a./b",
+    ] {
+        assert!(sturn_core::valid_ws_name(name), "{name:?} should be valid");
+    }
+}
+
+#[test]
+fn ws_name_rejects_refname_breakers() {
+    for name in [
+        "", ".", "..", "a b", "a..b", "a@{b", ".hidden", "a/.b", "trail.", "x.lock", "a.lock/b",
+        "a//b", "/lead", "trail/", "a~b", "a?b", "a*b", "a[b", "a\\b", "a:b", "a^b",
+    ] {
+        assert!(
+            !sturn_core::valid_ws_name(name),
+            "{name:?} should be invalid"
+        );
+    }
+}
+
 // --- since_last_snapshot ------------------------------------------------
 
 #[test]

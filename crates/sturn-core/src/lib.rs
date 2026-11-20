@@ -140,6 +140,30 @@ pub enum Verdict {
     Reject,
 }
 
+/// Whether `name` can be a workspace name — it becomes the tail of
+/// `refs/sturn/wal/<name>` (and `refs/sturn/ws/<name>`,
+/// `refs/sturn/archive/<name>`), so it must satisfy git's refname
+/// rules or `update-ref` fails permanently. Mirrors
+/// `git check-ref-format`: no control/space/`~^:?*[\` chars, no
+/// `..` or `@{`, no empty/`.`-leading/`.lock`-ending path
+/// segments, no trailing `.`. `/` is allowed — names may nest.
+pub fn valid_ws_name(name: &str) -> bool {
+    if name.is_empty() || name.ends_with('.') {
+        return false;
+    }
+    if name.contains("..") || name.contains("@{") {
+        return false;
+    }
+    if name
+        .chars()
+        .any(|c| c.is_control() || matches!(c, ' ' | '~' | '^' | ':' | '?' | '*' | '[' | '\\'))
+    {
+        return false;
+    }
+    name.split('/')
+        .all(|seg| !seg.is_empty() && !seg.starts_with('.') && !seg.ends_with(".lock"))
+}
+
 /// Index just after the last `Snapshot` marker — ops before it are
 /// already inside the ws tip commit.
 pub fn since_last_snapshot(events: &[Event]) -> usize {

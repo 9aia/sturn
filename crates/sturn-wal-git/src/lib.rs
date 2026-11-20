@@ -100,8 +100,15 @@ fn sign_event(payload: &[u8], key: &Path) -> io::Result<String> {
 }
 
 impl GitWal {
-    fn wal_ref(&self, ws: &str) -> String {
-        format!("{}/{ws}", self.ref_prefix)
+    /// `<prefix>/<ws>` — the ws must be a valid refname tail. An
+    /// invalid name is a *permanent* error: it can never win a CAS
+    /// race, so it fails here instead of burning the retry budget
+    /// inside `append`.
+    fn wal_ref(&self, ws: &str) -> io::Result<String> {
+        if !sturn_core::valid_ws_name(ws) {
+            return Err(io::Error::other(format!("invalid workspace name {ws:?}")));
+        }
+        Ok(format!("{}/{ws}", self.ref_prefix))
     }
 }
 
@@ -155,7 +162,7 @@ impl Wal for GitWal {
                 .and_then(|v| v.get("op").and_then(|k| k.as_str()).map(String::from))
                 .unwrap_or_else(|| "event".into())
         );
-        let r = self.wal_ref(ws);
+        let r = self.wal_ref(ws)?;
         // CAS loop: read parent, build commit on top, advance the ref
         // only if it still points where we read. Racing agents retry.
         let mut attempt = 0u8;
@@ -163,20 +170,22 @@ impl Wal for GitWal {
             let parent = self.head(repo, ws)?;
             let tree = put_tree(repo, &blob, "event.json")?;
             let commit = put_commit(repo, &tree, parent.as_deref(), &msg)?;
-            let ok = Command::new("git")
-                .arg("-C")
-                .arg(repo)
-                .arg("update-ref")
-                .arg(&r)
-                .arg(&commit)
-                .arg(parent.as_deref().unwrap_or(""))
-                .status()
-                .map(|s| s.success())
-                .unwrap_or(false);
-            attempt += 1;
-            if ok {
-                return Ok(blob);
+            // `git()` surfaces stderr — a permanent failure (bad
+            // refname, missing repo) can never succeed on retry, so
+            // it returns immediately instead of burning CAS tries.
+            match git(
+                repo,
+                &["update-ref", &r, &commit, parent.as_deref().unwrap_or("")],
+            ) {
+                Ok(_) => return Ok(blob),
+                Err(e) => {
+                    let msg = e.to_string();
+                    if msg.contains("bad name") || msg.contains("not a git repository") {
+                        return Err(e);
+                    }
+                }
             }
+            attempt += 1;
             // 8 straight CAS losses — untestable contention, so the
             // bound itself is excluded under coverage.
             #[cfg(not(coverage))]
@@ -189,7 +198,7 @@ impl Wal for GitWal {
     }
 
     fn events_since(&self, repo: &Path, ws: &str, from: Option<&str>) -> io::Result<Vec<Event>> {
-        let r = self.wal_ref(ws);
+        let r = self.wal_ref(ws)?;
         if self.head(repo, ws)?.is_none() {
             return Ok(vec![]);
         }
@@ -221,15 +230,16 @@ impl Wal for GitWal {
     }
 
     fn head(&self, repo: &Path, ws: &str) -> io::Result<Option<String>> {
+        let r = self.wal_ref(ws)?;
         // Loose/packed ref read; plumbing fallback for layouts
         // sturn-odb can't resolve.
-        if let Ok(v) = sturn_odb::read_ref(repo, &self.wal_ref(ws)) {
+        if let Ok(v) = sturn_odb::read_ref(repo, &r) {
             return Ok(v);
         }
         let o = Command::new("git")
             .arg("-C")
             .arg(repo)
-            .args(["rev-parse", "-q", "--verify", &self.wal_ref(ws)])
+            .args(["rev-parse", "-q", "--verify", &r])
             .output()?;
         Ok(o.status
             .success()
@@ -275,8 +285,8 @@ impl Wal for GitWal {
         // when drop > 0, so the rebuilt chain always has a tip —
         // the None arm (delete the whole ref) is defensive.
         match parent {
-            Some(tip) => git(repo, &["update-ref", &self.wal_ref(ws), &tip])?,
-            None => git(repo, &["update-ref", "-d", &self.wal_ref(ws)])?,
+            Some(tip) => git(repo, &["update-ref", &self.wal_ref(ws)?, &tip])?,
+            None => git(repo, &["update-ref", "-d", &self.wal_ref(ws)?])?,
         };
         Ok(drop)
     }
