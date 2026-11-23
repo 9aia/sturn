@@ -25,6 +25,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# Under git hooks (pre-push) git exports GIT_DIR/GIT_INDEX_FILE/etc. —
+# a nested `git diff` inside the docs worktree would then diff the
+# *outer* repo's index against the docs-only tree and report every
+# repo file deleted. Scrub them so every git call below discovers its
+# own repo from -C/cwd.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+    GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_QUARANTINE_PATH GIT_COMMON_DIR
+
 # The gate may run with the minimal systemd PATH — pull the user
 # tool dirs in ourselves (same trick scripts/ci.sh uses).
 export PATH="$HOME/.bun/bin:$HOME/.local/bin:$HOME/.cargo/bin:$PATH"

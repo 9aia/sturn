@@ -13,7 +13,6 @@ impls are separate crates.
 | `sturn-cli` | the `sturn` engine — lib + compat bin; composition root, every verb |
 | `sturn-core` | pure domain — op schema, config, shared vocabulary; no I/O |
 | `sturn-wal` / `sturn-wal-git` | op-log port + git impl (`refs/sturn/wal/*`) |
-| `sturn-odb` | object-DB reads over git |
 | `sturn-bus` / `sturn-bus-redb` | pub/sub cache port + redb impl (rebuildable, never authority) |
 | `sturn-ws` / `sturn-ws-git` | workspace pointer port + git impl |
 | `sturn-git` | snap bridge over the shared `lasius-vcs` port (no git2/gix) |

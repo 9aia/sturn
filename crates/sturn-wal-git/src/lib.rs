@@ -1,15 +1,18 @@
 //! Wal impl — each event is a blob; each append is a commit on
 //! `refs/sturn/wal/<ws>` whose tree holds `event.json`. Objects,
-//! commits, and ref reads go straight to the ODB via `sturn-odb`;
-//! only the CAS publish (`git update-ref`) still spawns. Replicates
-//! with push/fetch.
+//! commits, refs, and tree walks go through the shared
+//! `lasius-vcs` port — the git mechanics (loose-object fast path +
+//! plumbing fallback) live in lasius-vcs-git (P-049). Only the CAS
+//! publish semantics stay sturn's.
 
 use std::io;
-use std::io::Write;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Command;
 use sturn_core::Event;
 use sturn_wal::Wal;
+
+use lasius_vcs::Vcs;
+use lasius_vcs_git::GitVcs;
 
 /// Git-backed WAL. Concurrent appenders retry CAS on the ref —
 /// the log is correct under racing agents, just not fair.
@@ -27,47 +30,6 @@ impl Default for GitWal {
             ref_prefix: "refs/sturn/wal".into(),
             sign_key: None,
         }
-    }
-}
-
-fn git(repo: &Path, args: &[&str]) -> io::Result<String> {
-    let o = Command::new("git")
-        .arg("-C")
-        .arg(repo)
-        .args(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()?;
-    if o.status.success() {
-        Ok(String::from_utf8_lossy(&o.stdout).trim().to_string())
-    } else {
-        Err(io::Error::other(format!(
-            "git {}: {}",
-            args.join(" "),
-            String::from_utf8_lossy(&o.stderr).trim()
-        )))
-    }
-}
-
-fn git_in(repo: &Path, args: &[&str], input: &[u8]) -> io::Result<String> {
-    let mut c = Command::new("git")
-        .arg("-C")
-        .arg(repo)
-        .args(args)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()?;
-    c.stdin.take().unwrap().write_all(input)?;
-    let o = c.wait_with_output()?;
-    if o.status.success() {
-        Ok(String::from_utf8_lossy(&o.stdout).trim().to_string())
-    } else {
-        Err(io::Error::other(format!(
-            "git {}: {}",
-            args.join(" "),
-            String::from_utf8_lossy(&o.stderr).trim()
-        )))
     }
 }
 
@@ -121,39 +83,22 @@ impl GitWal {
     }
 }
 
-/// Write a blob/tree straight to the ODB; plumbing fallback covers
-/// the layouts `sturn-odb` can't resolve (GIT_DIR env, subdirs, …).
+/// Write a blob/tree straight to the ODB via the port; the impl's
+/// plumbing fallback covers the layouts the direct writer can't
+/// resolve (sha256 odb, GIT_DIR env, …).
 fn put_object(repo: &Path, kind: &str, payload: &[u8]) -> io::Result<String> {
-    sturn_odb::write_object(repo, kind, payload)
-        .or_else(|_| git_in(repo, &["hash-object", "-w", "--stdin"], payload))
+    GitVcs.write_object(repo, kind, payload)
 }
 
 fn put_tree(repo: &Path, blob: &str, name: &str) -> io::Result<String> {
-    let built = sturn_odb::tree_object(&[(0o100644, name, blob)])
-        .and_then(|t| sturn_odb::write_object(repo, "tree", &t).ok());
-    match built {
-        Some(t) => Ok(t),
-        None => git_in(
-            repo,
-            &["mktree"],
-            format!("100644 blob {blob}\t{name}\n").as_bytes(),
-        ),
-    }
+    GitVcs.write_tree(repo, &[(0o100644, name, blob)])
 }
 
-/// `commit-tree` without the spawn — same object bytes, ident via
-/// `git var` (cached per repo). Plumbing fallback covers date envs
-/// and ident failures.
+/// `commit-tree` via the port — direct object write with `git var`
+/// idents inside the impl, plumbing fallback for date envs.
 fn put_commit(repo: &Path, tree: &str, parent: Option<&str>, msg: &str) -> io::Result<String> {
     let parents: Vec<&str> = parent.into_iter().collect();
-    sturn_odb::commit(repo, tree, &parents, msg).or_else(|_| {
-        let mut args = vec!["commit-tree", tree];
-        for p in &parents {
-            args.extend(["-p", p]);
-        }
-        args.extend(["-m", msg]);
-        git(repo, &args)
-    })
+    GitVcs.commit_tree(repo, tree, &parents, msg)
 }
 
 impl Wal for GitWal {
@@ -180,15 +125,12 @@ impl Wal for GitWal {
             let tree = put_tree(repo, &blob, "event.json")?;
             let commit = put_commit(repo, &tree, parent.as_deref(), &msg)?;
             attempt += 1;
-            // `git()` surfaces stderr — a permanent failure (bad
+            // update_ref surfaces stderr — a permanent failure (bad
             // refname, missing repo) can never succeed on retry, so
             // it returns immediately instead of burning CAS tries.
             // update-ref only fails on a lost CAS race in tests —
             // the whole arm is coverage-exempt like the bound below.
-            match git(
-                repo,
-                &["update-ref", &r, &commit, parent.as_deref().unwrap_or("")],
-            ) {
+            match GitVcs.update_ref(repo, &r, &commit, Some(parent.as_deref().unwrap_or(""))) {
                 Ok(_) => return Ok(blob),
                 #[cfg(not(coverage))]
                 Err(e) => {
@@ -219,23 +161,22 @@ impl Wal for GitWal {
             Some(f) => format!("{f}..{r}"),
             None => r,
         };
-        let commits = git(repo, &["rev-list", "--reverse", &range])?;
+        let commits = GitVcs.exec_out(repo, &["rev-list", "--reverse", &range])?;
         let mut out = Vec::new();
         for c in commits.lines().filter(|l| !l.is_empty()) {
-            // Loose-object fast path; packed/fancy revs → cat-file.
-            let json = match sturn_odb::read_at(repo, c, "event.json") {
-                Ok(Some(b)) => match String::from_utf8(b) {
-                    Ok(s) => s,
-                    Err(_) => git(repo, &["cat-file", "-p", &format!("{c}:event.json")])?,
-                },
-                _ => git(repo, &["cat-file", "-p", &format!("{c}:event.json")])?,
+            // Loose-object fast path + plumbing fallback live inside
+            // the port's read_at.
+            let json = match GitVcs.read_at(repo, c, "event.json") {
+                Ok(Some(b)) => String::from_utf8_lossy(&b).into_owned(),
+                Ok(None) => return Err(io::Error::other(format!("{c}:event.json not found"))),
+                Err(e) => return Err(e),
             };
             let mut ev: Event = serde_json::from_str(&json)
                 .map_err(|e| io::Error::other(format!("bad event in {c}: {e}")))?;
             // Backfill id for events written before id assignment —
             // the id *is* the event blob's content address.
             if ev.id.is_empty() {
-                ev.id = sturn_odb::object_id("blob", json.as_bytes());
+                ev.id = lasius_vcs_git::object_id("blob", json.as_bytes());
             }
             out.push(ev);
         }
@@ -244,20 +185,9 @@ impl Wal for GitWal {
 
     fn head(&self, repo: &Path, ws: &str) -> io::Result<Option<String>> {
         let r = self.wal_ref(ws)?;
-        // Loose/packed ref read; plumbing fallback for layouts
-        // sturn-odb can't resolve.
-        if let Ok(v) = sturn_odb::read_ref(repo, &r) {
-            return Ok(v);
-        }
-        let o = Command::new("git")
-            .arg("-C")
-            .arg(repo)
-            .args(["rev-parse", "-q", "--verify", &r])
-            .output()?;
-        Ok(o.status
-            .success()
-            .then(|| String::from_utf8_lossy(&o.stdout).trim().to_string())
-            .filter(|s| !s.is_empty()))
+        // Loose/packed ref read with a plumbing fallback inside the
+        // port — covers reftable and other exotic layouts.
+        GitVcs.read_ref(repo, &r)
     }
 
     fn compact(&self, repo: &Path, ws: &str) -> io::Result<usize> {
@@ -276,10 +206,7 @@ impl Wal for GitWal {
             .ok_or_else(|| io::Error::other("no wal ref"))?;
         // Archive the full history ref before rewriting — compaction
         // shrinks the live log, not the audit trail.
-        git(
-            repo,
-            &["update-ref", &format!("refs/sturn/archive/{ws}"), &head],
-        )?;
+        GitVcs.update_ref(repo, &format!("refs/sturn/archive/{ws}"), &head, None)?;
         // Rebuild the chain from post-snapshot events. Blobs already
         // exist in the ODB — each surviving event re-commits cheaply.
         let mut parent: Option<String> = None;
@@ -298,19 +225,16 @@ impl Wal for GitWal {
         // when drop > 0, so the rebuilt chain always has a tip —
         // the None arm (delete the whole ref) is defensive.
         match parent {
-            Some(tip) => git(repo, &["update-ref", &self.wal_ref(ws)?, &tip])?,
-            None => git(repo, &["update-ref", "-d", &self.wal_ref(ws)?])?,
+            Some(tip) => GitVcs.update_ref(repo, &self.wal_ref(ws)?, &tip, None)?,
+            None => GitVcs.delete_ref(repo, &self.wal_ref(ws)?)?,
         };
         Ok(drop)
     }
 
     fn workspaces(&self, repo: &Path) -> io::Result<Vec<String>> {
-        let out = git(
-            repo,
-            &["for-each-ref", "--format=%(refname)", &self.ref_prefix],
-        )?;
-        Ok(out
-            .lines()
+        let refs = GitVcs.list_refs(repo, &self.ref_prefix)?;
+        Ok(refs
+            .iter()
             .filter_map(|l| {
                 l.strip_prefix(&format!("{}/", self.ref_prefix))
                     .map(String::from)

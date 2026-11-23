@@ -1,50 +1,26 @@
 //! Git helpers for sturn — the snap bridge (WAL ops → real
-//! commit) plus thin wrappers over `lasius-vcs-git` for the
-//! coordination ops (resolve/has_commit/push). Generic VCS
-//! expertise lives in lasius (P-019).: fold WAL ops into a
-//! real commit — the crossing from the evented world back to
-//! ordinary git history. `snap` is why GitHub sees a normal repo.
+//! commit) plus thin wrappers over the shared `lasius-vcs` port
+//! for the coordination ops (resolve/has_commit/push/store). All
+//! git mechanics live in lasius (P-019/P-049); this crate keeps
+//! only the sturn-flavored folding of WAL events into tree ops.
 
-use lasius_vcs::Vcs;
+use lasius_vcs::{TreeOp, Vcs};
 use lasius_vcs_git::GitVcs as LasiusGit;
+use std::collections::HashMap;
 use std::io;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::path::Path;
 use sturn_core::{Event, Op};
 
-fn git(repo: &Path, args: &[&str]) -> io::Result<String> {
-    let o = Command::new("git")
-        .arg("-C")
-        .arg(repo)
-        .args(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()?;
-    if o.status.success() {
-        Ok(String::from_utf8_lossy(&o.stdout).trim().to_string())
-    } else {
-        Err(io::Error::other(format!(
-            "git {}: {}",
-            args.join(" "),
-            String::from_utf8_lossy(&o.stderr).trim()
-        )))
-    }
-}
-
-/// Resolve `rev` — sturn_odb loose objects first (snap commits
-/// may not be referenced yet), then the shared lasius port.
+/// Resolve `rev` via the shared port — snap commits may not be
+/// referenced yet, but `rev-parse` resolves loose objects fine.
 pub fn resolve(repo: &Path, rev: &str) -> Option<String> {
-    if let Ok(Some(sha)) = sturn_odb::resolve(repo, rev) {
-        return Some(sha);
-    }
     LasiusGit.resolve(repo, rev)
 }
 
-/// Object-exists probe — ODB fast path, then `cat-file -e` via
-/// the shared port.
+/// Object-exists probe via the shared port (`cat-file -e`, with a
+/// loose-object fast path inside the impl).
 pub fn has_commit(repo: &Path, sha: &str) -> bool {
-    sturn_odb::object_exists(repo, sha) || LasiusGit.has_commit(repo, sha)
+    LasiusGit.has_commit(repo, sha)
 }
 
 /// Push heads + `refs/sturn/*` — the coordination-specific part
@@ -56,33 +32,16 @@ pub fn push(repo: &Path, remote: &str) -> bool {
 
 /// Store `content` as a blob in the ODB; returns its sha.
 pub fn store_blob(repo: &Path, content: &[u8]) -> io::Result<String> {
-    if let Ok(sha) = sturn_odb::write_object(repo, "blob", content) {
-        return Ok(sha);
-    }
-    // Plumbing fallback — layouts the direct writer can't resolve.
-    let mut c = Command::new("git")
-        .arg("-C")
-        .arg(repo)
-        .args(["hash-object", "-w", "--stdin"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()?;
-    c.stdin.take().unwrap().write_all(content)?;
-    let o = c.wait_with_output()?;
-    if o.status.success() {
-        Ok(String::from_utf8_lossy(&o.stdout).trim().to_string())
-    } else {
-        Err(io::Error::other("hash-object failed"))
-    }
+    LasiusGit.write_object(repo, "blob", content)
 }
 
 /// Overlay `events`' Write/Rename/Delete ops on `base`, commit to
 /// `branch`, return the new commit sha. Coordination ops (claims,
 /// intents, reviews) are metadata — they never touch the tree.
 ///
-/// Uses a scratch index (`GIT_INDEX_FILE`) — no working tree, no
-/// checkout, no lock on the user's index.
+/// The port's `commit_overlay` uses a scratch index
+/// (`GIT_INDEX_FILE`) — no working tree, no checkout, no lock on
+/// the user's index.
 pub fn snap_commit(
     repo: &Path,
     base: &str,
@@ -90,78 +49,40 @@ pub fn snap_commit(
     message: &str,
     branch: &str,
 ) -> io::Result<String> {
-    // Per-call scratch index — two snaps in one process (daemon
-    // handling concurrent ws folds, parallel tests) must not share
-    // GIT_INDEX_FILE or they interleave updates and lock.
-    static SNAP_IDX: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let idx: PathBuf = std::env::temp_dir().join(format!(
-        "sturn-index-{}-{}",
-        std::process::id(),
-        SNAP_IDX.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-    ));
-    let gi = |args: &[&str]| -> io::Result<String> {
-        let o = Command::new("git")
-            .arg("-C")
-            .arg(repo)
-            .env("GIT_INDEX_FILE", &idx)
-            .args(args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()?;
-        if o.status.success() {
-            Ok(String::from_utf8_lossy(&o.stdout).trim().to_string())
-        } else {
-            Err(io::Error::other(format!(
-                "git {}: {}",
-                args.join(" "),
-                String::from_utf8_lossy(&o.stderr).trim()
-            )))
-        }
-    };
-
-    gi(&["read-tree", base])?;
     // Track the overlay as we walk — a Rename's `from` may have been
     // created by an earlier Write in the same batch (never in base).
-    let mut seen: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut seen: HashMap<String, String> = HashMap::new();
+    let mut ops: Vec<TreeOp> = Vec::new();
     for ev in events {
         match &ev.op {
             Op::Write { path, blob, .. } => {
-                gi(&[
-                    "update-index",
-                    "--add",
-                    "--cacheinfo",
-                    &format!("100644,{blob},{path}"),
-                ])?;
+                ops.push(TreeOp::Write {
+                    path: path.clone(),
+                    oid: blob.clone(),
+                });
                 seen.insert(path.clone(), blob.clone());
             }
             Op::Delete { path } => {
-                gi(&["update-index", "--force-remove", path])?;
+                ops.push(TreeOp::Delete { path: path.clone() });
                 seen.remove(path.as_str());
             }
             Op::Rename { from, to } => {
                 let blob = match seen.get(from.as_str()) {
                     Some(b) => b.clone(),
-                    None => git(repo, &["rev-parse", &format!("{base}:{from}")])?,
+                    None => LasiusGit
+                        .entry_oid(repo, base, from)?
+                        .ok_or_else(|| io::Error::other(format!("{base}:{from}: no such entry")))?,
                 };
-                gi(&["update-index", "--force-remove", from])?;
-                gi(&[
-                    "update-index",
-                    "--add",
-                    "--cacheinfo",
-                    &format!("100644,{blob},{to}"),
-                ])?;
+                ops.push(TreeOp::Delete { path: from.clone() });
+                ops.push(TreeOp::Write {
+                    path: to.clone(),
+                    oid: blob.clone(),
+                });
                 seen.remove(from.as_str());
                 seen.insert(to.clone(), blob);
             }
             _ => {}
         }
     }
-    let tree = gi(&["write-tree"])?;
-    let _ = std::fs::remove_file(&idx);
-    let commit = git(repo, &["commit-tree", &tree, "-p", base, "-m", message])?;
-    git(
-        repo,
-        &["update-ref", &format!("refs/heads/{branch}"), &commit],
-    )?;
-    Ok(commit)
+    LasiusGit.commit_overlay(repo, base, &ops, message, branch)
 }

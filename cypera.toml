@@ -18,7 +18,6 @@
 "sturn-bus-redb" = "adapter"
 "sturn-ws-git" = "adapter"
 "sturn-git" = "adapter"
-"sturn-odb" = "adapter"
 "sturn-keyring" = "adapter"
 "sturn-dotenv" = "adapter"
 "sturn-systemd" = "adapter"

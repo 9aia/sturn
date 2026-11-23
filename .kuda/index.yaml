@@ -16,7 +16,6 @@ modules:
 - sturn-fuse
 - sturn-git
 - sturn-keyring
-- sturn-odb
 - sturn-secret
 - sturn-service
 - sturn-systemd
@@ -28,7 +27,7 @@ commands:
 - cargo check
 - cargo test --workspace
 tree_digest: e0027b323e66fbdeecdfc00bf3ffe2d2e16d0072
-files_total: 121
+files_total: 119
 provenance:
   files:
   - Cargo.toml
@@ -45,7 +44,6 @@ provenance:
   - crates/sturn-fuse/Cargo.toml
   - crates/sturn-git/Cargo.toml
   - crates/sturn-keyring/Cargo.toml
-  - crates/sturn-odb/Cargo.toml
   - crates/sturn-secret/Cargo.toml
   - crates/sturn-service/Cargo.toml
   - crates/sturn-systemd/Cargo.toml
@@ -68,7 +66,6 @@ provenance:
   - 6c132812f2fc147db0df216bc92eb260e01b2491
   - 83daaba3458beaee0247769cca93f3ac6f427a74
   - b880dc8f26d37f2be3f51c066a251ed062f93a0a
-  - a6f0dd2a666115766eb2dca59a93ee7760eaf244
   - 5f478381674020056dbe038135cd774a2bce7882
   - 3413fa357f481c897fdae1e74b20a16055646341
   - fc98064852bf86a66f76cb4a8fd4da68c5dd17ec

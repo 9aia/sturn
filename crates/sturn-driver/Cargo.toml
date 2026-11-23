@@ -24,13 +24,14 @@ default = []
 mcp = ["pavo-driver-kit/mcp"]
 
 [dependencies]
+lasius-vcs.workspace = true
+lasius-vcs-git.workspace = true
 sturn.workspace = true
 sturn-core.workspace = true
 sturn-wal.workspace = true
 sturn-wal-git.workspace = true
 sturn-ws.workspace = true
 sturn-ws-git.workspace = true
-sturn-odb.workspace = true
 sturn-claim.workspace = true
 sturn-ask.workspace = true
 sturn-config.workspace = true

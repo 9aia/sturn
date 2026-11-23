@@ -9,9 +9,10 @@ keywords = ["vcs", "sturn", "agents"]
 categories = ["development-tools"]
 
 [dependencies]
+lasius-vcs.workspace = true
+lasius-vcs-git.workspace = true
 sturn-wal.workspace = true
 sturn-core.workspace = true
-sturn-odb.workspace = true
 serde_json.workspace = true
 
 [lints.rust]

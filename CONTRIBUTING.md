@@ -10,8 +10,9 @@ maintained without PRs.)
 config, shared vocabulary). Ports are crates: `sturn-wal`,
 `sturn-bus`, `sturn-ws`, `sturn-service`, `sturn-secret`,
 `sturn-config` (scarab-config-file impl). Impls: `sturn-wal-git` +
-`sturn-odb` + `sturn-ws-git` (git plumbing — `sturn-git` is the
-snap bridge over the shared `lasius-vcs` port), `sturn-bus-redb`,
+`sturn-ws-git` + `sturn-git` (git plumbing over the shared
+`lasius-vcs` port — the former `sturn-odb` object-DB mechanics
+now live in `lasius-vcs-git`), `sturn-bus-redb`,
 `sturn-keyring`/`sturn-dotenv`, `sturn-systemd`, `sturn-fuse`
 (FUSE mount). `sturn-claim`/`sturn-ask` are pure fold logic over
 the WAL. `sturn-cli`
