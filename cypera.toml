@@ -12,15 +12,12 @@
 "sturn-wal" = "port"
 "sturn-bus" = "port"
 "sturn-ws" = "port"
-"sturn-secret" = "port"
 "sturn-service" = "port"
 "sturn-wal-git" = "adapter"
 "sturn-bus-redb" = "adapter"
 "sturn-ws-git" = "adapter"
 "sturn-git" = "adapter"
 "sturn-odb" = "adapter"
-"sturn-keyring" = "adapter"
-"sturn-dotenv" = "adapter"
 "sturn-systemd" = "adapter"
 "sturn-fuse" = "adapter"
 "sturn-config" = "adapter"
@@ -121,7 +118,7 @@ text = """
   `./sturn.toml` → `~/.config/sturn/sturn.toml`.
 - Every table has `deny_unknown_fields` — typos fail the load.
 - Secrets never live here; secret material resolves through the
-  `Secrets` chain (`sturn-secret` → keyring/dotenv).
+  the cuora `Secrets` chain.
 - `[hooks] post_op` also reads `$STURN_POST_OP` (single command
   overrides the configured list).
 """

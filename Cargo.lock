@@ -737,13 +737,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sturn-dotenv"
-version = "0.1.0"
-dependencies = [
- "sturn-secret",
-]
-
-[[package]]
 name = "sturn-driver"
 version = "0.1.0"
 dependencies = [
@@ -786,23 +779,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "sturn-keyring"
-version = "0.1.0"
-dependencies = [
- "sturn-secret",
-]
-
-[[package]]
 name = "sturn-odb"
 version = "0.1.0"
 dependencies = [
  "flate2",
  "sha1",
 ]
-
-[[package]]
-name = "sturn-secret"
-version = "0.1.0"
 
 [[package]]
 name = "sturn-service"

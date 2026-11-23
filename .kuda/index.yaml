@@ -11,13 +11,10 @@ modules:
 - sturn-claim
 - sturn-config
 - sturn-core
-- sturn-dotenv
 - sturn-driver
 - sturn-fuse
 - sturn-git
-- sturn-keyring
 - sturn-odb
-- sturn-secret
 - sturn-service
 - sturn-systemd
 - sturn-wal
@@ -28,7 +25,7 @@ commands:
 - cargo check
 - cargo test --workspace
 tree_digest: e0027b323e66fbdeecdfc00bf3ffe2d2e16d0072
-files_total: 121
+files_total: 113
 provenance:
   files:
   - Cargo.toml
@@ -40,13 +37,10 @@ provenance:
   - crates/sturn-cli/Cargo.toml
   - crates/sturn-config/Cargo.toml
   - crates/sturn-core/Cargo.toml
-  - crates/sturn-dotenv/Cargo.toml
   - crates/sturn-driver/Cargo.toml
   - crates/sturn-fuse/Cargo.toml
   - crates/sturn-git/Cargo.toml
-  - crates/sturn-keyring/Cargo.toml
   - crates/sturn-odb/Cargo.toml
-  - crates/sturn-secret/Cargo.toml
   - crates/sturn-service/Cargo.toml
   - crates/sturn-systemd/Cargo.toml
   - crates/sturn-wal/Cargo.toml
@@ -63,13 +57,10 @@ provenance:
   - 4f542389d1258479db46aecaf557252795dd24c1
   - 9e27ee95465ebe3ada1d6e77033a9fa9714a7c44
   - 8882be00ff91823f5d18b19eaca492be7e9a5ef5
-  - 1034b2491bf076039224a52253fddb5330eaa0bf
   - 5ac84f1658f81f303a68f2358fcfa799e4ad2cf5
   - 6c132812f2fc147db0df216bc92eb260e01b2491
   - 83daaba3458beaee0247769cca93f3ac6f427a74
-  - b880dc8f26d37f2be3f51c066a251ed062f93a0a
   - a6f0dd2a666115766eb2dca59a93ee7760eaf244
-  - 5f478381674020056dbe038135cd774a2bce7882
   - 3413fa357f481c897fdae1e74b20a16055646341
   - fc98064852bf86a66f76cb4a8fd4da68c5dd17ec
   - 76230d89b9f4ca046ae704a2a38704fcd56c8397
