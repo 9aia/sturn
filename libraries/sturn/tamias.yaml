@@ -21,7 +21,7 @@
 # No `tools/bin/` payload bin: the surfaces are verbs, not second
 # binaries — they ride the same shim.
 name: sturn
-version: "0.1.0"
+version: "1.0.0"
 type: files
 description: >-
   Ephemeral coordination engine — claims/ops/topics over VCS

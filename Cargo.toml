@@ -18,7 +18,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/9aia/sturn"
@@ -30,22 +30,22 @@ inherits = "release"
 lto = "thin"
 
 [workspace.dependencies]
-sturn = { path = "crates/sturn-cli", version = "0.1.0" }
-sturn-core = { path = "crates/sturn-core", version = "0.1.0" }
-sturn-wal = { path = "crates/sturn-wal", version = "0.1.0" }
-sturn-wal-git = { path = "crates/sturn-wal-git", version = "0.1.0" }
-sturn-bus = { path = "crates/sturn-bus", version = "0.1.0" }
-sturn-bus-redb = { path = "crates/sturn-bus-redb", version = "0.1.0" }
-sturn-ws = { path = "crates/sturn-ws", version = "0.1.0" }
-sturn-ws-git = { path = "crates/sturn-ws-git", version = "0.1.0" }
-sturn-git = { path = "crates/sturn-git", version = "0.1.0" }
+sturn = { path = "crates/sturn-cli", version = "1.0.0" }
+sturn-core = { path = "crates/sturn-core", version = "1.0.0" }
+sturn-wal = { path = "crates/sturn-wal", version = "1.0.0" }
+sturn-wal-git = { path = "crates/sturn-wal-git", version = "1.0.0" }
+sturn-bus = { path = "crates/sturn-bus", version = "1.0.0" }
+sturn-bus-redb = { path = "crates/sturn-bus-redb", version = "1.0.0" }
+sturn-ws = { path = "crates/sturn-ws", version = "1.0.0" }
+sturn-ws-git = { path = "crates/sturn-ws-git", version = "1.0.0" }
+sturn-git = { path = "crates/sturn-git", version = "1.0.0" }
 lasius-vcs = { git = "ssh://git@github.com/9aia/lasius.git", rev = "4ed4025e6b03d274e65ef0f93cc8b741dba3f0a9" }
 lasius-vcs-git = { git = "ssh://git@github.com/9aia/lasius.git", rev = "4ed4025e6b03d274e65ef0f93cc8b741dba3f0a9" }
-sturn-claim = { path = "crates/sturn-claim", version = "0.1.0" }
-sturn-ask = { path = "crates/sturn-ask", version = "0.1.0" }
-sturn-fuse = { path = "crates/sturn-fuse", version = "0.1.0" }
-sturn-config = { path = "crates/sturn-config", version = "0.1.0" }
-sturn-driver = { path = "crates/sturn-driver", version = "0.1.0" }
+sturn-claim = { path = "crates/sturn-claim", version = "1.0.0" }
+sturn-ask = { path = "crates/sturn-ask", version = "1.0.0" }
+sturn-fuse = { path = "crates/sturn-fuse", version = "1.0.0" }
+sturn-config = { path = "crates/sturn-config", version = "1.0.0" }
+sturn-driver = { path = "crates/sturn-driver", version = "1.0.0" }
 tamias-deploy-systemd = { git = "ssh://git@github.com/9aia/tamias.git", rev = "9e03e45b8a68dabccc38290f39e8b80523c20832", version = "0.2" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
