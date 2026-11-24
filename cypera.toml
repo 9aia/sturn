@@ -16,7 +16,7 @@
 "sturn-bus-redb" = "adapter"
 "sturn-ws-git" = "adapter"
 "sturn-git" = "adapter"
-"sturn-odb" = "adapter"
+
 "sturn-fuse" = "adapter"
 "sturn-config" = "adapter"
 "sturn" = "engine"

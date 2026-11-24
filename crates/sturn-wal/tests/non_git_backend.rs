@@ -199,6 +199,160 @@ impl Vcs for FlatVcs {
     fn push_tag(&self, _repo: &Path, _remote: &str, _tag: &str) -> bool {
         unimplemented!()
     }
+    fn log(&self, _repo: &Path, _rev: &str, _limit: usize) -> Vec<lasius_vcs::LogEntry> {
+        unimplemented!()
+    }
+    fn is_git_repo(&self, _start: &Path) -> bool {
+        unimplemented!()
+    }
+    fn repo_root(&self, _start: &Path) -> Option<PathBuf> {
+        unimplemented!()
+    }
+    fn branch_exists(&self, _repo: &Path, _name: &str) -> bool {
+        unimplemented!()
+    }
+    fn branch(&self, _repo: &Path, _name: &str, _start: &str) -> bool {
+        unimplemented!()
+    }
+    fn create_orphan_branch(&self, _repo: &Path, _name: &str, _msg: &str) -> io::Result<()> {
+        unimplemented!()
+    }
+    fn worktree_add_branch(
+        &self,
+        _repo: &Path,
+        _dir: &Path,
+        _branch: &str,
+        _rev: Option<&str>,
+    ) -> io::Result<()> {
+        unimplemented!()
+    }
+    fn worktree_add_existing(&self, _repo: &Path, _dir: &Path, _branch: &str) -> io::Result<()> {
+        unimplemented!()
+    }
+    fn common_dir(&self, _repo: &Path) -> Option<PathBuf> {
+        unimplemented!()
+    }
+    fn main_worktree(&self, _repo: &Path) -> Option<PathBuf> {
+        unimplemented!()
+    }
+    fn current_branch(&self, _repo: &Path) -> Option<String> {
+        unimplemented!()
+    }
+    fn stage_all(&self, _repo: &Path) -> io::Result<()> {
+        unimplemented!()
+    }
+    fn commit(
+        &self,
+        _repo: &Path,
+        _subject: &str,
+        _body: Option<&str>,
+        _allow_empty: bool,
+    ) -> io::Result<()> {
+        unimplemented!()
+    }
+    fn has_changes(&self, _repo: &Path) -> io::Result<bool> {
+        unimplemented!()
+    }
+    fn is_detached(&self, _repo: &Path) -> Option<bool> {
+        unimplemented!()
+    }
+    fn attach_branch(&self, _repo: &Path, _name: &str) -> io::Result<()> {
+        unimplemented!()
+    }
+    fn commits_ahead(&self, _repo: &Path, _rev: &str) -> Option<usize> {
+        unimplemented!()
+    }
+    fn commits_behind(&self, _repo: &Path, _rev: &str) -> Option<usize> {
+        unimplemented!()
+    }
+    fn merge_ff(&self, _repo: &Path, _rev: &str) -> io::Result<()> {
+        unimplemented!()
+    }
+    fn rebase(&self, _repo: &Path, _rev: &str) -> io::Result<()> {
+        unimplemented!()
+    }
+    fn rebase_abort(&self, _repo: &Path) -> io::Result<()> {
+        unimplemented!()
+    }
+    fn rebase_in_progress(&self, _repo: &Path) -> bool {
+        unimplemented!()
+    }
+    fn unmerged_files(&self, _repo: &Path) -> Vec<String> {
+        unimplemented!()
+    }
+    fn tracks_branch(&self, _repo: &Path, _remote: &str, _branch: &str) -> bool {
+        unimplemented!()
+    }
+    fn fetch(&self, _repo: &Path, _remote: &str, _refspecs: &[&str]) -> io::Result<()> {
+        unimplemented!()
+    }
+    fn push_branch(&self, _repo: &Path, _remote: &str, _branch: Option<&str>) -> io::Result<()> {
+        unimplemented!()
+    }
+    fn write_object(&self, _repo: &Path, _kind: &str, _payload: &[u8]) -> io::Result<String> {
+        unimplemented!()
+    }
+    fn read_object(&self, _repo: &Path, _sha: &str) -> io::Result<Option<(String, Vec<u8>)>> {
+        unimplemented!()
+    }
+    fn read_at(&self, _repo: &Path, _rev: &str, _path: &str) -> io::Result<Option<Vec<u8>>> {
+        unimplemented!()
+    }
+    fn entry_oid(&self, _repo: &Path, _rev: &str, _path: &str) -> io::Result<Option<String>> {
+        unimplemented!()
+    }
+    fn list_tree(&self, _repo: &Path, _rev: &str) -> io::Result<Vec<String>> {
+        unimplemented!()
+    }
+    fn write_tree(&self, _repo: &Path, _entries: &[(u32, &str, &str)]) -> io::Result<String> {
+        unimplemented!()
+    }
+    fn commit_tree(
+        &self,
+        _repo: &Path,
+        _tree: &str,
+        _parents: &[&str],
+        _message: &str,
+    ) -> io::Result<String> {
+        unimplemented!()
+    }
+    fn commit_overlay(
+        &self,
+        _repo: &Path,
+        _base: &str,
+        _ops: &[lasius_vcs::TreeOp],
+        _message: &str,
+        _branch: &str,
+    ) -> io::Result<String> {
+        unimplemented!()
+    }
+    fn read_ref(&self, _repo: &Path, _refname: &str) -> io::Result<Option<String>> {
+        unimplemented!()
+    }
+    fn update_ref(
+        &self,
+        _repo: &Path,
+        _refname: &str,
+        _new: &str,
+        _old: Option<&str>,
+    ) -> io::Result<()> {
+        unimplemented!()
+    }
+    fn delete_ref(&self, _repo: &Path, _refname: &str) -> io::Result<()> {
+        unimplemented!()
+    }
+    fn list_refs(&self, _repo: &Path, _prefix: &str) -> io::Result<Vec<String>> {
+        unimplemented!()
+    }
+    fn exec(&self, _repo: &Path, _args: &[&str]) -> bool {
+        unimplemented!()
+    }
+    fn exec_out(&self, _repo: &Path, _args: &[&str]) -> io::Result<String> {
+        unimplemented!()
+    }
+    fn exec_in(&self, _repo: &Path, _args: &[&str], _input: &[u8]) -> io::Result<Vec<u8>> {
+        unimplemented!()
+    }
 
     fn sync(&self, repo: &Path, _remote: Option<&str>) -> bool {
         let remote = repo.join("remote");

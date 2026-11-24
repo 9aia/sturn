@@ -12,4 +12,3 @@ categories = ["development-tools"]
 lasius-vcs.workspace = true
 lasius-vcs-git.workspace = true
 sturn-core.workspace = true
-sturn-odb.workspace = true

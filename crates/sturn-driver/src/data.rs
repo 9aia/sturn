@@ -28,6 +28,8 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use lasius_vcs::Vcs;
+use lasius_vcs_git::GitVcs;
 use sturn_ask::Status as AskStatus;
 use sturn_claim as claims;
 use sturn_config::ConfigSource;
@@ -225,7 +227,10 @@ pub fn load(params: &serde_json::Map<String, serde_json::Value>) -> Snapshot {
         .unwrap_or_else(|| PathBuf::from("."));
 
     // Not a git repo → honest degradation, no WAL reads attempted.
-    if sturn_odb::git_dir(&repo).is_err() {
+    // `rev-parse --git-dir` covers bare repos too (sturn-odb's
+    // git_dir check did); the port's exec_out is the plumbing
+    // passthrough.
+    if GitVcs.exec_out(&repo, &["rev-parse", "--git-dir"]).is_err() {
         return Snapshot::failed(format!(
             "{}: not a git repo — sturn state lives in refs/sturn/* under a repo",
             repo.display()

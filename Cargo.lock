@@ -366,18 +366,20 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "lasius-vcs"
-version = "0.3.0"
-source = "git+ssh://git@github.com/9aia/lasius.git?rev=782c10840149d9a62ac9aa2d0c3a440233ffc86b#782c10840149d9a62ac9aa2d0c3a440233ffc86b"
+version = "0.4.0"
+source = "git+ssh://git@github.com/9aia/lasius.git?rev=4ed4025e6b03d274e65ef0f93cc8b741dba3f0a9#4ed4025e6b03d274e65ef0f93cc8b741dba3f0a9"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "lasius-vcs-git"
-version = "0.3.0"
-source = "git+ssh://git@github.com/9aia/lasius.git?rev=782c10840149d9a62ac9aa2d0c3a440233ffc86b#782c10840149d9a62ac9aa2d0c3a440233ffc86b"
+version = "0.4.0"
+source = "git+ssh://git@github.com/9aia/lasius.git?rev=4ed4025e6b03d274e65ef0f93cc8b741dba3f0a9#4ed4025e6b03d274e65ef0f93cc8b741dba3f0a9"
 dependencies = [
+ "flate2",
  "lasius-vcs",
+ "sha1",
 ]
 
 [[package]]
@@ -829,6 +831,8 @@ name = "sturn-driver"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "lasius-vcs",
+ "lasius-vcs-git",
  "pavo-driver-kit",
  "pavo-protocol",
  "pavo-testkit",
@@ -838,7 +842,6 @@ dependencies = [
  "sturn-claim",
  "sturn-config",
  "sturn-core",
- "sturn-odb",
  "sturn-wal",
  "sturn-wal-git",
  "sturn-ws",
@@ -863,7 +866,6 @@ dependencies = [
  "lasius-vcs",
  "lasius-vcs-git",
  "sturn-core",
- "sturn-odb",
 ]
 
 [[package]]
@@ -871,14 +873,6 @@ name = "sturn-keyring"
 version = "0.1.0"
 dependencies = [
  "sturn-secret",
-]
-
-[[package]]
-name = "sturn-odb"
-version = "0.1.0"
-dependencies = [
- "flate2",
- "sha1",
 ]
 
 [[package]]
@@ -898,9 +892,10 @@ dependencies = [
 name = "sturn-wal-git"
 version = "0.1.0"
 dependencies = [
+ "lasius-vcs",
+ "lasius-vcs-git",
  "serde_json",
  "sturn-core",
- "sturn-odb",
  "sturn-wal",
 ]
 
@@ -912,7 +907,8 @@ version = "0.1.0"
 name = "sturn-ws-git"
 version = "0.1.0"
 dependencies = [
- "sturn-odb",
+ "lasius-vcs",
+ "lasius-vcs-git",
  "sturn-ws",
 ]
 

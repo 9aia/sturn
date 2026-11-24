@@ -8,13 +8,13 @@ maintained without PRs.)
 
 `crates/` — rust workspace. `sturn-core` is pure domain (op schema,
 config, shared vocabulary). Ports are crates: `sturn-wal`,
-`sturn-bus`, `sturn-ws`, `sturn-secret`,
+`sturn-bus`, `sturn-ws`,
 `sturn-config` (scarab-config-file impl). Impls: `sturn-wal-git` +
-`sturn-odb` + `sturn-ws-git` (git plumbing — `sturn-git` is the
-snap bridge over the shared `lasius-vcs` port), `sturn-bus-redb`,
-`sturn-keyring`/`sturn-dotenv`, `sturn-fuse`
-(FUSE mount). The daemon's systemd user unit goes through
-`tamias-deploy-systemd` (PL-025). `sturn-claim`/`sturn-ask` are pure fold logic over
+`sturn-ws-git` + `sturn-git` (git plumbing over the shared
+`lasius-vcs` port — the former `sturn-odb` object-DB mechanics
+now live in `lasius-vcs-git`), `sturn-bus-redb`,
+`sturn-fuse`
+(FUSE mount). `sturn-claim`/`sturn-ask` are pure fold logic over
 the WAL. `sturn-cli`
 (package `sturn` — engine lib + compat bin `sturn`) is the
 composition root; `sturn-driver` (bin

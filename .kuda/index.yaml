@@ -12,7 +12,6 @@ modules:
 - sturn-driver
 - sturn-fuse
 - sturn-git
-- sturn-odb
 - sturn-wal
 - sturn-wal-git
 - sturn-ws
@@ -36,7 +35,6 @@ provenance:
   - crates/sturn-driver/Cargo.toml
   - crates/sturn-fuse/Cargo.toml
   - crates/sturn-git/Cargo.toml
-  - crates/sturn-odb/Cargo.toml
   - crates/sturn-wal/Cargo.toml
   - crates/sturn-wal-git/Cargo.toml
   - crates/sturn-ws/Cargo.toml
@@ -54,7 +52,6 @@ provenance:
   - 5ac84f1658f81f303a68f2358fcfa799e4ad2cf5
   - 6c132812f2fc147db0df216bc92eb260e01b2491
   - 83daaba3458beaee0247769cca93f3ac6f427a74
-  - a6f0dd2a666115766eb2dca59a93ee7760eaf244
   - 76230d89b9f4ca046ae704a2a38704fcd56c8397
   - 920e3060a2a096d2c39647c722b94768629605d2
   - baa5ab79e9ba5d08dbaffbee0a0961c003dc8a4f
