@@ -820,13 +820,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sturn-dotenv"
-version = "0.1.0"
-dependencies = [
- "sturn-secret",
-]
-
-[[package]]
 name = "sturn-driver"
 version = "0.1.0"
 dependencies = [
@@ -867,17 +860,6 @@ dependencies = [
  "lasius-vcs-git",
  "sturn-core",
 ]
-
-[[package]]
-name = "sturn-keyring"
-version = "0.1.0"
-dependencies = [
- "sturn-secret",
-]
-
-[[package]]
-name = "sturn-secret"
-version = "0.1.0"
 
 [[package]]
 name = "sturn-wal"
