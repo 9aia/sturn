@@ -8,6 +8,7 @@
 # matching — this file only declares the repo's own delta.
 
 # proposal: proposal-0055  # org-ledger proposal authorizing this spec set
+# proposal: proposal-0056  # provider wiring: kuda/sturn/myco/cypera markers
 
 family   = "9aia/sturn"
 match    = ["sturn"]
@@ -38,6 +39,7 @@ cover_dirs = [
   "examples",
   "libraries",
   "scripts",
+  "specs",
 ]
 
 [providers.lasius]
@@ -46,3 +48,10 @@ catalog   = true
 [providers.cargo]
 patches = "org-only"
 org     = "9aia"
+
+[providers.kuda]
+cards   = true
+
+[providers.sturn]
+
+[providers.cypera]
