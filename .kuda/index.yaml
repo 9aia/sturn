@@ -1,9 +1,7 @@
 name: sturn
-root: /home/luis/GitHub/9aia/workspace/repos/sturn
+root: /home/luis/.local/share/decoupling-chief/worktrees/pl-025/sturn
 purpose: '*Ephemeral coordination engine — claims/ops/topics over VCS state.*'
 modules:
-- docs
-- project
 - sturn
 - sturn-ask
 - sturn-bus
@@ -18,8 +16,6 @@ modules:
 - sturn-keyring
 - sturn-odb
 - sturn-secret
-- sturn-service
-- sturn-systemd
 - sturn-wal
 - sturn-wal-git
 - sturn-ws
@@ -27,8 +23,8 @@ modules:
 commands:
 - cargo check
 - cargo test --workspace
-tree_digest: e0027b323e66fbdeecdfc00bf3ffe2d2e16d0072
-files_total: 121
+tree_digest: 7422cc085ef8536b501d2539fc3bdf9329f3fa77
+files_total: 89
 provenance:
   files:
   - Cargo.toml
@@ -47,20 +43,18 @@ provenance:
   - crates/sturn-keyring/Cargo.toml
   - crates/sturn-odb/Cargo.toml
   - crates/sturn-secret/Cargo.toml
-  - crates/sturn-service/Cargo.toml
-  - crates/sturn-systemd/Cargo.toml
   - crates/sturn-wal/Cargo.toml
   - crates/sturn-wal-git/Cargo.toml
   - crates/sturn-ws/Cargo.toml
   - crates/sturn-ws-git/Cargo.toml
   hashes:
-  - cd69f03acd48b93a0363993d44dd86eba4cf794e
-  - aa6039f463e5e09a4343b6718fcb8df3bcf5565f
+  - 269430d70218d5ae639397396f714664b774717d
+  - abc3bbc48deb66f596446886f650bd9ba0df5a0c
   - 4dafecd121808bfabe6de0b6fd362c82eae4c268
   - d2bdd41da6f91a3199ae6ce1759d4dcdeda1590c
   - 400e9db9ac5978965f038a926e04e4ef1dbb2f4e
   - 93abd736bec8e72671fe408e4acbc61526f03d7e
-  - 4f542389d1258479db46aecaf557252795dd24c1
+  - 7bc6b98b97fabeae5418373d83f904b16e4a6f3f
   - 9e27ee95465ebe3ada1d6e77033a9fa9714a7c44
   - 8882be00ff91823f5d18b19eaca492be7e9a5ef5
   - 1034b2491bf076039224a52253fddb5330eaa0bf
@@ -70,12 +64,10 @@ provenance:
   - b880dc8f26d37f2be3f51c066a251ed062f93a0a
   - a6f0dd2a666115766eb2dca59a93ee7760eaf244
   - 5f478381674020056dbe038135cd774a2bce7882
-  - 3413fa357f481c897fdae1e74b20a16055646341
-  - fc98064852bf86a66f76cb4a8fd4da68c5dd17ec
   - 76230d89b9f4ca046ae704a2a38704fcd56c8397
   - 920e3060a2a096d2c39647c722b94768629605d2
   - baa5ab79e9ba5d08dbaffbee0a0961c003dc8a4f
   - 74885c8dbd6264f0bc6da2657aeab82fc54a0c70
-  commit_sha: ca5e11878408b22eceee337fcb1adf299da5e24c
-  generated_at: '1794726698'
+  commit_sha: 5d979c88e509b4f66b3fecccaaca885f1d8e525f
+  generated_at: '1795445887'
   generator: kuda/0.1.0

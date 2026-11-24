@@ -15,12 +15,12 @@ api:
 - name: ActorCfg
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 624
+  line: 648
   module: sturn-core
 - name: BusCfg
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 608
+  line: 632
   module: sturn-core
 - name: CLAIMS
   kind: const
@@ -30,7 +30,7 @@ api:
 - name: Config
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 485
+  line: 509
   module: sturn-core
 - name: Event
   kind: type
@@ -40,12 +40,12 @@ api:
 - name: HooksCfg
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 507
+  line: 531
   module: sturn-core
 - name: Merge
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 186
+  line: 210
   module: sturn-core
 - name: OPS
   kind: const
@@ -55,7 +55,7 @@ api:
 - name: OneOrMany
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 536
+  line: 560
   module: sturn-core
 - name: Op
   kind: type
@@ -75,17 +75,17 @@ api:
 - name: RepoCfg
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 573
+  line: 597
   module: sturn-core
 - name: ReviewCfg
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 550
+  line: 574
   module: sturn-core
 - name: SigningCfg
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 561
+  line: 585
   module: sturn-core
 - name: Verdict
   kind: type
@@ -95,57 +95,57 @@ api:
 - name: WalCfg
   kind: type
   file: crates/sturn-core/src/lib.rs
-  line: 599
+  line: 623
   module: sturn-core
 - name: actor_name_prefers_explicit_then_env
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 326
+  line: 357
   module: sturn-core
 - name: claim_ttl_defaults_3600
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 267
+  line: 298
   module: sturn-core
 - name: config_defaults
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 290
+  line: 321
   module: sturn-core
 - name: config_defaults_fill_every_section
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 349
+  line: 380
   module: sturn-core
 - name: default
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 658
+  line: 682
   module: sturn-core
 - name: default
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 666
+  line: 690
   module: sturn-core
 - name: default_branch
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 641
+  line: 665
   module: sturn-core
 - name: default_bus_store
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 650
+  line: 674
   module: sturn-core
 - name: default_poll_ms
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 647
+  line: 671
   module: sturn-core
 - name: default_ref_prefix
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 644
+  line: 668
   module: sturn-core
 - name: default_ttl
   kind: function
@@ -165,44 +165,44 @@ api:
 - name: event_new_assigns_fields
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 183
+  line: 214
   module: sturn-core
 - name: final_to
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 229
+  line: 253
   module: sturn-core
 - name: id
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 586
+  line: 610
   module: sturn-core
 - name: merge
   kind: function
   file: crates/sturn-core/src/lib.rs
-  line: 204
+  line: 228
   module: sturn-core
 - name: merge_clean_streams_passthrough
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 442
+  line: 473
   module: sturn-core
 - name: merge_converged_renames_are_quiet
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 515
+  line: 546
   module: sturn-core
 - name: merge_delete_vs_rename_source_warns
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 541
+  line: 572
   module: sturn-core
 - name: merge_diverged_renames_warn_and_stay
   kind: function
   file: crates/sturn-core/tests/core.rs
-  line: 500
+  line: 531
   module: sturn-core
-api_omitted: 39
+api_omitted: 42
 deps:
 - serde
 - serde_json
@@ -219,8 +219,8 @@ provenance:
   - crates/sturn-core/tests/core.rs
   hashes:
   - 8882be00ff91823f5d18b19eaca492be7e9a5ef5
-  - 299e30b93733f77ccfca6dd897f16da5f94ba693
-  - c210ab3e192c35c2a686f987173b6d6c2286c4df
-  commit_sha: 9e1e3b78a31a2f94778f74b386d75262aa05da22
-  generated_at: '1794489836'
+  - 90b5db5d8fbde191767c7e275690432d38295ee3
+  - af359e2c2f5d29058173fa5e3c76940b94d2422e
+  commit_sha: 5d979c88e509b4f66b3fecccaaca885f1d8e525f
+  generated_at: '1795445887'
   generator: kuda-template/0.1.4

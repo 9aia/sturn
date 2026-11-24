@@ -10,12 +10,12 @@ api:
 - name: SIGN_IDX
   kind: const
   file: crates/sturn-wal-git/src/lib.rs
-  line: 79
+  line: 88
   module: sturn-wal-git
 - name: append
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 144
+  line: 160
   module: sturn-wal-git
 - name: append_and_read_back
   kind: function
@@ -25,17 +25,17 @@ api:
 - name: append_errors_on_bad_repo
   kind: function
   file: crates/sturn-wal-git/tests/wal.rs
-  line: 252
+  line: 274
   module: sturn-wal-git
 - name: append_rate_probe
   kind: function
   file: crates/sturn-wal-git/tests/wal.rs
-  line: 342
+  line: 364
   module: sturn-wal-git
 - name: compact
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 240
+  line: 263
   module: sturn-wal-git
 - name: compact_drops_pre_snapshot_history
   kind: function
@@ -45,7 +45,7 @@ api:
 - name: compact_keeps_only_snapshot_and_after
   kind: function
   file: crates/sturn-wal-git/tests/wal.rs
-  line: 309
+  line: 331
   module: sturn-wal-git
 - name: compact_without_snapshot_is_noop
   kind: function
@@ -55,7 +55,7 @@ api:
 - name: custom_ref_prefix
   kind: function
   file: crates/sturn-wal-git/tests/wal.rs
-  line: 182
+  line: 204
   module: sturn-wal-git
 - name: default
   kind: function
@@ -70,17 +70,17 @@ api:
 - name: events_on_repo_without_wal_ref
   kind: function
   file: crates/sturn-wal-git/tests/wal.rs
-  line: 300
+  line: 322
   module: sturn-wal-git
 - name: events_since
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 191
+  line: 213
   module: sturn-wal-git
 - name: events_since_handles_bad_json_and_backfills_id
   kind: function
   file: crates/sturn-wal-git/tests/wal.rs
-  line: 265
+  line: 287
   module: sturn-wal-git
 - name: events_since_returns_delta
   kind: function
@@ -105,32 +105,42 @@ api:
 - name: git_stdin
   kind: function
   file: crates/sturn-wal-git/tests/wal.rs
-  line: 196
+  line: 218
   module: sturn-wal-git
 - name: head
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 223
+  line: 245
   module: sturn-wal-git
 - name: head_and_events_on_unknown_ws
   kind: function
   file: crates/sturn-wal-git/tests/wal.rs
   line: 105
   module: sturn-wal-git
+- name: invalid_ws_name_fails_fast_not_cas
+  kind: function
+  file: crates/sturn-wal-git/tests/wal.rs
+  line: 182
+  module: sturn-wal-git
+- name: permanent_update_ref_failure
+  kind: function
+  file: crates/sturn-wal-git/src/lib.rs
+  line: 78
+  module: sturn-wal-git
 - name: put_commit
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 131
+  line: 147
   module: sturn-wal-git
 - name: put_object
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 110
+  line: 126
   module: sturn-wal-git
 - name: put_tree
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 115
+  line: 131
   module: sturn-wal-git
 - name: repo
   kind: function
@@ -145,17 +155,17 @@ api:
 - name: sign_event
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 76
+  line: 85
   module: sturn-wal-git
 - name: signed_events_roundtrip
   kind: function
   file: crates/sturn-wal-git/tests/wal.rs
-  line: 219
+  line: 241
   module: sturn-wal-git
 - name: signing_failure_propagates
   kind: function
   file: crates/sturn-wal-git/tests/wal.rs
-  line: 239
+  line: 261
   module: sturn-wal-git
 - name: sturn-wal-git
   kind: module
@@ -165,12 +175,12 @@ api:
 - name: wal_ref
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 103
+  line: 116
   module: sturn-wal-git
 - name: workspaces
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 284
+  line: 307
   module: sturn-wal-git
 - name: workspaces_lists_ws_refs
   kind: function
@@ -196,8 +206,8 @@ provenance:
   - crates/sturn-wal-git/tests/wal.rs
   hashes:
   - 920e3060a2a096d2c39647c722b94768629605d2
-  - f0a543ce7ab0a63dc64b8e3d3ba14e47c7c21767
-  - 931a4db47a68f45a57a21519984ebcdba97b174e
-  commit_sha: adae1d7e7c927216006da972608cc345929607ea
-  generated_at: '1794437265'
+  - 23621b6a142dbedd5e93c7cc3d2c2c63eaa65909
+  - a3cc50b77b3ade9522f55a7c3a31bebb4927c693
+  commit_sha: 5d979c88e509b4f66b3fecccaaca885f1d8e525f
+  generated_at: '1795445887'
   generator: kuda-template/0.1.4

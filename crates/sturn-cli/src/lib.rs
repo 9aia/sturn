@@ -9,8 +9,9 @@
 //! sturn — evented coordination over the git object store.
 //!
 //! The WAL is the state; the tree is a projection; the bus is a
-//! cache. Composition root: wires ports (wal/bus/ws/vcs/config/
-//! service) to impls (git plumbing, redb, toml, systemd).
+//! cache. Composition root: wires ports (wal/bus/ws/vcs/config)
+//! to impls (git plumbing, redb, toml); the daemon's systemd user
+//! unit goes through `tamias-deploy-systemd` (PL-025).
 
 mod agentmd;
 
@@ -25,7 +26,6 @@ use sturn_bus::Bus;
 use sturn_claim as claims;
 use sturn_config::ConfigSource;
 use sturn_core::{topic, Config, Event, Op, Verdict};
-use sturn_service::Service;
 use sturn_wal::Wal;
 use sturn_ws::Ws;
 
@@ -1307,17 +1307,31 @@ fn execute(cli: &Cli) -> Result<(), String> {
         }
         Cmd::Deploy { cmd } => match cmd {
             DeployCmd::Service => {
-                let svc = sturn_systemd::SystemdService {
-                    unit: "sturn-daemon.service".into(),
-                    bin: std::env::current_exe().map_err(|e| e.to_string())?,
-                    env: std::env::var("HOME")
-                        .map(PathBuf::from)
-                        .unwrap_or_else(|_| ".".into())
-                        .join(".config/sturn/env"),
-                    config: cli.config.clone().map(PathBuf::from),
+                let bin = std::env::current_exe().map_err(|e| e.to_string())?;
+                let env = std::env::var("HOME")
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|_| ".".into())
+                    .join(".config/sturn/env");
+                let mut exec = vec![bin.display().to_string(), "daemon".into()];
+                if let Some(c) = &cli.config {
+                    exec.push("--config".into());
+                    exec.push(c.clone());
+                }
+                let spec = tamias_deploy_systemd::ServiceSpec {
+                    name: "sturn-daemon".into(),
+                    description: "sturn — WAL→topic fan-out daemon (coordination over git refs)"
+                        .into(),
+                    exec,
+                    env: vec![],
+                    env_file: Some(env.display().to_string()),
+                    restart: Some("always".into()),
+                    restart_sec: Some(5),
+                    workdir: None,
+                    after: vec![],
                 };
-                let p = svc.write().map_err(|e| e.to_string())?;
-                svc.enable().map_err(|e| e.to_string())?;
+                let deploy = tamias_deploy_systemd::LocalDeploy::new();
+                let p = deploy.install(&spec).map_err(|e| e.to_string())?;
+                deploy.enable("sturn-daemon").map_err(|e| e.to_string())?;
                 println!("enabled {}", p.display());
                 Ok(())
             }
@@ -1326,43 +1340,49 @@ fn execute(cli: &Cli) -> Result<(), String> {
                     .map(PathBuf::from)
                     .unwrap_or_else(|_| ".".into())
                     .join(".config/sturn");
-                let p = sturn_systemd::write_env_skeleton(&dir).map_err(|e| e.to_string())?;
+                let p = write_env_skeleton(&dir).map_err(|e| e.to_string())?;
                 println!("env skeleton: {}", p.display());
                 Ok(())
             }
         },
         Cmd::Destroy { cmd } => match cmd {
             DestroySub::Service => {
-                let p = sturn_systemd::disable_service("sturn-daemon.service")
+                let deploy = tamias_deploy_systemd::LocalDeploy::new();
+                let _ = deploy.disable("sturn-daemon");
+                let path = deploy
+                    .unit_path("sturn-daemon")
                     .map_err(|e| e.to_string())?;
-                println!("removed {}", p.display());
+                if path.exists() {
+                    std::fs::remove_file(&path).map_err(|e| e.to_string())?;
+                }
+                deploy.daemon_reload().map_err(|e| e.to_string())?;
+                println!("removed {}", path.display());
                 Ok(())
             }
         },
         Cmd::Service { cmd } => {
             // Toggle only — `deploy service` writes the unit, and the
             // file stays put through enable/disable cycles.
-            let unit = "sturn-daemon.service";
+            let deploy = tamias_deploy_systemd::LocalDeploy::new();
             match cmd {
                 ServiceCmd::Enable => {
-                    sturn_systemd::enable_service(unit).map_err(|e| e.to_string())?;
+                    deploy.enable("sturn-daemon").map_err(|e| e.to_string())?;
                     println!("sturn-daemon enabled — running now and at login");
                 }
                 ServiceCmd::Disable => {
-                    sturn_systemd::stop_service(unit).map_err(|e| e.to_string())?;
+                    deploy.disable("sturn-daemon").map_err(|e| e.to_string())?;
                     println!("sturn-daemon disabled — stopped, will not restart at login");
                 }
                 ServiceCmd::Status => {
-                    let s = sturn_systemd::unit_status(unit).map_err(|e| e.to_string())?;
+                    let s = tamias_deploy_systemd::unit_status("sturn-daemon.service");
                     println!("{s}");
                 }
                 ServiceCmd::Restart => {
-                    sturn_systemd::restart_service(unit).map_err(|e| e.to_string())?;
+                    deploy.restart("sturn-daemon").map_err(|e| e.to_string())?;
                     println!("sturn-daemon restarted");
                 }
                 ServiceCmd::Logs { follow } => {
-                    let code =
-                        sturn_systemd::service_logs(unit, *follow).map_err(|e| e.to_string())?;
+                    let code = service_logs("sturn-daemon", *follow)?;
                     if code != 0 {
                         std::process::exit(code);
                     }
@@ -1371,6 +1391,40 @@ fn execute(cli: &Cli) -> Result<(), String> {
             Ok(())
         }
     }
+}
+
+/// `service logs` — journal tail for the unit via the shared
+/// `journalctl_args` argv; `follow` inherits stdio for `-f`.
+fn service_logs(unit: &str, follow: bool) -> Result<i32, String> {
+    let args = tamias_deploy_systemd::journalctl_args(&[unit.to_string()], 50, follow)
+        .map_err(|e| e.to_string())?;
+    let st = std::process::Command::new("journalctl")
+        .args(&args)
+        .status()
+        .map_err(|e| e.to_string())?;
+    Ok(st.code().unwrap_or(-1))
+}
+
+/// Seed `~/.config/sturn/env` with the secret names (empty values —
+/// never invent secrets). Moved in-house with the sturn-systemd
+/// retirement (PL-025); same contract as `bupha-cli`'s copy.
+fn write_env_skeleton(dir: &Path) -> std::io::Result<PathBuf> {
+    std::fs::create_dir_all(dir)?;
+    let path = dir.join("env");
+    if !path.exists() {
+        std::fs::write(
+            &path,
+            "# Secrets only — everything else lives in sturn.toml\n\
+             STURN_ACTOR=\n",
+        )?;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        // token-bearing file — owner-only regardless of umask.
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+    }
+    Ok(path)
 }
 
 fn now() -> u64 {
