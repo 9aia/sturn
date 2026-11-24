@@ -186,7 +186,7 @@ provenance:
   - crates/sturn-odb/src/lib.rs
   hashes:
   - a6f0dd2a666115766eb2dca59a93ee7760eaf244
-  - 8e11e277cdfd981cf294e97016ec60a8bdb27ad4
-  commit_sha: adae1d7e7c927216006da972608cc345929607ea
-  generated_at: '1794437265'
+  - bb0e947767cfaa0c078c99e2bc5e85b2563585e8
+  commit_sha: 5d979c88e509b4f66b3fecccaaca885f1d8e525f
+  generated_at: '1795445887'
   generator: kuda-template/0.1.4
