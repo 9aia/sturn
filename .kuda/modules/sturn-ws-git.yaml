@@ -5,17 +5,17 @@ api:
 - name: GitWs
   kind: type
   file: crates/sturn-ws-git/src/lib.rs
-  line: 14
+  line: 17
   module: sturn-ws-git
 - name: blob
   kind: function
   file: crates/sturn-ws-git/src/lib.rs
-  line: 116
+  line: 73
   module: sturn-ws-git
 - name: create
   kind: function
   file: crates/sturn-ws-git/src/lib.rs
-  line: 96
+  line: 65
   module: sturn-ws-git
 - name: create_tip_and_workspaces
   kind: function
@@ -25,12 +25,7 @@ api:
 - name: entry
   kind: function
   file: crates/sturn-ws-git/src/lib.rs
-  line: 101
-  module: sturn-ws-git
-- name: git
-  kind: function
-  file: crates/sturn-ws-git/src/lib.rs
-  line: 16
+  line: 69
   module: sturn-ws-git
 - name: git
   kind: function
@@ -40,12 +35,12 @@ api:
 - name: list
   kind: function
   file: crates/sturn-ws-git/src/lib.rs
-  line: 56
+  line: 30
   module: sturn-ws-git
 - name: materialize
   kind: function
   file: crates/sturn-ws-git/src/lib.rs
-  line: 64
+  line: 34
   module: sturn-ws-git
 - name: materialize_whole_and_subset
   kind: function
@@ -55,7 +50,7 @@ api:
 - name: read
   kind: function
   file: crates/sturn-ws-git/src/lib.rs
-  line: 40
+  line: 24
   module: sturn-ws-git
 - name: read_and_blob_errors_surface
   kind: function
@@ -75,7 +70,7 @@ api:
 - name: store
   kind: function
   file: crates/sturn-ws-git/src/lib.rs
-  line: 134
+  line: 80
   module: sturn-ws-git
 - name: store_and_blob_roundtrip
   kind: function
@@ -90,7 +85,7 @@ api:
 - name: tip
   kind: function
   file: crates/sturn-ws-git/src/lib.rs
-  line: 155
+  line: 84
   module: sturn-ws-git
 - name: tip_missing_ws_errors
   kind: function
@@ -100,7 +95,7 @@ api:
 - name: workspaces
   kind: function
   file: crates/sturn-ws-git/src/lib.rs
-  line: 162
+  line: 90
   module: sturn-ws-git
 - name: workspaces_ignores_other_ref_namespaces
   kind: function
@@ -110,12 +105,15 @@ api:
 - name: ws_ref
   kind: function
   file: crates/sturn-ws-git/src/lib.rs
-  line: 35
+  line: 19
   module: sturn-ws-git
 deps:
-- sturn-odb
+- lasius-vcs
+- lasius-vcs-git
 - sturn-ws
 - sturn-ws
+- lasius_vcs
+- lasius_vcs_git
 notes: ''
 verify:
 - crates/sturn-ws-git/Cargo.toml
@@ -127,9 +125,9 @@ provenance:
   - crates/sturn-ws-git/src/lib.rs
   - crates/sturn-ws-git/tests/ws.rs
   hashes:
-  - 74885c8dbd6264f0bc6da2657aeab82fc54a0c70
-  - b53a4ce236665478037df78c71a061ec3658e990
+  - 34b81916a9e2fff3bd4d11e87591a28ce866834d
+  - 3f5e4846e52d5d143d90bb01d41a82aa10388c9d
   - 5a046fd6510b27f3ed0a0c110ddbd5272a00f7b9
-  commit_sha: adae1d7e7c927216006da972608cc345929607ea
-  generated_at: '1794437265'
+  commit_sha: 3b274c279b3d5195862a4db552310c25dd6de496
+  generated_at: '1795529264'
   generator: kuda-template/0.1.4

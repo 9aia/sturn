@@ -5,17 +5,17 @@ api:
 - name: GitWal
   kind: type
   file: crates/sturn-wal-git/src/lib.rs
-  line: 16
+  line: 19
   module: sturn-wal-git
 - name: SIGN_IDX
   kind: const
   file: crates/sturn-wal-git/src/lib.rs
-  line: 88
+  line: 50
   module: sturn-wal-git
 - name: append
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 160
+  line: 105
   module: sturn-wal-git
 - name: append_and_read_back
   kind: function
@@ -35,7 +35,7 @@ api:
 - name: compact
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 263
+  line: 193
   module: sturn-wal-git
 - name: compact_drops_pre_snapshot_history
   kind: function
@@ -60,7 +60,7 @@ api:
 - name: default
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 25
+  line: 28
   module: sturn-wal-git
 - name: ev
   kind: function
@@ -75,7 +75,7 @@ api:
 - name: events_since
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 213
+  line: 155
   module: sturn-wal-git
 - name: events_since_handles_bad_json_and_backfills_id
   kind: function
@@ -89,18 +89,8 @@ api:
   module: sturn-wal-git
 - name: git
   kind: function
-  file: crates/sturn-wal-git/src/lib.rs
-  line: 33
-  module: sturn-wal-git
-- name: git
-  kind: function
   file: crates/sturn-wal-git/tests/wal.rs
   line: 17
-  module: sturn-wal-git
-- name: git_in
-  kind: function
-  file: crates/sturn-wal-git/src/lib.rs
-  line: 52
   module: sturn-wal-git
 - name: git_stdin
   kind: function
@@ -110,7 +100,7 @@ api:
 - name: head
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 245
+  line: 186
   module: sturn-wal-git
 - name: head_and_events_on_unknown_ws
   kind: function
@@ -125,22 +115,22 @@ api:
 - name: permanent_update_ref_failure
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 78
+  line: 40
   module: sturn-wal-git
 - name: put_commit
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 147
+  line: 99
   module: sturn-wal-git
 - name: put_object
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 126
+  line: 89
   module: sturn-wal-git
 - name: put_tree
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 131
+  line: 93
   module: sturn-wal-git
 - name: repo
   kind: function
@@ -155,7 +145,7 @@ api:
 - name: sign_event
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 85
+  line: 47
   module: sturn-wal-git
 - name: signed_events_roundtrip
   kind: function
@@ -175,12 +165,12 @@ api:
 - name: wal_ref
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 116
+  line: 78
   module: sturn-wal-git
 - name: workspaces
   kind: function
   file: crates/sturn-wal-git/src/lib.rs
-  line: 307
+  line: 234
   module: sturn-wal-git
 - name: workspaces_lists_ws_refs
   kind: function
@@ -188,12 +178,15 @@ api:
   line: 113
   module: sturn-wal-git
 deps:
+- lasius-vcs
+- lasius-vcs-git
 - serde_json
 - sturn-core
-- sturn-odb
 - sturn-wal
 - sturn-core
 - sturn-wal
+- lasius_vcs
+- lasius_vcs_git
 notes: ''
 verify:
 - crates/sturn-wal-git/Cargo.toml
@@ -205,9 +198,9 @@ provenance:
   - crates/sturn-wal-git/src/lib.rs
   - crates/sturn-wal-git/tests/wal.rs
   hashes:
-  - 920e3060a2a096d2c39647c722b94768629605d2
-  - 23621b6a142dbedd5e93c7cc3d2c2c63eaa65909
+  - 00d1d723288f926864c9787962bd60a9ccf71f1d
+  - 8a57a4b22c595eb13bded426b23f31f787a5d3f4
   - a3cc50b77b3ade9522f55a7c3a31bebb4927c693
-  commit_sha: 5d979c88e509b4f66b3fecccaaca885f1d8e525f
-  generated_at: '1795445887'
+  commit_sha: 3b274c279b3d5195862a4db552310c25dd6de496
+  generated_at: '1795529264'
   generator: kuda-template/0.1.4

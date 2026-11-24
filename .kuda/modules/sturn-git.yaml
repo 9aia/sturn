@@ -2,20 +2,10 @@ name: sturn-git
 path: crates/sturn-git/Cargo.toml
 purpose: Vcs impl via the git binary + WAL->commit snap
 api:
-- name: SNAP_IDX
-  kind: const
-  file: crates/sturn-git/src/lib.rs
-  line: 96
-  module: sturn-git
 - name: ev
   kind: function
   file: crates/sturn-git/tests/vcs.rs
   line: 59
-  module: sturn-git
-- name: git
-  kind: function
-  file: crates/sturn-git/src/lib.rs
-  line: 16
   module: sturn-git
 - name: git
   kind: function
@@ -25,7 +15,7 @@ api:
 - name: has_commit
   kind: function
   file: crates/sturn-git/src/lib.rs
-  line: 46
+  line: 22
   module: sturn-git
 - name: has_commit_checks_objects
   kind: function
@@ -35,7 +25,7 @@ api:
 - name: push
   kind: function
   file: crates/sturn-git/src/lib.rs
-  line: 52
+  line: 28
   module: sturn-git
 - name: push_and_sync_bare_remote
   kind: function
@@ -50,7 +40,7 @@ api:
 - name: resolve
   kind: function
   file: crates/sturn-git/src/lib.rs
-  line: 37
+  line: 16
   module: sturn-git
 - name: scratch
   kind: function
@@ -60,7 +50,7 @@ api:
 - name: snap_commit
   kind: function
   file: crates/sturn-git/src/lib.rs
-  line: 86
+  line: 45
   module: sturn-git
 - name: snap_commit_deletes_paths
   kind: function
@@ -85,7 +75,7 @@ api:
 - name: store_blob
   kind: function
   file: crates/sturn-git/src/lib.rs
-  line: 58
+  line: 34
   module: sturn-git
 - name: store_blob_and_snap_errors
   kind: function
@@ -111,7 +101,6 @@ deps:
 - lasius-vcs
 - lasius-vcs-git
 - sturn-core
-- sturn-odb
 - lasius_vcs
 - sturn-core
 notes: ''
@@ -125,9 +114,9 @@ provenance:
   - crates/sturn-git/src/lib.rs
   - crates/sturn-git/tests/vcs.rs
   hashes:
-  - 83daaba3458beaee0247769cca93f3ac6f427a74
-  - 57216de2cf4d81f805974bdb6e57cdf1d9bdc717
+  - 4d89f695e5d1a17169b6700fb25650a720d02d7f
+  - d9d3dd38dba4f4c445822a0f20349dbe424f9e2d
   - 3aa8aa612c6353e9e05e327cb5b7151680d4f50a
-  commit_sha: adae1d7e7c927216006da972608cc345929607ea
-  generated_at: '1794437265'
+  commit_sha: 3b274c279b3d5195862a4db552310c25dd6de496
+  generated_at: '1795529264'
   generator: kuda-template/0.1.4

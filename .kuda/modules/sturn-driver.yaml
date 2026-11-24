@@ -30,12 +30,12 @@ api:
 - name: Snapshot
   kind: type
   file: crates/sturn-driver/src/data.rs
-  line: 58
+  line: 60
   module: sturn-driver
 - name: WsRow
   kind: type
   file: crates/sturn-driver/src/data.rs
-  line: 42
+  line: 44
   module: sturn-driver
 - name: argv
   kind: function
@@ -100,7 +100,7 @@ api:
 - name: config_path_hint
   kind: function
   file: crates/sturn-driver/src/data.rs
-  line: 153
+  line: 155
   module: sturn-driver
 - name: data
   kind: module
@@ -110,7 +110,7 @@ api:
 - name: default
   kind: function
   file: crates/sturn-driver/src/data.rs
-  line: 87
+  line: 89
   module: sturn-driver
 - name: degraded_snapshot_yields_error_payloads
   kind: function
@@ -140,7 +140,7 @@ api:
 - name: error_payload
   kind: function
   file: crates/sturn-driver/src/data.rs
-  line: 117
+  line: 119
   module: sturn-driver
 - name: every_binding_is_a_known_query
   kind: function
@@ -150,7 +150,7 @@ api:
 - name: failed
   kind: function
   file: crates/sturn-driver/src/data.rs
-  line: 107
+  line: 109
   module: sturn-driver
 - name: fmt_ts
   kind: function
@@ -185,12 +185,12 @@ api:
 - name: load
   kind: function
   file: crates/sturn-driver/src/data.rs
-  line: 211
+  line: 213
   module: sturn-driver
 - name: load_config
   kind: function
   file: crates/sturn-driver/src/data.rs
-  line: 165
+  line: 167
   module: sturn-driver
 - name: main
   kind: function
@@ -205,6 +205,8 @@ api:
 api_omitted: 49
 deps:
 - clap
+- lasius-vcs
+- lasius-vcs-git
 - pavo-driver-kit
 - pavo-protocol
 - serde_json
@@ -213,7 +215,6 @@ deps:
 - sturn-claim
 - sturn-config
 - sturn-core
-- sturn-odb
 - sturn-wal
 - sturn-wal-git
 - sturn-ws
@@ -221,6 +222,8 @@ deps:
 - pavo-testkit
 - clap
 - serde_json
+- lasius_vcs
+- lasius_vcs_git
 - sturn-config
 - sturn-core
 - sturn-wal
@@ -249,14 +252,14 @@ provenance:
   - crates/sturn-driver/tests/conformance.rs
   - crates/sturn-driver/tests/ops_wire.rs
   hashes:
-  - 5ac84f1658f81f303a68f2358fcfa799e4ad2cf5
-  - 5ed4f744f7b78efee3e4da788fa66c48ec5b911c
+  - 6db1a8036fdf07d91ec26b76976725822ae66d78
+  - 6fe10687c82337698a23aebbf78d8739d34238c4
   - bde9e2cad19667ded60cc6d3741a9c53107b47cb
   - 3090bd77fb76581e59b092cbdf9ba238aa748b9d
   - dd4235b7a7ff6a946c1597bcf778203afe9dbf33
   - a6c14e6ad89e6b9de14d17c1142924e9b2149ed4
   - 4f731fec636db60e4ae90d45e355a861b238128f
   - e47dc5a19698bdb071e5ffdb3c6ba0ae3c5e19b5
-  commit_sha: 5d979c88e509b4f66b3fecccaaca885f1d8e525f
-  generated_at: '1795445887'
+  commit_sha: 3b274c279b3d5195862a4db552310c25dd6de496
+  generated_at: '1795529264'
   generator: kuda-template/0.1.4

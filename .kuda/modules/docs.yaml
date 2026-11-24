@@ -7,9 +7,19 @@ api:
   file: docs/explanation/architecture.md
   line: 1
   module: docs
+- name: Boundaries
+  kind: record
+  file: docs/explanation/boundaries.md
+  line: 1
+  module: docs
 - name: Command-Line Help for `sturn`
   kind: record
   file: docs/reference/cli.md
+  line: 1
+  module: docs
+- name: Concepts
+  kind: record
+  file: docs/explanation/concepts.md
   line: 1
   module: docs
 - name: Config — `sturn.toml`
@@ -22,9 +32,19 @@ api:
   file: docs/reference/crate-api.md
   line: 1
   module: docs
-- name: Getting started
+- name: Decisions
   kind: record
-  file: docs/getting-started.md
+  file: docs/explanation/decisions.md
+  line: 1
+  module: docs
+- name: Explanation
+  kind: record
+  file: docs/explanation/index.md
+  line: 1
+  module: docs
+- name: How-to guides
+  kind: record
+  file: docs/how-to/index.md
   line: 1
   module: docs
 - name: 'How-to: mount a workspace'
@@ -40,6 +60,11 @@ api:
 - name: Ops
   kind: record
   file: docs/reference/ops.md
+  line: 1
+  module: docs
+- name: Reference
+  kind: record
+  file: docs/reference/index.md
   line: 1
   module: docs
 - name: Run the daemon
@@ -59,33 +84,35 @@ api:
   module: docs
 - name: Your first swarm
   kind: record
-  file: docs/tutorials/first-swarm.md
+  file: docs/tutorials/getting-started.md
   line: 1
   module: docs
 deps: []
 notes: ''
 verify:
+- docs/.vitepress/theme/index.ts
 - docs/package.json
 - docs/explanation/architecture.md
+- docs/explanation/boundaries.md
+- docs/explanation/concepts.md
+- docs/explanation/decisions.md
+- docs/explanation/index.md
 - docs/explanation/model.md
 - docs/explanation/no-crdt.md
-- docs/gen-cli-docs.py
-- docs/gen-config-docs.py
-- docs/gen-crate-map.py
-- docs/getting-started.md
 - docs/how-to/daemon.md
-- docs/how-to/hydrate.md
 provenance:
   files:
+  - docs/.vitepress/theme/index.ts
   - docs/explanation/architecture.md
+  - docs/explanation/boundaries.md
+  - docs/explanation/concepts.md
+  - docs/explanation/decisions.md
+  - docs/explanation/index.md
   - docs/explanation/model.md
   - docs/explanation/no-crdt.md
-  - docs/gen-cli-docs.py
-  - docs/gen-config-docs.py
-  - docs/gen-crate-map.py
-  - docs/getting-started.md
   - docs/how-to/daemon.md
   - docs/how-to/hydrate.md
+  - docs/how-to/index.md
   - docs/how-to/mount.md
   - docs/index.md
   - docs/package.json
@@ -93,27 +120,31 @@ provenance:
   - docs/reference/cli.md
   - docs/reference/config.md
   - docs/reference/crate-api.md
+  - docs/reference/index.md
   - docs/reference/ops.md
-  - docs/tutorials/first-swarm.md
+  - docs/tutorials/getting-started.md
   hashes:
-  - 38377502e770c7d95b1c2b14d3f053ac955ec0e6
+  - 73ba647e82ab0f8fec74d915003400b21fa6898b
+  - 27cc811d1291d83a1392f28180724080e370733d
+  - abd3b73d7e4e8e2b016b824725a8b0d5f46442f9
+  - 28264e899033060d21b8bd4457e519a9f4ec13f2
+  - 8ef3234cd0e67ab63aee7db7e6dd5555b2845006
+  - e918c5108d7003813ae0ac905370e00156da75a4
   - 013f9ca05541f10e541981becfa30a9d1095da86
   - e57f877f30d8a79a79f24d0488c9a9f41dc6f1fc
-  - d0e36f64d58ee3547de6ff8821c2b236848dba70
-  - 16d8d8487d8df048edbd08d1e2732018ec27fb4b
-  - 873a113dcecbaf3d80768c10f89588acf4a9569a
-  - 4298069a091705e8723f2edb954d2283f3e598ec
-  - 821dde498145202bcb8c9749dc79c2faa873d233
-  - 4c2cebeb9c75d0e94f44afb62b58349bf546a5e2
+  - aade8dbfd88d34c449856175a3c76fe32011b09d
+  - 004cd056582927255df43217ad8266c69664dbf4
+  - 4a66e7055816620fd117988971c32106ea5d2057
   - ee344da440b2a293d281ce40c92e3421be36fa72
-  - 955042d3972346fb3e4c7e73bd56cbe72d2f4a4b
-  - 7b94a679be3cfff07348115037c708c75ecadbbc
+  - fd65fd9bf1c81bc2cc7ab7bba6528e6d688744cb
+  - 6d150118155453286f51f4664c03d4b591e89452
   - 175fa4f47aecdc02e902d243a1c29914eb2ee258
   - 2876ec231ff2e6f65a85ec9c0e79d7293a7ee5bd
-  - 4e99639727585ac255d4c8dfcc51f8e9c55c600b
-  - 4c019fc48638f15ca51176df0b8c72a2cb3dfabd
+  - 3d8038e7bd06b20ce0ba69b898898f92767d4cac
+  - 35f0b77fca2e956e4f5a984911f70fe76b555674
+  - 6d0a6f6df725e9225e70c7ac12925986f20ec10c
   - 7d176d052c2fe9e03f0c464a2f9777315d7aa43d
-  - f4a6726904b0bfaf8e0b2b87280bf633b9f1a372
-  commit_sha: ca5e11878408b22eceee337fcb1adf299da5e24c
-  generated_at: '1794726698'
+  - aef10b008ea90366dac5dd4204eeff58b7425867
+  commit_sha: 3b274c279b3d5195862a4db552310c25dd6de496
+  generated_at: '1795529264'
   generator: kuda-template/0.1.4
