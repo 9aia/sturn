@@ -11,7 +11,6 @@ never core changes.
 | `sturn-core` | domain | domain types: op/event schema, sturn.toml config |
 | `sturn-bus` | port | Bus port: topic pub/sub over the WAL (a cache, not authority) |
 | `sturn-secret` | port | Secrets port: named-secret resolution |
-| `sturn-service` | port | Service port: OS service lifecycle |
 | `sturn-wal` | port | Wal port: append-only op log inside git refs |
 | `sturn-ws` | port | Ws port: virtual workspaces over the git ODB |
 | `sturn-bus-redb` | adapter | Bus impl: redb-backed topic store with cursors |
@@ -21,7 +20,6 @@ never core changes.
 | `sturn-git` | adapter | Vcs impl via the git binary + WAL-&gt;commit snap |
 | `sturn-keyring` | adapter | Secrets impl: secret-tool (libsecret) |
 | `sturn-odb` | adapter | Direct git ODB access: loose objects, refs, trees — no process spawns |
-| `sturn-systemd` | adapter | Service impl + deploy helpers: systemd user units |
 | `sturn-wal-git` | adapter | Wal impl: ops as commits on refs/sturn/wal/* via git plumbing |
 | `sturn-ws-git` | adapter | Ws impl: read/list/materialize via git plumbing |
 | `sturn` | engine | sturn — ephemeral coordination engine: claims/ops/topics over VCS state (engine lib + compat bin) |
