@@ -39,16 +39,16 @@ sturn-bus-redb = { path = "crates/sturn-bus-redb", version = "1.0.0" }
 sturn-ws = { path = "crates/sturn-ws", version = "1.0.0" }
 sturn-ws-git = { path = "crates/sturn-ws-git", version = "1.0.0" }
 sturn-git = { path = "crates/sturn-git", version = "1.0.0" }
-lasius-vcs = { git = "ssh://git@github.com/9aia/lasius.git", rev = "4ed4025e6b03d274e65ef0f93cc8b741dba3f0a9" }
-lasius-vcs-git = { git = "ssh://git@github.com/9aia/lasius.git", rev = "4ed4025e6b03d274e65ef0f93cc8b741dba3f0a9" }
+lasius-vcs = { git = "ssh://git@github.com/9aia/lasius.git", rev = "622eae462da7a6fd31e94333a3c44aea81c4df49" }
+lasius-vcs-git = { git = "ssh://git@github.com/9aia/lasius.git", rev = "622eae462da7a6fd31e94333a3c44aea81c4df49" }
 sturn-claim = { path = "crates/sturn-claim", version = "1.0.0" }
 sturn-ask = { path = "crates/sturn-ask", version = "1.0.0" }
 sturn-fuse = { path = "crates/sturn-fuse", version = "1.0.0" }
 sturn-config = { path = "crates/sturn-config", version = "1.0.0" }
 sturn-driver = { path = "crates/sturn-driver", version = "1.0.0" }
-tamias-deploy-systemd = { git = "ssh://git@github.com/9aia/tamias.git", rev = "9e03e45b8a68dabccc38290f39e8b80523c20832", version = "0.2" }
+tamias-deploy-systemd = { git = "ssh://git@github.com/9aia/tamias.git", rev = "ddc61e5b13d7f0b39ea3bfd950be18b1a48ddc38", version = "0.3.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-scarab-config-file = { git = "ssh://git@github.com/9aia/scarab.git", rev = "9364df88fad0ca46bd838467717a823893f47438", version = "0.1" }
+scarab-config-file = { git = "ssh://git@github.com/9aia/scarab.git", rev = "23b6d45da9803d737ed951300542fa837d6e7347", version = "0.2.0" }
 clap = { version = "4", features = ["derive"] }
 redb = "3"
