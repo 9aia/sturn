@@ -67,6 +67,6 @@
   `./sturn.toml` → `~/.config/sturn/sturn.toml`.
 - Every table has `deny_unknown_fields` — typos fail the load.
 - Secrets never live here; secret material resolves through the
-  `Secrets` chain (`sturn-secret` → keyring/dotenv).
+  the cuora `Secrets` chain.
 - `[hooks] post_op` also reads `$STURN_POST_OP` (single command
   overrides the configured list).
