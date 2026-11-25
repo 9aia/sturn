@@ -18,7 +18,6 @@ impls are separate crates.
 | `sturn-git` | snap bridge over the shared `lasius-vcs` port (no git2/gix) |
 | `sturn-claim` / `sturn-ask` | pure fold logic over the WAL — advisory locks, asks |
 | `sturn-config` | config via scarab-config-file |
-| `sturn-secret` / `sturn-keyring` / `sturn-dotenv` | secrets port + impls |
 | `sturn-fuse` | FUSE mount surface |
 | `sturn-driver` | `tamias-driver-sturn` — pavo view/ops driver; the ops manifest is the agent surface (generated MCP/CLI tools) |
 | `libraries/sturn` | the tamias pack — `bins[]` shim → `tamias-driver-sturn cli`; `scripts/pack.sh` stages the driver payload |
