@@ -40,16 +40,16 @@ serde_json.workspace = true
 # Git deps, not path: a fresh sturn clone has no sibling ../pavo
 # checkout and CI must build without it. `version` is the crates.io
 # fallback once pavo-protocol/pavo-driver-kit publish.
-pavo-protocol = { git = "https://github.com/9aia/pavo", rev = "f6235d10f990e9f7735d8a53495e94a57a640949", version = "0.1.0" }
+pavo-protocol = { git = "https://github.com/9aia/pavo", rev = "44e6ed8cf5307778c4c7559dc214d1f99f9a1e30", version = "0.1.0" }
 # pavo driver-authoring kit — ndjson serve loop + manifest/ViewNode
 # builders over pavo-protocol types. Same git source as
 # pavo-protocol (they resolve to one commit, keeping the types
 # identical).
-pavo-driver-kit = { git = "https://github.com/9aia/pavo", rev = "f6235d10f990e9f7735d8a53495e94a57a640949", version = "0.1.0" }
+pavo-driver-kit = { git = "https://github.com/9aia/pavo", rev = "44e6ed8cf5307778c4c7559dc214d1f99f9a1e30", version = "0.1.0" }
 
 [dev-dependencies]
 # Conformance gate — `cargo test` runs pavo's wire-contract suite
 # against this crate's own `tamias-driver-sturn serve` binary.
 # Git dep to match pavo-protocol above (path deps break
 # type identity with git deps).
-pavo-testkit = { git = "https://github.com/9aia/pavo", rev = "f6235d10f990e9f7735d8a53495e94a57a640949" }
+pavo-testkit = { git = "https://github.com/9aia/pavo", rev = "44e6ed8cf5307778c4c7559dc214d1f99f9a1e30" }
