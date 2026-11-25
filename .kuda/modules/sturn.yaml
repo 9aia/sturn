@@ -247,12 +247,12 @@ provenance:
   - crates/sturn-cli/src/main.rs
   - crates/sturn-cli/tests/e2e.rs
   hashes:
-  - b03cba2bd38bc10d405fe08901b4e2c4f44a0dcb
+  - 0baf0beeeaefaff73e7a6fc4df338abb82aab6d0
   - 7bc6b98b97fabeae5418373d83f904b16e4a6f3f
   - 001a3de911915e7c8c49003d5f8937adceb53c69
   - 171c0f76c9b2db8f8385b0e79970d0ad82d5a530
   - 357aee45a3503b2675f2a56bf577e04e32b3e0c9
   - cfdbb0bf502fb90d4ad396dfce5360ca572eb02f
-  commit_sha: 3b274c279b3d5195862a4db552310c25dd6de496
-  generated_at: '1795529264'
+  commit_sha: 75ee0f15edc27ccf098fc17f3cf0c080a2b46802
+  generated_at: '1795566205'
   generator: kuda-template/0.1.4

@@ -252,7 +252,7 @@ provenance:
   - crates/sturn-driver/tests/conformance.rs
   - crates/sturn-driver/tests/ops_wire.rs
   hashes:
-  - 6db1a8036fdf07d91ec26b76976725822ae66d78
+  - 59521df30c30b8eff2b72d4fe79351608dd9122c
   - 6fe10687c82337698a23aebbf78d8739d34238c4
   - bde9e2cad19667ded60cc6d3741a9c53107b47cb
   - 3090bd77fb76581e59b092cbdf9ba238aa748b9d
@@ -260,6 +260,6 @@ provenance:
   - a6c14e6ad89e6b9de14d17c1142924e9b2149ed4
   - 4f731fec636db60e4ae90d45e355a861b238128f
   - e47dc5a19698bdb071e5ffdb3c6ba0ae3c5e19b5
-  commit_sha: 3b274c279b3d5195862a4db552310c25dd6de496
-  generated_at: '1795529264'
+  commit_sha: 75ee0f15edc27ccf098fc17f3cf0c080a2b46802
+  generated_at: '1795566205'
   generator: kuda-template/0.1.4
